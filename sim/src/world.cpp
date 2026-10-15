@@ -87,11 +87,11 @@ double World::mid_price_at(NodeId n, GoodId g, double stock) const {
 }
 
 double World::buy_price_at(NodeId n, GoodId g, double stock) const {
-    return mid_price_at(n, g, stock) * (1 + params.spread / 2);
+    return mid_price_at(n, g, stock) * (1 + params.spread / 2 + nodes[idx(n)].toll);
 }
 
 double World::sell_price_at(NodeId n, GoodId g, double stock) const {
-    return mid_price_at(n, g, stock) * (1 - params.spread / 2);
+    return mid_price_at(n, g, stock) * std::max(0.05, 1 - params.spread / 2 - nodes[idx(n)].toll);
 }
 
 double World::mid_price(NodeId n, GoodId g) const { return mid_price_at(n, g, nodes[idx(n)].stock[idx(g)]); }

@@ -35,6 +35,8 @@ void Simulation::crime_day() {
     for (std::size_t i = 0; i < gangs_.size(); ++i) gang_day(gangs_[i]);
     for (std::size_t i = 0; i < posses_.size(); ++i) posse_day(posses_[i]);
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) try_form_posse(static_cast<NodeId>(i));
+    for (std::size_t i = 0; i < world_.nodes.size(); ++i) try_vigilance(static_cast<NodeId>(i));
+    interests_day();
 
     gangs_.erase(std::remove_if(gangs_.begin(), gangs_.end(), [](const Gang& g) { return !g.active; }), gangs_.end());
     posses_.erase(std::remove_if(posses_.begin(), posses_.end(), [](const Posse& q) { return !q.active; }),
@@ -122,6 +124,7 @@ void Simulation::try_form_gang(NodeId n) {
 }
 
 void Simulation::gang_dissolve(Gang& g, const char* why) {
+    free_town(g, why);
     g.active = false;
     Node& h = world_.nodes[World::idx(g.hideout)];
     h.drifters += g.men * 0.5;  // the rest scatter or die
@@ -137,7 +140,9 @@ void Simulation::gang_day(Gang& g) {
     // Supplies are bought at the hideout town, which is why towns tolerate the gangs they fence for.
     const double upkeep = g.men * p.gang_upkeep;
     Node& h = world_.nodes[World::idx(g.hideout)];
+    double spent = 0;  // money the gang puts into its hideout town today
     if (g.cash >= upkeep) {
+        spent = upkeep;
         g.cash -= upkeep;
         h.cash += upkeep;
         h.inflow_today += upkeep;
@@ -153,9 +158,14 @@ void Simulation::gang_day(Gang& g) {
     if (g.men < p.gang_max_men && g.cash > recruit_cost * 2) {
         ++g.men;
         g.cash -= recruit_cost;
+        spent += recruit_cost;
         h.cash += recruit_cost;  // horses, guns and whiskey are bought in the hideout town
         h.inflow_today += recruit_cost;
     }
+
+    if (g.ruling >= 0) rule_town(g);
+    else capture_progress(g, spent);
+    if (!g.active) return;
 
     const bool stranded = g.edge < 0 || !world_.edges[World::idx(g.edge)].active;
     if (stranded || world_.today - g.last_review >= p.gang_review_days) gang_review(g);
@@ -163,6 +173,14 @@ void Simulation::gang_day(Gang& g) {
 
 void Simulation::gang_review(Gang& g) {
     g.last_review = world_.today;
+    if (g.ruling >= 0) {  // a ruling gang works only the trails into its own town
+        double best_score = -1;
+        for (EdgeId e : world_.nodes[World::idx(g.ruling)].edges) {
+            const double s = gang_edge_score(g, e);
+            if (s > best_score) { best_score = s; g.edge = e; }
+        }
+        return;
+    }
     const double current = g.edge >= 0 ? gang_edge_score(g, g.edge) : 0.0;
     double best = current * 1.25;  // staying put is cheaper than moving
     EdgeId pick = -1;
@@ -180,6 +198,7 @@ void Simulation::gang_review(Gang& g) {
     if (new_home < 0) return;
     const std::string from = g.edge >= 0 ? ename(g.edge) : std::string("nowhere");
     g.edge = pick;
+    if (new_home != g.hideout) g.influence = 0;  // influence is local
     g.hideout = new_home;
     log_.add(world_.today, EventType::Gang, g.hideout,
              strf("Gang #%d (%d men) moves from %s to the %s", g.id, g.men, from.c_str(), ename(pick).c_str()),
@@ -228,6 +247,7 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     g.loot += fence_pay;
     ++g.robberies;
     g.last_robbery = world_.today;
+    note_interest_loss(eid, g, cargo, value);
 
     e.robbed_today += 1;
     for (NodeId n : {e.a, e.b})
@@ -255,163 +275,6 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     t.guards = 0;  // back to the leg's starting town
     if (rng_.chance(p.trader_kill_prob)) retire(t, "killed in a holdup");
     return true;
-}
-
-// ---------------------------------------------------------------- law
-
-void Simulation::try_form_posse(NodeId n) {
-    const Params& p = world_.params;
-    Node& nd = world_.nodes[World::idx(n)];
-    if (nd.fixed_market || nd.outrage < p.posse_outrage_threshold) return;
-    // The angrier the town, the sooner it tries again: a town bled by robbers cannot wait out a long cooldown.
-    const double cooldown = p.posse_cooldown / std::max(1.0, nd.outrage / p.posse_outrage_threshold);
-    if (world_.today - nd.last_posse_day < cooldown) return;
-
-    // Pick the most profitable gang in reach that isn't sheltered by this very town.
-    const Gang* target = nullptr;
-    double best = 0, target_dist = 0;
-    for (const Gang& g : gangs_) {
-        if (!g.active || g.hideout == n || g.robberies == 0) continue;
-        const Edge& e = world_.edges[World::idx(g.edge)];
-        const Node& a = world_.nodes[World::idx(e.a)];
-        const Node& b = world_.nodes[World::idx(e.b)];
-        const double d = dist(nd.x, nd.y, (a.x + b.x) / 2, (a.y + b.y) / 2);
-        if (d > p.posse_range || world_.today - g.last_robbery > 120) continue;
-        if (g.loot > best) { best = g.loot; target = &g; target_dist = d; }
-    }
-    if (!target) return;
-
-    // Staffing. Without a leader the town fields as many untrained men as its fund buys. A leader costs a
-    // fee but multiplies their strength and lets the town field a smaller, trained force.
-    const double travel_days = std::ceil(target_dist / p.posse_speed) + 1;
-    const int untrained = static_cast<int>(std::min<double>(p.posse_max_men, std::floor(nd.law_fund / p.posse_cost_per_man)));
-
-    Leader* hire = nullptr;
-    double lead_days = 0, fee = 0;
-    for (Leader& l : leaders_) {
-        if (!l.alive || l.busy) continue;
-        const Node& at = world_.nodes[World::idx(l.at)];
-        const double d = dist(nd.x, nd.y, at.x, at.y);
-        if (d > p.leader_range || (hire && l.skill <= hire->skill)) continue;
-        const double days = std::ceil(d / p.posse_speed);
-        const double cost = p.leader_fee_per_day * (days + travel_days + 5);
-        const int men_left = static_cast<int>(std::min<double>(p.posse_max_men, std::floor((nd.law_fund - cost) / p.posse_cost_per_man)));
-        if (men_left < p.posse_min_men_led) continue;
-        hire = &l;
-        lead_days = days;
-        fee = cost;
-    }
-    int men = untrained;
-    if (hire) men = static_cast<int>(std::min<double>(p.posse_max_men, std::floor((nd.law_fund - fee) / p.posse_cost_per_man)));
-    else if (men < p.posse_min_men) return;
-
-    nd.last_posse_day = world_.today;
-    nd.law_fund -= men * p.posse_cost_per_man + fee;
-    Posse q;
-    q.id = next_posse_id_++;
-    q.origin = n;
-    q.men = men;
-    q.gang_id = target->id;
-    q.days_left = lead_days + travel_days;
-    if (hire) {
-        hire->busy = true;
-        hire->cash += fee;
-        ++hire->jobs;
-        q.leader_id = hire->id;
-        log_.add(world_.today, EventType::Law, n,
-                 strf("%s hires %s (skill %.1f, fee %s) to lead a posse of %d men against gang #%d (%d men) near the %s",
-                      nd.name.c_str(), hire->name.c_str(), hire->skill, money(fee).c_str(), men, target->id, target->men,
-                      ename(target->edge).c_str()),
-                 strf("outrage %.1f over robberies on nearby trails; the gang has taken %s; the fund could field only %d "
-                      "untrained men, but a seasoned leader multiplies their strength %.1fx",
-                      nd.outrage, money(target->loot).c_str(), untrained, hire->skill));
-    } else {
-        log_.add(world_.today, EventType::Law, n,
-                 strf("%s raises a posse of %d men against gang #%d (%d men) near the %s", nd.name.c_str(), men,
-                      target->id, target->men, ename(target->edge).c_str()),
-                 strf("outrage %.1f over robberies on nearby trails; the gang has taken %s so far; funded by %s of local "
-                      "taxes; no leader for hire was in reach",
-                      nd.outrage, money(target->loot).c_str(), money(men * p.posse_cost_per_man).c_str()));
-    }
-    posses_.push_back(q);
-}
-
-void Simulation::posse_day(Posse& q) {
-    const Params& p = world_.params;
-    if (!q.active) return;
-    if (--q.days_left > 0) return;
-    q.active = false;
-    Node& origin = world_.nodes[World::idx(q.origin)];
-    Leader* leader = q.leader_id >= 0 ? find_leader(q.leader_id) : nullptr;
-    const std::string led = leader ? " led by " + leader->name : std::string();
-
-    Gang* g = find_gang(q.gang_id);
-    if (!g || !g->active) {
-        log_.add(world_.today, EventType::Law, q.origin,
-                 strf("The posse from %s%s finds no trace of gang #%d", origin.name.c_str(), led.c_str(), q.gang_id),
-                 "the gang had already broken up or moved on");
-        if (leader) release_leader(*leader, q.origin);
-        return;
-    }
-    const double skill = leader ? leader->skill : 1.0;
-    const double P = q.men * skill;
-    const double G = g->men * p.gang_terrain_advantage;
-    const bool posse_wins = rng_.chance(P * P / (P * P + G * G));
-    const std::string skill_note = leader ? strf(" x%.1f leader skill", skill) : std::string();
-    const std::string odds = strf("%d posse men%s vs %d bandits (terrain favored the gang %.1fx)", q.men,
-                                  skill_note.c_str(), g->men, p.gang_terrain_advantage);
-    if (posse_wins) {
-        const double seized = g->cash;
-        const double bonus = leader ? seized * p.leader_bonus_share : 0.0;
-        origin.cash += seized - bonus;
-        origin.outrage = 0;
-        log_.add(world_.today, EventType::Law, q.origin,
-                 strf("The posse from %s%s destroys gang #%d, seizing %s", origin.name.c_str(), led.c_str(), g->id,
-                      money(seized).c_str()),
-                 odds);
-        g->cash = 0;
-        gang_dissolve(*g, "destroyed by a posse");
-        if (leader) {
-            leader->cash += bonus;
-            ++leader->wins;
-            leader->skill = std::min(p.leader_skill_cap, leader->skill + p.leader_skill_gain);  // experience
-            release_leader(*leader, q.origin);
-        } else if (rng_.chance(p.leader_emerge_chance)) {
-            // A man who carried himself well in the fight becomes someone other towns will hire.
-            Leader ld;
-            ld.id = next_leader_id_++;
-            ld.name = strf("a deputy of %s (#%d)", origin.name.c_str(), ld.id);
-            ld.at = q.origin;
-            ld.skill = rng_.uniform(1.1, 1.5);
-            log_.add(world_.today, EventType::Law, q.origin,
-                     strf("%s emerges as a man for hire after the fight", ld.name.c_str()),
-                     "a posse member who organized the others under fire earned a reputation");
-            leaders_.push_back(std::move(ld));
-        }
-    } else {
-        const int losses = std::max(1, static_cast<int>(std::lround(g->men * 0.25)));
-        g->men -= losses;
-        bool found = false;
-        for (auto& gr : g->grudge)
-            if (gr.first == q.origin) { gr.second += 2; found = true; }
-        if (!found) g->grudge.push_back({q.origin, 2.0});
-        origin.outrage *= 0.5;
-        log_.add(world_.today, EventType::Law, q.origin,
-                 strf("The posse from %s%s is routed by gang #%d", origin.name.c_str(), led.c_str(), g->id),
-                 strf("%s; the gang lost %d but now avoids %s's trails", odds.c_str(), losses, origin.name.c_str()));
-        if (g->men < p.gang_min_men) gang_dissolve(*g, "mauled by the posse");
-        if (leader) {
-            if (rng_.chance(p.leader_death_prob)) {
-                leader->alive = false;
-                log_.add(world_.today, EventType::Law, q.origin,
-                         strf("%s is killed leading the posse", leader->name.c_str()),
-                         strf("his posse was outmatched (strength %.0f vs %.0f)", P, G));
-            } else {
-                leader->skill = std::max(0.5, leader->skill - p.leader_skill_gain);
-                release_leader(*leader, q.origin);
-            }
-        }
-    }
 }
 
 }  // namespace frontier

@@ -51,10 +51,22 @@ struct EdgeDef {
     std::string note;           // why it opens or closes, shown in the event log
 };
 
+// A private interest with money and reach: a railroad, express company or stock association. When robbers
+// cost it enough it hires detectives. Its stations are also what gives nearby towns "backup".
+struct InterestDef {
+    std::string id, name, kind;   // kind: "railroad", "express" or "stock_association"
+    NodeId hq = -1;
+    std::vector<NodeId> nodes;    // stations / members
+    double budget_per_day = 0;    // standing security budget
+    double dues_rate = 0;         // share of trade inflow at its stations skimmed into the fund
+    long from = LONG_MIN, until = LONG_MAX;
+};
+
 struct WorldDef {
     std::vector<GoodDef> goods;
     std::vector<NodeDef> nodes;
     std::vector<EdgeDef> edges;
+    std::vector<InterestDef> interests;
 };
 
 // Every tunable number in the model. Defaults live here; scenario.json
@@ -144,6 +156,32 @@ struct Params {
     int posse_cooldown = 30;                 // days; shortened further when outrage is well above the threshold
     double posse_range = 200;
     double gang_terrain_advantage = 1.3;
+
+    // Private interests and the detectives they hire.
+    double interest_loss_decay = 0.02;       // per day: old losses are forgotten
+    double agency_loss_threshold = 1500;     // recent losses at which an interest hires detectives
+    double agency_min_fund = 2500;
+    double agency_cost_per_man = 60;
+    int agency_min_men = 8, agency_max_men = 40;
+    double agency_skill = 1.8;               // professionals: strength multiplier
+    int agency_cooldown = 90;
+    double backup_range = 250;               // miles: an interest this close counts as backing the local law
+
+    // Town capture by gangs.
+    double capture_gain = 1.0;               // influence per day = gain * spending / (town income + 50) / law resistance
+    double capture_decay = 0.02;
+    double capture_threshold = 1.0;
+    int capture_min_men = 8;
+    double capture_law_resist = 3000;        // law fund at which a town halves a gang's influence
+    double tribute_base_min = 0.10;          // a perfect boss takes this share of town inflow...
+    double tribute_spread = 0.30;            // ...and a hopeless one this much more
+    double tribute_squeeze = 0.05;           // how hard a broke boss squeezes (scaled per day)
+    double tribute_cap = 0.6;
+    double infight_rate = 0.004;             // daily chance of a gang tearing itself apart, scaled by incompetence squared
+    double vigilance_rate = 0.01;            // daily chance per unit of grievance
+    int vigilance_min_days = 60;
+    double vigilance_min_pop = 150;
+    double vigilance_pop_per_man = 12;
 
     // Leaders for hire: a seasoned man who can organize and train a posse (strength multiplier = skill).
     int posse_min_men_led = 4;               // a trained posse can be smaller than an untrained one

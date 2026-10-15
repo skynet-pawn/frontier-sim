@@ -36,6 +36,11 @@ struct Node {
     // Residents who buy from the market. Farmers and ranchers around a town (base_population) grow most of
     // their own food, so only a fifth of them draw on the town's shelves.
     double market_population() const { return std::max(0.0, population - 0.8 * base_population); }
+    // Rule by a gang (see capture.cpp). The toll is added to every price traders face here.
+    int captor = -1;
+    double toll = 0;
+    long captured_day = 0;
+    double captured_income = 1;
     long last_posse_day = -100000;
     long last_famine_log = -100000, last_pop_log = -100000;  // keep the log readable when a town hovers at a threshold
     int last_pop_dir = 0;

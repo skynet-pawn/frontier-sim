@@ -149,6 +149,24 @@ WorldDef load_world(const std::string& dir) {
         e.note = je.value("note", "");
         w.edges.push_back(e);
     }
+
+    if (wj.contains("interests"))
+        for (const auto& ji : wj["interests"]) {
+            InterestDef d;
+            d.id = ji.at("id").get<std::string>();
+            const std::string ctx = "interest " + d.id;
+            d.name = ji.value("name", d.id);
+            d.kind = ji.at("kind").get<std::string>();
+            if (d.kind != "railroad" && d.kind != "express" && d.kind != "stock_association")
+                throw std::runtime_error(ctx + ": unknown kind '" + d.kind + "'");
+            d.hq = find_node(w.nodes, ji.at("hq").get<std::string>(), ctx);
+            for (const auto& nid : ji.at("nodes")) d.nodes.push_back(find_node(w.nodes, nid.get<std::string>(), ctx));
+            d.budget_per_day = ji.value("budget_per_day", 0.0);
+            d.dues_rate = ji.value("dues_rate", 0.0);
+            d.from = date_or(ji, "from", LONG_MIN);
+            d.until = date_or(ji, "until", LONG_MAX);
+            w.interests.push_back(std::move(d));
+        }
     return w;
 }
 
@@ -226,7 +244,12 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(gang_encounter_prob); P_D(gang_upkeep); P_D(gang_recruit_cost); P_I(gang_min_men); P_I(gang_max_men);
     P_D(gang_form_min_drifters); P_D(gang_form_chance); P_I(gang_review_days);
     P_D(gang_range_miles); P_D(fence_rate); P_D(fence_cash_share);
-    P_D(gang_loss_when_repulsed); P_D(law_deter_scale);
+    P_D(gang_loss_when_repulsed);
+    P_D(interest_loss_decay); P_D(agency_loss_threshold); P_D(agency_min_fund); P_D(agency_cost_per_man);
+    P_I(agency_min_men); P_I(agency_max_men); P_D(agency_skill); P_I(agency_cooldown); P_D(backup_range);
+    P_D(capture_gain); P_D(capture_decay); P_D(capture_threshold); P_I(capture_min_men); P_D(capture_law_resist);
+    P_D(tribute_base_min); P_D(tribute_spread); P_D(tribute_squeeze); P_D(tribute_cap); P_D(infight_rate);
+    P_D(vigilance_rate); P_I(vigilance_min_days); P_D(vigilance_min_pop); P_D(vigilance_pop_per_man); P_D(law_deter_scale);
     P_D(outrage_per_robbery); P_D(outrage_decay); P_D(posse_outrage_threshold);
     P_D(posse_cost_per_man); P_I(posse_min_men); P_I(posse_max_men); P_D(posse_speed);
     P_I(posse_cooldown); P_I(posse_min_men_led); P_D(leader_fee_per_day); P_D(leader_bonus_share);

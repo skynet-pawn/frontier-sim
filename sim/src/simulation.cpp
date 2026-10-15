@@ -33,6 +33,12 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
         ld.skill = l.skill;
         leaders_.push_back(std::move(ld));
     }
+    for (const InterestDef& d : def.interests) {
+        Interest in;
+        in.id = d.id; in.name = d.name; in.kind = d.kind; in.hq = d.hq; in.nodes = d.nodes;
+        in.budget_per_day = d.budget_per_day; in.dues_rate = d.dues_rate; in.from = d.from; in.until = d.until;
+        interests_.push_back(std::move(in));
+    }
     for (const GangSeed& g : sc_.gangs) create_gang(g.hideout, g.men, "seeded in scenario.json");
 }
 
@@ -267,7 +273,10 @@ void Simulation::end_of_day() {
         if (n.fixed_market) continue;
         const double tax = std::min(n.cash, n.inflow_today * p.law_tax_rate);
         n.cash -= tax;
-        n.law_fund += tax;
+        // Under a gang's rule the taxes go to the gang, not to the sheriff.
+        Gang* boss = n.captor >= 0 ? find_gang(n.captor) : nullptr;
+        if (boss) boss->cash += tax;
+        else n.law_fund += tax;
         n.income_ema += p.income_ema_alpha * (n.inflow_today - n.income_ema);
         n.income_peak = std::max(n.income_peak, n.income_ema);
         n.outrage *= 1.0 - p.outrage_decay;

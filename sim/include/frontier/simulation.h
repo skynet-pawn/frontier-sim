@@ -52,6 +52,13 @@ struct Gang {
     long last_robbery = -100000;
     long last_review = 0;
     std::vector<std::pair<NodeId, double>> grudge;  // towns that fought back: avoid them
+
+    // Town capture (capture.cpp).
+    double influence = 0;        // grows with money spent in the hideout town relative to its economy
+    double last_spend = 0;
+    NodeId ruling = -1;          // the town this gang runs, if any
+    double competence = 0;       // how well the boss runs a town: 0 hopeless .. 1 shrewd
+    double tribute = 0;          // share of the town's inflow taken
 };
 
 // A leader for hire: someone who can raise, train and organize a posse. From the simulation's point of
@@ -67,6 +74,23 @@ struct Leader {
     int jobs = 0, wins = 0;
 };
 
+enum class PosseKind { Town, Vigilance, Agency };
+
+// A private interest with money and reach (see InterestDef).
+struct Interest {
+    std::string id, name, kind;
+    NodeId hq = -1;
+    std::vector<NodeId> nodes;
+    double budget_per_day = 0, dues_rate = 0;
+    long from = 0, until = 0;
+    double fund = 0;
+    double loss_ema = 0;         // recent losses to robbery
+    double losses_total = 0;
+    std::vector<std::pair<int, double>> victims;  // gang id -> recent loss it caused
+    long last_op_day = -100000;
+    int ops = 0, wins = 0;
+};
+
 struct Posse {
     int id = 0;
     bool active = true;
@@ -74,6 +98,8 @@ struct Posse {
     int men = 0;
     int gang_id = -1;
     int leader_id = -1;
+    int interest_id = -1;
+    PosseKind kind = PosseKind::Town;
     double days_left = 0;
 };
 
@@ -92,6 +118,7 @@ public:
     const std::vector<Gang>& gangs() const { return gangs_; }
     const std::vector<Posse>& posses() const { return posses_; }
     const std::vector<Leader>& leaders() const { return leaders_; }
+    const std::vector<Interest>& interests() const { return interests_; }
     double avg_trader_profit() const { return avg_profit_ema_; }
     bool trace = false;          // log individual trades
 
@@ -149,6 +176,17 @@ private:
     double gang_edge_score(const Gang& g, EdgeId e) const;
     double grudge_of(const Gang& g, NodeId n) const;
     void try_form_posse(NodeId n);
+    Leader* pick_leader(const Node& at, double travel_days, double budget, double reserve, double& lead_days, double& fee);
+    void interests_day();
+    bool interest_active(const Interest& in) const;
+    bool has_backup(NodeId n) const;
+    void note_interest_loss(EdgeId e, const Gang& g, GoodId cargo, double value);
+
+    // ---- gangs ruling towns (capture.cpp) ----
+    void capture_progress(Gang& g, double spent);
+    void rule_town(Gang& g);
+    void free_town(Gang& g, const char* why);
+    void try_vigilance(NodeId n);
     void posse_day(Posse& p);
     NodeId nearest_node(EdgeId e, NodeId prefer_not_fixed) const;
 
@@ -168,6 +206,7 @@ private:
     std::vector<Gang> gangs_;
     std::vector<Posse> posses_;
     std::vector<Leader> leaders_;
+    std::vector<Interest> interests_;
     std::vector<std::vector<int>> edge_gangs_;  // gang ids per edge, rebuilt daily
     int next_trader_id_ = 1, next_gang_id_ = 1, next_posse_id_ = 1, next_leader_id_ = 1;
     double avg_profit_ema_ = 0;

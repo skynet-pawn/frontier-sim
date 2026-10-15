@@ -47,6 +47,12 @@ causes before changing any numbers.
   where they were robbed. **Gangs** form from idle men, park on busy trails and fence loot in a town.
   Robbery angers towns; funded towns raise **posses**, and can hire a **leader for hire**
   (a skill multiplier with a fee who gains experience, can die, and sometimes emerges from a winning posse).
+- **Escalation.** Railroads, express companies and stock associations (`interests` in `world.json`) keep a fund,
+  count robberies on trails touching their stations, and hire detectives who travel far and hit hard.
+  A town with no interest, Army post or state capital nearby has no backup.
+- **Capture.** A gang that spends heavily in a small, poorly backed town gains influence and takes it over:
+  tribute, a toll on all trade, taxes diverted. A competent boss lets the town thrive; a clumsy one squeezes
+  harder as trade dries up, until the gang starves, splits, or the townspeople hang its boss.
 - **Towns** hold as many people as their trade and government income supports, so a trail moving away kills them.
 - All tunables are in `Params` (`sim/include/frontier/config.h`) and overridable in `data/scenario.json`.
 

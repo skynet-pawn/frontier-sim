@@ -22,7 +22,7 @@
       "stock": { "beef_cattle": 600, "flour": 1200, "tools": 100, "whiskey": 400, "ammunition": 100, "timber": 20 },
       "production": { "flour": { "rate": 30, "labor_pop": 2000 }, "beef_cattle": 25 } },
     { "id": "austin", "name": "Austin", "kind": "town", "x": 131, "y": 297, "base_population": 3600, "population": 4000, "capacity": 12000, "cash": 5000,
-      "tags": ["texas"],
+      "tags": ["texas", "state_capital"],
       "stock": { "beef_cattle": 300, "flour": 1500, "tools": 100, "whiskey": 400, "ammunition": 100, "timber": 20 },
       "production": { "flour": { "rate": 45, "labor_pop": 3000 }, "beef_cattle": 10 } },
     { "id": "fort_worth", "name": "Fort Worth", "kind": "town", "x": 154, "y": 466, "base_population": 600, "population": 1000, "capacity": 8000, "cash": 3000,
@@ -145,5 +145,24 @@
     { "a": "omaha", "b": "fort_benton", "mode": "river", "miles": 1800, "note": "Missouri River steamboat route" },
     { "a": "st_paul", "b": "miles_city", "mode": "rail", "from": "1881-09-01",
       "note": "Northern Pacific reaches Miles City, undercutting the Missouri River route" }
+  ],
+
+  "_interests_note": "Private interests with money and reach. A robbery on a trail touching one of their stations counts against them; past a loss threshold they hire detectives. Railroads and express firms care about goods, stock associations about cattle. Names and dates approximate.",
+  "interests": [
+    { "id": "union_pacific", "name": "Union Pacific Railroad", "kind": "railroad", "hq": "omaha",
+      "nodes": ["omaha", "ogallala", "cheyenne"], "budget_per_day": 60, "dues_rate": 0.01 },
+    { "id": "kansas_pacific", "name": "Kansas Pacific Railway", "kind": "railroad", "hq": "kansas_city",
+      "nodes": ["kansas_city", "abilene", "ellsworth"], "budget_per_day": 40, "dues_rate": 0.01 },
+    { "id": "santa_fe", "name": "Santa Fe Railroad", "kind": "railroad", "hq": "kansas_city",
+      "nodes": ["kansas_city", "wichita", "dodge_city", "caldwell"], "budget_per_day": 40, "dues_rate": 0.01 },
+    { "id": "northern_pacific", "name": "Northern Pacific Railroad", "kind": "railroad", "hq": "st_paul",
+      "nodes": ["st_paul", "miles_city"], "budget_per_day": 60, "dues_rate": 0.01, "from": "1881-09-01" },
+    { "id": "frontier_express", "name": "Frontier Express Company", "kind": "express", "hq": "cheyenne",
+      "nodes": ["cheyenne", "deadwood", "helena", "fort_benton"], "budget_per_day": 50, "dues_rate": 0.02 },
+    { "id": "wyoming_stock_growers", "name": "Wyoming Stock Growers Association", "kind": "stock_association", "hq": "cheyenne",
+      "nodes": ["cheyenne", "fort_laramie", "miles_city"], "budget_per_day": 40, "dues_rate": 0.01 },
+    { "id": "texas_cattle_raisers", "name": "Texas Cattle Raisers Association", "kind": "stock_association", "hq": "fort_worth",
+      "nodes": ["fort_worth", "fort_griffin", "san_antonio", "austin"], "budget_per_day": 40, "dues_rate": 0.01,
+      "from": "1877-02-01" }
   ]
 }

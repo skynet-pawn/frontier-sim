@@ -45,7 +45,9 @@ void print_towns(const frontier::Simulation& sim) {
         auto price = [&](GoodId g) { return g < 0 ? 0.0 : w.mid_price(static_cast<NodeId>(i), g); };
         std::printf("%-18s %7.0f %7.0f %9.0f %9.0f %6.2f %7.2f %7.2f %7.2f%s\n", n.name.c_str(), n.population,
                     n.peak_pop, n.cash, n.income_ema, n.hunger, price(flour), price(cattle), price(gold),
-                    n.ghost ? "  (ghost town)" : "");
+                    n.captor >= 0 ? strf("  (ruled by gang #%d, takes %.0f%%)", n.captor, n.toll * 100).c_str()
+                    : n.ghost     ? "  (ghost town)"
+                                  : "");
     }
 }
 
@@ -106,6 +108,11 @@ int main(int argc, char** argv) {
             std::printf("  %-34s %-16s skill %.2f  jobs %d  wins %d  earned %s%s\n", l.name.c_str(),
                         sim.world().nodes[static_cast<std::size_t>(l.at)].name.c_str(), l.skill, l.jobs, l.wins,
                         money(l.cash).c_str(), l.alive ? "" : "  (dead)");
+
+        std::puts("\nprivate interests:");
+        for (const Interest& in : sim.interests())
+            std::printf("  %-34s fund %-10s losses to robbery %-10s detective parties %d (won %d)\n", in.name.c_str(),
+                        money(in.fund).c_str(), money(in.losses_total).c_str(), in.ops, in.wins);
 
         std::puts("\nevent counts:");
         for (int t = 0; t < kEventTypeCount; ++t)
