@@ -45,7 +45,8 @@ causes before changing any numbers.
   freight cost comes from distance, weight and mode.
 - **Traders** score every (destination, good, guards) option as expected profit minus risk, and remember
   where they were robbed. **Gangs** form from idle men, park on busy trails and fence loot in a town.
-  Robbery angers towns; funded towns raise **posses**.
+  Robbery angers towns; funded towns raise **posses**, and can hire a **leader for hire**
+  (a skill multiplier with a fee who gains experience, can die, and sometimes emerges from a winning posse).
 - **Towns** hold as many people as their trade and government income supports, so a trail moving away kills them.
 - All tunables are in `Params` (`sim/include/frontier/config.h`) and overridable in `data/scenario.json`.
 

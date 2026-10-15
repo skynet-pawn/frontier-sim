@@ -25,6 +25,14 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
     }
     for (int i = 0; i < sc_.traders; ++i)
         spawn_trader(static_cast<NodeId>(rng_.next_below(world_.nodes.size())));
+    for (const LeaderSeed& l : sc_.leaders) {
+        Leader ld;
+        ld.id = next_leader_id_++;
+        ld.name = l.name;
+        ld.at = l.home;
+        ld.skill = l.skill;
+        leaders_.push_back(std::move(ld));
+    }
     for (const GangSeed& g : sc_.gangs) create_gang(g.hideout, g.men, "seeded in scenario.json");
 }
 
@@ -305,6 +313,17 @@ void Simulation::end_of_day() {
 std::string Simulation::ename(EdgeId e) const {
     const Edge& ed = world_.edges[World::idx(e)];
     return nname(ed.a) + "-" + nname(ed.b);
+}
+
+Leader* Simulation::find_leader(int id) {
+    for (Leader& l : leaders_)
+        if (l.id == id) return &l;
+    return nullptr;
+}
+
+void Simulation::release_leader(Leader& l, NodeId at) {
+    l.busy = false;
+    l.at = at;
 }
 
 Gang* Simulation::find_gang(int id) {

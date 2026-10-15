@@ -101,6 +101,12 @@ int main(int argc, char** argv) {
         }
         print_towns(sim);
 
+        std::puts("\nleaders for hire:");
+        for (const Leader& l : sim.leaders())
+            std::printf("  %-34s %-16s skill %.2f  jobs %d  wins %d  earned %s%s\n", l.name.c_str(),
+                        sim.world().nodes[static_cast<std::size_t>(l.at)].name.c_str(), l.skill, l.jobs, l.wins,
+                        money(l.cash).c_str(), l.alive ? "" : "  (dead)");
+
         std::puts("\nevent counts:");
         for (int t = 0; t < kEventTypeCount; ++t)
             std::printf("  %-11s %zu\n", event_type_name(static_cast<EventType>(t)),

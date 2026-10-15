@@ -14,6 +14,14 @@
     { "hideout": "dodge_city", "men": 7 }
   ],
 
+  "_leaders_note": "Fictional men for hire who can raise and train a posse; skill multiplies posse strength.",
+  "leaders": [
+    { "name": "Cal Dunmore", "home": "dodge_city", "skill": 1.8 },
+    { "name": "Ezra Whitlock", "home": "cheyenne", "skill": 1.5 },
+    { "name": "Tom Alder", "home": "san_antonio", "skill": 1.4 },
+    { "name": "Silas Brandt", "home": "helena", "skill": 1.6 }
+  ],
+
   "shocks": [
     { "name": "Black Hills gold rush", "kind": "rush", "date": "1876-03-01", "node": "deadwood",
       "people": 1500, "cash_per_person": 40,

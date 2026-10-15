@@ -141,9 +141,19 @@ struct Params {
     double posse_cost_per_man = 25;
     int posse_min_men = 6, posse_max_men = 25;
     double posse_speed = 25;
-    int posse_cooldown = 60;
+    int posse_cooldown = 30;                 // days; shortened further when outrage is well above the threshold
     double posse_range = 200;
     double gang_terrain_advantage = 1.3;
+
+    // Leaders for hire: a seasoned man who can organize and train a posse (strength multiplier = skill).
+    int posse_min_men_led = 4;               // a trained posse can be smaller than an untrained one
+    double leader_fee_per_day = 8;
+    double leader_bonus_share = 0.2;         // share of seized loot paid to the leader on a win
+    double leader_range = 400;               // miles a town will look for a leader
+    double leader_death_prob = 0.25;         // chance a leader dies when his posse loses
+    double leader_skill_gain = 0.05;
+    double leader_skill_cap = 2.5;
+    double leader_emerge_chance = 0.2;       // chance a victorious posse produces a new leader
 };
 
 struct ShockDef {
@@ -164,6 +174,12 @@ struct GangSeed {
     int men = 8;
 };
 
+struct LeaderSeed {
+    std::string name;
+    NodeId home = -1;
+    double skill = 1.5;
+};
+
 struct Scenario {
     std::uint64_t seed = 1;
     long start = 0;
@@ -173,6 +189,7 @@ struct Scenario {
     int max_traders = 220;
     double capital_min = 1500, capital_max = 5000;
     std::vector<GangSeed> gangs;
+    std::vector<LeaderSeed> leaders;
     std::vector<ShockDef> shocks;
     Params params;
 };

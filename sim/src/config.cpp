@@ -172,6 +172,15 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
             s.gangs.push_back(g);
         }
 
+    if (j.contains("leaders"))
+        for (const auto& jl : j["leaders"]) {
+            LeaderSeed l;
+            l.name = jl.at("name").get<std::string>();
+            l.home = find_node(world.nodes, jl.at("home").get<std::string>(), "leader " + l.name);
+            l.skill = jl.value("skill", 1.5);
+            s.leaders.push_back(l);
+        }
+
     if (j.contains("shocks"))
         for (const auto& js : j["shocks"]) {
             ShockDef sh;
@@ -220,7 +229,8 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(gang_loss_when_repulsed); P_D(law_deter_scale);
     P_D(outrage_per_robbery); P_D(outrage_decay); P_D(posse_outrage_threshold);
     P_D(posse_cost_per_man); P_I(posse_min_men); P_I(posse_max_men); P_D(posse_speed);
-    P_I(posse_cooldown); P_D(posse_range); P_D(gang_terrain_advantage);
+    P_I(posse_cooldown); P_I(posse_min_men_led); P_D(leader_fee_per_day); P_D(leader_bonus_share);
+    P_D(leader_range); P_D(leader_death_prob); P_D(leader_skill_gain); P_D(leader_skill_cap); P_D(leader_emerge_chance); P_D(posse_range); P_D(gang_terrain_advantage);
 #undef P_D
 #undef P_I
     // Per-mode arrays.

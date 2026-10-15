@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -53,12 +54,26 @@ struct Gang {
     std::vector<std::pair<NodeId, double>> grudge;  // towns that fought back: avoid them
 };
 
+// A leader for hire: someone who can raise, train and organize a posse. From the simulation's point of
+// view he is a skill multiplier with a fee; the same record is what a player-controlled vigilante would use.
+struct Leader {
+    int id = 0;
+    std::string name;
+    NodeId at = -1;
+    double skill = 1.5;          // multiplies the strength of any posse he leads
+    double cash = 0;
+    bool alive = true;
+    bool busy = false;
+    int jobs = 0, wins = 0;
+};
+
 struct Posse {
     int id = 0;
     bool active = true;
     NodeId origin = -1;
     int men = 0;
     int gang_id = -1;
+    int leader_id = -1;
     double days_left = 0;
 };
 
@@ -76,6 +91,7 @@ public:
     const std::vector<Trader>& traders() const { return traders_; }
     const std::vector<Gang>& gangs() const { return gangs_; }
     const std::vector<Posse>& posses() const { return posses_; }
+    const std::vector<Leader>& leaders() const { return leaders_; }
     double avg_trader_profit() const { return avg_profit_ema_; }
     bool trace = false;          // log individual trades
 
@@ -140,6 +156,8 @@ private:
     std::string ename(EdgeId e) const;
     const GoodDef& good(GoodId g) const { return world_.goods[World::idx(g)]; }
     Gang* find_gang(int id);
+    Leader* find_leader(int id);
+    void release_leader(Leader& l, NodeId at);
 
     World world_;
     Rng rng_;
@@ -149,8 +167,9 @@ private:
     std::vector<Trader> traders_;
     std::vector<Gang> gangs_;
     std::vector<Posse> posses_;
+    std::vector<Leader> leaders_;
     std::vector<std::vector<int>> edge_gangs_;  // gang ids per edge, rebuilt daily
-    int next_trader_id_ = 1, next_gang_id_ = 1, next_posse_id_ = 1;
+    int next_trader_id_ = 1, next_gang_id_ = 1, next_posse_id_ = 1, next_leader_id_ = 1;
     double avg_profit_ema_ = 0;
     double profit_today_ = 0;                   // realized trader profit, net of upkeep, for the join rate
 
