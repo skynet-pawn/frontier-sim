@@ -20,6 +20,7 @@ struct GoodDef {
     double spoilage_per_day = 0;
     bool self_propelled = false;  // walks to market (cattle): moved by drovers, not by freight wagons
     double min_target = 10;     // floor on a node's "normal stock", for goods nobody consumes
+    double garrison_need = 0;   // extra daily need per soldier (horses, forage, repairs), beyond the per-person need
     double market_depth = 0;    // eastern markets: units outstanding that move the price by half (0 = bottomless)
     double freight_mult[kModeCount] = {1, 1, 1};  // per-mode adjustment (e.g. cattle on rail)
 };
@@ -31,11 +32,23 @@ struct ProductionDef {
     long from = LONG_MIN, until = LONG_MAX;
 };
 
+// A standing federal contract: the Army or Indian Bureau buys a fixed quantity daily at a fixed price,
+// paid by the Treasury rather than out of the post's cash. Unfilled quantity accumulates as backlog.
+struct ContractDef {
+    GoodId good = -1;
+    double price = 0;            // fixed price, or 0 to price at delivered cost plus `markup`
+    double markup = 0;           // cost-plus: contracts are bid to cover supply and freight, with a margin
+    bool per_soldier = false;    // quantity scales with the garrison (food, forage, remounts, repairs)
+    double units_per_day = 0;    // otherwise a fixed quantity (agency beef)
+};
+
 struct NodeDef {
     std::string id, name, kind;
     double x = 0, y = 0;        // miles on the map
     double population = 0, capacity = 0, cash = 0, gov_income = 0;
     double base_population = 0;  // residents who live off the surrounding land, not off trade
+    double garrison = 0;         // soldiers: fed by contract, paid by the Treasury, independent of local income
+    std::vector<ContractDef> contracts;
     bool fixed_market = false;      // an eastern market: fixed prices, unlimited cash and stock
     bool transient_inflow = false;  // railheads, camps, forts: where drifters collect
     std::vector<std::string> tags;
@@ -104,6 +117,10 @@ struct Params {
     double transient_inflow_rate = 0.0004;   // drifters arriving per resident per day
     double drifter_decay = 0.01;
     double law_tax_rate = 0.02;              // share of local inflow set aside for law enforcement
+    double garrison_pay_per_soldier = 0.45;  // $/day a soldier spends in the post town (sutlers, saloons, laundresses)
+    double quartermaster_share = 0.7;        // share of a post's contract needs the Army's own trains deliver
+    int quartermaster_interval_days = 30;    // how often a supply train reaches a post
+    double contract_backlog_days = 60;       // unfilled contract quantity stops accumulating beyond this
     double visit_spend = 3.0;                // what a trader party spends per town visit
     double guard_visit_spend = 1.0;
     double visit_spend_value_rate = 0.015;   // share of cargo value spent in town: drovers' wages, supplies, saloons
@@ -209,6 +226,16 @@ struct ShockDef {
     std::string cause;
 };
 
+// A change in garrison strength driven by events outside the model: a campaign, a new post, a withdrawal.
+// Troop levels follow external threats, not local robberies.
+struct CampaignDef {
+    std::string name;
+    long from = 0, until = LONG_MAX;
+    std::vector<NodeId> nodes;
+    double garrison_add = 0;
+    std::string cause;
+};
+
 struct GangSeed {
     NodeId hideout = -1;
     int men = 8;
@@ -230,6 +257,7 @@ struct Scenario {
     double capital_min = 1500, capital_max = 5000;
     std::vector<GangSeed> gangs;
     std::vector<LeaderSeed> leaders;
+    std::vector<CampaignDef> campaigns;
     std::vector<ShockDef> shocks;
     Params params;
 };

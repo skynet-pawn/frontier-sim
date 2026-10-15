@@ -177,6 +177,7 @@ private:
     // ---- economy (simulation.cpp) ----
     void update_network();
     void apply_shocks();
+    void apply_campaigns();
     void economy_day();
     void update_population(NodeId n);
     void end_of_day();

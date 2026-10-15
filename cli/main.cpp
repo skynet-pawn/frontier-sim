@@ -45,7 +45,7 @@ void print_towns(const frontier::Simulation& sim) {
         auto price = [&](GoodId g) { return g < 0 ? 0.0 : w.mid_price(static_cast<NodeId>(i), g); };
         std::printf("%-18s %7.0f %7.0f %9.0f %9.0f %6.2f %7.2f %7.2f %7.2f%s\n", n.name.c_str(), n.population,
                     n.peak_pop, n.cash, n.income_ema, n.hunger, price(flour), price(cattle), price(gold),
-                    n.captor >= 0 ? strf("  (ruled by gang #%d, takes %.0f%%)", n.captor, n.toll * 100).c_str()
+                    n.garrison > 0 ? strf("  [garrison %.0f]", n.garrison).c_str() : n.captor >= 0 ? strf("  (ruled by gang #%d, takes %.0f%%)", n.captor, n.toll * 100).c_str()
                     : n.ghost     ? "  (ghost town)"
                                   : "");
     }

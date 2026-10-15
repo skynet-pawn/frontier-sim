@@ -73,6 +73,10 @@ cause, ready for rumors, headlines or a viewer. Eastern markets have finite dept
 - **Capture.** A gang that spends heavily in a small, poorly backed town gains influence and takes it over:
   tribute, a toll on all trade, taxes diverted. A competent boss lets the town thrive; a clumsy one squeezes
   harder as trade dries up, until the gang starves, splits, or the townspeople hang its boss.
+- **Army posts.** A fort has a garrison set from outside the model (campaigns and new posts in `scenario.json`),
+  not by local income or local robbery. The Treasury buys food, forage, horses and repairs under standing
+  cost-plus contracts that traders can fill, and Quartermaster trains cover most of the rest. Soldiers' pay
+  is spent in the post town, which is what grows a civilian town around the fort.
 - **Towns** hold as many people as their trade and government income supports, so a trail moving away kills them.
 - All tunables are in `Params` (`sim/include/frontier/config.h`) and overridable in `data/scenario.json`.
 

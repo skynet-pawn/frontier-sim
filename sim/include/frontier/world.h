@@ -37,6 +37,9 @@ struct Node {
     double x = 0, y = 0;
     bool fixed_market = false, transient_inflow = false;
     double gov_income = 0, capacity = 0, base_population = 0;
+    double garrison = 0;                    // soldiers currently posted
+    std::vector<ContractDef> contracts;
+    std::vector<double> contract_price, contract_backlog;  // per good: fixed price (0 = none) and unfilled quantity
     std::vector<std::string> tags;
 
     double population = 0, cash = 0;
@@ -108,6 +111,10 @@ public:
     double normal_stock(NodeId n, GoodId g) const;
     double daily_demand(NodeId n, GoodId g) const;
     double daily_output(NodeId n, GoodId g) const;
+    // Units a federal contract wants delivered per day, given the current garrison.
+    double contract_rate(NodeId n, const ContractDef& c) const;
+    // Re-prices cost-plus contracts: cheapest eastern supply plus freight to the post, plus the markup.
+    void refresh_contract_prices();
     double mid_price_at(NodeId n, GoodId g, double stock) const;
     // An eastern market's price once `pressure` units have been sold into it: finite depth, so no
     // arbitrage is unlimited. Selling a lot depresses the price; buying a lot raises it. Pressure decays.

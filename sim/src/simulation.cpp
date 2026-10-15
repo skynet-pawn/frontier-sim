@@ -78,6 +78,7 @@ void Simulation::pay_leader(Leader& l, double amount) {
 void Simulation::step() {
     update_network();
     apply_shocks();
+    apply_campaigns();
     economy_day();
     traders_day();
     crime_day();
@@ -91,6 +92,7 @@ void Simulation::update_network() {
     std::vector<EdgeId> opened, closed;
     if (!world_.update_active_edges(&opened, &closed)) return;
     world_.rebuild_routes();
+    world_.refresh_contract_prices();
     auto describe = [&](EdgeId id, const char* verb) {
         const Edge& e = world_.edges[World::idx(id)];
         const std::string cause = e.note.empty() ? "scheduled in world.json" : e.note;
@@ -102,6 +104,28 @@ void Simulation::update_network() {
     };
     for (EdgeId id : opened) describe(id, "opens");
     for (EdgeId id : closed) describe(id, "closes");
+}
+
+// Troop strength follows threats from outside the model (campaigns, new posts, withdrawals), not local
+// robbery: the Army was there to face large-scale conflict, not to police every road.
+void Simulation::apply_campaigns() {
+    for (const CampaignDef& c : sc_.campaigns) {
+        const bool starting = c.from == world_.today;
+        const bool ending = c.until != LONG_MAX && c.until == world_.today;
+        if (!starting && !ending) continue;
+        for (NodeId id : c.nodes) {
+            Node& nd = world_.nodes[World::idx(id)];
+            const double delta = std::max(starting ? c.garrison_add : -c.garrison_add, -nd.garrison);
+            nd.garrison += delta;
+            nd.population = std::max(0.0, nd.population + delta);
+            nd.capacity = std::max(nd.capacity, nd.population);
+            log_.with({field("node", nd.name), field("campaign", c.name), field("delta", delta), field("garrison", nd.garrison)});
+            log_.add(world_.today, EventType::Law, "garrison_change", id,
+                     strf("%s: %s at %s (garrison now %.0f)", c.name.c_str(),
+                          delta >= 0 ? "reinforcements arrive" : "troops withdrawn", nd.name.c_str(), nd.garrison),
+                     c.cause);
+        }
+    }
 }
 
 void Simulation::apply_shocks() {
@@ -178,9 +202,41 @@ void Simulation::economy_day() {
             n.stock[g] = std::min(n.stock[g], pd.rate * p.stock_cap_days);  // unsold output is lost
         }
 
-        n.cash += n.gov_income;
-        n.inflow_today += n.gov_income;
-        world_.record(MoneyFlow::Government, n.gov_income);
+        // Soldiers' pay is spent in the post town: this is the sutlers, saloons and laundresses that grow up
+        // around a fort. It does not depend on how well the town is supplied.
+        const double pay = n.gov_income + n.garrison * p.garrison_pay_per_soldier;
+        n.cash += pay;
+        n.inflow_today += pay;
+        world_.record(MoneyFlow::Government, pay);
+
+        // Standing contracts: the quantity wanted each day accumulates until a contractor delivers it.
+        for (const ContractDef& c : n.contracts) {
+            const double rate = world_.contract_rate(id, c);
+            double& backlog = n.contract_backlog[World::idx(c.good)];
+            backlog = std::min(backlog + rate, rate * p.contract_backlog_days);
+        }
+
+        // The Quartermaster Department also ran its own trains from the nearest depot, so a post was never left
+        // wholly to private contractors. A train covers most of a month's contract needs; traders can supply the rest.
+        if (!n.contracts.empty() && n.garrison > 0 && (world_.today + id) % p.quartermaster_interval_days == 0) {
+            bool depot = false;
+            for (std::size_t m = 0; m < world_.nodes.size() && !depot; ++m)
+                depot = world_.nodes[m].fixed_market && world_.reachable(static_cast<NodeId>(m), id);
+            if (depot) {
+                double units = 0;
+                for (const ContractDef& c : n.contracts) {
+                    const std::size_t g = World::idx(c.good);
+                    const double load = std::min(n.contract_backlog[g], world_.contract_rate(id, c) * p.quartermaster_interval_days * p.quartermaster_share);
+                    n.contract_backlog[g] -= load;
+                    n.stock[g] += load;
+                    units += load;
+                }
+                log_.with({field("node", n.name), field("units", units)});
+                log_.add(world_.today, EventType::Law, "supply_train", id,
+                         strf("A Quartermaster supply train reaches %s (%.0f units)", n.name.c_str(), units),
+                         "scheduled Army logistics: the post's contract needs, delivered from the nearest depot", true);
+            }
+        }
 
         // Consumption. Food shortfall is what drives hunger.
         double fed = 0;
@@ -190,8 +246,10 @@ void Simulation::economy_day() {
             const double take = std::min(n.stock[g], want);
             n.stock[g] -= take;
             if (want > 0 && gd.food_share > 0) fed += gd.food_share * (take / want);
-            const double extra = std::min(n.stock[g], n.extra_demand[g]);  // fort and agency contracts
+            const double extra = std::min(n.stock[g], n.extra_demand[g]);  // agency rations
             n.stock[g] -= extra;
+            const double military = std::min(n.stock[g], n.garrison * gd.garrison_need);  // forage, remounts, repairs
+            n.stock[g] -= military;
         }
         // Substitution: people short of beef eat more flour (and vice versa) before they go hungry.
         for (std::size_t g = 0; g < world_.goods.size() && fed < 1.0; ++g) {
@@ -244,10 +302,11 @@ void Simulation::update_population(NodeId id) {
     const Params& p = world_.params;
     Node& n = world_.nodes[World::idx(id)];
     // Farmers and ranchers around a town live off the land; everyone else lives off trade and government money.
-    const double trade_pop = std::clamp(n.income_ema / p.support_income_per_person, 0.0, std::max(0.0, n.capacity - n.base_population));
+    const double trade_pop = std::clamp(n.income_ema / p.support_income_per_person, 0.0, std::max(0.0, n.capacity - n.base_population - n.garrison));
     // Hunger drives away the people who depend on the market, not the farmers who feed themselves.
     const double hunger_keep = n.hunger > p.hunger_threshold ? 1.0 - n.hunger : 1.0;
-    const double target = std::max(n.base_population + trade_pop * hunger_keep, p.floor_pop);
+    // The garrison is posted by the Army and stays however the town is doing.
+    const double target = std::max(n.garrison + n.base_population + trade_pop * hunger_keep, p.floor_pop);
     // A town with almost nobody left has nobody to starve; newcomers arrive fed, so hunger can't lock it at zero.
     if (n.market_population() < p.ghost_pop) n.hunger = 0;
 

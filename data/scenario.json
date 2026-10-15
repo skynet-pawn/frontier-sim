@@ -22,6 +22,16 @@
     { "name": "Silas Brandt", "home": "helena", "skill": 1.6 }
   ],
 
+  "_campaigns_note": "Troop strength follows threats from outside the model, not local robberies. Dates and sizes approximate; verify.",
+  "campaigns": [
+    { "name": "Red River War", "from": "1874-06-01", "until": "1875-07-01", "nodes": ["fort_sill"], "garrison_add": 150,
+      "cause": "Army campaign on the Southern Plains (Red River War, 1874-75) after conflict with the Kiowa, Comanche and Southern Cheyenne" },
+    { "name": "Great Sioux War", "from": "1876-02-01", "until": "1877-10-01", "nodes": ["fort_laramie"], "garrison_add": 220,
+      "cause": "Army campaign on the Northern Plains after the Black Hills gold rush brought miners onto Lakota land" },
+    { "name": "Fort Keogh established", "from": "1876-09-01", "nodes": ["miles_city"], "garrison_add": 300,
+      "cause": "the Army garrisoned the Yellowstone country after the 1876 campaign, building a permanent post at the Tongue River" }
+  ],
+
   "shocks": [
     { "name": "Black Hills gold rush", "kind": "rush", "date": "1876-03-01", "node": "deadwood",
       "people": 1500, "cash_per_person": 40,

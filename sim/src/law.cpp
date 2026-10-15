@@ -232,7 +232,7 @@ bool Simulation::has_backup(NodeId n) const {
     // Government is the other kind of backup: a state capital, or an Army post close enough to send troops.
     if (std::find(nd.tags.begin(), nd.tags.end(), "state_capital") != nd.tags.end()) return true;
     for (const Node& post : world_.nodes)
-        if (post.gov_income >= 100 && dist(nd.x, nd.y, post.x, post.y) <= world_.params.backup_range * 0.4) return true;
+        if (post.garrison >= 100 && dist(nd.x, nd.y, post.x, post.y) <= world_.params.backup_range * 0.4) return true;
     for (const Interest& in : interests_) {
         if (!interest_active(in)) continue;
         for (NodeId m : in.nodes) {

@@ -45,10 +45,15 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.reserve = d.reserve;
         n.extra_demand = d.extra_demand;
         n.pressure.assign(d.stock.size(), 0.0);
+        n.garrison = d.garrison;
+        n.contracts = d.contracts;
+        n.contract_price.assign(d.stock.size(), 0.0);
+        n.contract_backlog.assign(d.stock.size(), 0.0);
+        for (const ContractDef& c : d.contracts) n.contract_price[static_cast<std::size_t>(c.good)] = c.price;
         n.production = d.production;
         n.production_started.assign(d.production.size(), 0);
         // Assume the town was in steady state when the scenario begins.
-        n.income_ema = n.fixed_market ? 0 : std::max(0.0, n.population - n.base_population) * p.support_income_per_person;
+        n.income_ema = n.fixed_market ? 0 : std::max(0.0, n.population - n.base_population - n.garrison) * p.support_income_per_person;
         n.income_peak = n.income_ema;
         n.peak_pop = n.population;
         nodes.push_back(std::move(n));
@@ -68,13 +73,15 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
     east_sold_value.assign(goods.size(), 0.0);
     update_active_edges(nullptr, nullptr);
     rebuild_routes();
+    refresh_contract_prices();
 }
 
 // ---------------------------------------------------------------- prices
 
 double World::daily_demand(NodeId n, GoodId g) const {
     const Node& node = nodes[idx(n)];
-    return node.market_population() * goods[idx(g)].need_per_person_per_day + node.extra_demand[idx(g)];
+    return node.market_population() * goods[idx(g)].need_per_person_per_day + node.extra_demand[idx(g)] +
+           node.garrison * goods[idx(g)].garrison_need;
 }
 
 double World::daily_output(NodeId n, GoodId g) const {
@@ -82,6 +89,36 @@ double World::daily_output(NodeId n, GoodId g) const {
     for (const ProductionDef& p : nodes[idx(n)].production)
         if (p.good == g) produced += p.rate;
     return produced;
+}
+
+void World::refresh_contract_prices() {
+    std::vector<EdgeId> path;
+    for (std::size_t ni = 0; ni < nodes.size(); ++ni) {
+        Node& node = nodes[ni];
+        for (const ContractDef& c : node.contracts) {
+            if (c.markup <= 0) continue;
+            double best = 1e18;
+            for (std::size_t m = 0; m < nodes.size(); ++m) {
+                // Suppliers: eastern markets that sell the good, and frontier producers (cheaper for cattle, horses, hay).
+                const double source = nodes[m].fixed_market ? nodes[m].fixed_price[idx(c.good)]
+                                      : daily_output(static_cast<NodeId>(m), c.good) > 0 ? goods[idx(c.good)].base_cost : 0.0;
+                if (source <= 0 || m == ni) continue;
+                if (!route(static_cast<NodeId>(m), static_cast<NodeId>(ni), path)) continue;
+                double miles[kModeCount] = {0, 0, 0};
+                for (EdgeId e : path) miles[static_cast<int>(edges[idx(e)].mode)] += edges[idx(e)].miles;
+                const double cost = source * (1 + params.spread / 2) + freight_unit_cost(c.good, miles);
+                best = std::min(best, cost);
+            }
+            if (best < 1e17) node.contract_price[idx(c.good)] = best * (1 + c.markup);
+            else if (c.price > 0) node.contract_price[idx(c.good)] = c.price;
+        }
+    }
+}
+
+double World::contract_rate(NodeId n, const ContractDef& c) const {
+    if (!c.per_soldier) return c.units_per_day;
+    const GoodDef& gd = goods[idx(c.good)];
+    return nodes[idx(n)].garrison * (gd.need_per_person_per_day + gd.garrison_need);
 }
 
 double World::normal_stock(NodeId n, GoodId g) const {
@@ -162,13 +199,17 @@ double World::quote_sell(NodeId n, GoodId g, double q) const {
         }
         return total;
     }
-    double total = 0, stock = node.stock[idx(g)];
+    // The federal contract takes the first units at its fixed price, paid by the Treasury.
+    const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
+    const double contract_pay = under_contract * node.contract_price[idx(g)];
+    q -= under_contract;
+    double total = 0, stock = node.stock[idx(g)] + under_contract;
     const double u = q / kChunks;
     for (int i = 0; i < kChunks; ++i) {
         total += u * sell_price_at(n, g, stock + u / 2);
         stock += u;
     }
-    return std::min(total, std::max(0.0, node.cash));  // cash scarcity: a town can't pay what it doesn't have
+    return contract_pay + std::min(total, std::max(0.0, node.cash));  // cash scarcity: a town can't pay what it doesn't have
 }
 
 double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent) {
@@ -205,6 +246,18 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
     Node& node = nodes[idx(n)];
     revenue = 0;
     double sold = 0;
+    if (!node.fixed_market) {
+        const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
+        if (under_contract > 0) {
+            const double pay = under_contract * node.contract_price[idx(g)];
+            node.contract_backlog[idx(g)] -= under_contract;
+            node.stock[idx(g)] += under_contract;
+            record(MoneyFlow::Government, pay);  // the Treasury pays the contractor directly
+            revenue += pay;
+            sold += under_contract;
+            q -= under_contract;
+        }
+    }
     for (int i = 0; i < kChunks; ++i) {
         double u = q / kChunks;
         const double price = node.fixed_market ? fixed_price_at(n, g, node.pressure[idx(g)] + u / 2) * (1 - params.spread / 2)
