@@ -1,0 +1,6 @@
+# Normalize line endings so contributors on any OS get identical files.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ogg binary
+*.wav binary
