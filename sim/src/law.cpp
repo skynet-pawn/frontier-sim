@@ -76,6 +76,8 @@ void Simulation::try_form_posse(NodeId n) {
 
     nd.last_posse_day = world_.today;
     nd.law_fund -= men * p.posse_cost_per_man + fee;
+    nd.cash += men * p.posse_cost_per_man;  // the men's pay is spent in town
+    nd.inflow_today += men * p.posse_cost_per_man;
     Posse q;
     q.id = next_posse_id_++;
     q.origin = n;
@@ -84,10 +86,11 @@ void Simulation::try_form_posse(NodeId n) {
     q.days_left = lead_days + travel_days;
     if (hire) {
         hire->busy = true;
-        hire->cash += fee;
+        pay_leader(*hire, fee);
         ++hire->jobs;
         q.leader_id = hire->id;
-        log_.add(world_.today, EventType::Law, n,
+        log_.with({field("node", nd.name), field("leader", hire->name), field("fee", fee), field("men", men), field("gang", target->id)});
+        log_.add(world_.today, EventType::Law, "posse_hired_leader", n,
                  strf("%s hires %s (skill %.1f, fee %s) to lead a posse of %d men against gang #%d (%d men) near the %s",
                       nd.name.c_str(), hire->name.c_str(), hire->skill, money(fee).c_str(), men, target->id, target->men,
                       ename(target->edge).c_str()),
@@ -95,7 +98,8 @@ void Simulation::try_form_posse(NodeId n) {
                       "untrained men, but a seasoned leader multiplies their strength %.1fx",
                       nd.outrage, money(target->loot).c_str(), untrained, hire->skill));
     } else {
-        log_.add(world_.today, EventType::Law, n,
+        log_.with({field("node", nd.name), field("men", men), field("gang", target->id)});
+        log_.add(world_.today, EventType::Law, "posse_raised", n,
                  strf("%s raises a posse of %d men against gang #%d (%d men) near the %s", nd.name.c_str(), men,
                       target->id, target->men, ename(target->edge).c_str()),
                  strf("outrage %.1f over robberies on nearby trails; the gang has taken %s so far; funded by %s of local "
@@ -125,7 +129,8 @@ void Simulation::posse_day(Posse& q) {
 
     Gang* g = find_gang(q.gang_id);
     if (!g || !g->active) {
-        log_.add(world_.today, EventType::Law, q.origin, strf("%s find no trace of gang #%d", who.c_str(), q.gang_id),
+        log_.with({field("origin", origin.name), field("gang", q.gang_id)});
+        log_.add(world_.today, EventType::Law, "posse_no_trace", q.origin, strf("%s find no trace of gang #%d", who.c_str(), q.gang_id),
                  "the gang had already broken up or moved on");
         if (leader) release_leader(*leader, q.origin);
         return;
@@ -152,14 +157,15 @@ void Simulation::posse_day(Posse& q) {
         const char* verb = q.kind == PosseKind::Vigilance ? "destroy gang #%d and hang its boss, seizing %s"
                            : q.kind == PosseKind::Agency  ? "run down gang #%d, recovering %s"
                                                           : "destroy gang #%d, seizing %s";
-        log_.add(world_.today, EventType::Law, q.origin,
+        log_.with({field("origin", origin.name), field("gang", g->id), field("men", q.men), field("seized", seized), field("party", q.kind == PosseKind::Vigilance ? "vigilance" : q.kind == PosseKind::Agency ? "agency" : "posse")});
+        log_.add(world_.today, EventType::Law, "posse_victory", q.origin,
                  who + " " + strf(verb, g->id, money(seized).c_str()), odds);
         g->cash = 0;
         gang_dissolve(*g, q.kind == PosseKind::Vigilance ? "hanged by a vigilance committee"
                           : q.kind == PosseKind::Agency  ? "run down by hired detectives"
                                                          : "destroyed by a posse");
         if (leader) {
-            leader->cash += bonus;
+            pay_leader(*leader, bonus);
             ++leader->wins;
             leader->skill = std::min(p.leader_skill_cap, leader->skill + p.leader_skill_gain);  // experience
             release_leader(*leader, q.origin);
@@ -170,7 +176,8 @@ void Simulation::posse_day(Posse& q) {
             ld.name = strf("a deputy of %s (#%d)", origin.name.c_str(), ld.id);
             ld.at = q.origin;
             ld.skill = rng_.uniform(1.1, 1.5);
-            log_.add(world_.today, EventType::Law, q.origin,
+            log_.with({field("node", origin.name), field("leader", ld.name), field("skill", ld.skill)});
+            log_.add(world_.today, EventType::Law, "leader_emerged", q.origin,
                      strf("%s emerges as a man for hire after the fight", ld.name.c_str()),
                      "a man who organized the others under fire earned a reputation");
             leaders_.push_back(std::move(ld));
@@ -195,13 +202,17 @@ void Simulation::posse_day(Posse& q) {
     } else {
         origin.outrage *= 0.5;
     }
-    log_.add(world_.today, EventType::Law, q.origin, strf("%s is routed by gang #%d", who.c_str(), g->id),
+    log_.with({field("origin", origin.name), field("gang", g->id), field("men", q.men)});
+    log_.add(world_.today, EventType::Law, "posse_routed", q.origin, strf("%s is routed by gang #%d", who.c_str(), g->id),
              strf("%s; %s", odds.c_str(), aftermath.c_str()));
     if (g->men < p.gang_min_men) gang_dissolve(*g, "mauled by its pursuers");
     if (leader) {
         if (rng_.chance(p.leader_death_prob)) {
             leader->alive = false;
-            log_.add(world_.today, EventType::Law, q.origin, strf("%s is killed leading the posse", leader->name.c_str()),
+            world_.record(MoneyFlow::LeaderExit, -leader->cash);
+            leader->cash = 0;
+            log_.with({field("leader", leader->name), field("origin", origin.name)});
+            log_.add(world_.today, EventType::Law, "leader_killed", q.origin, strf("%s is killed leading the posse", leader->name.c_str()),
                      strf("his men were outmatched (strength %.0f vs %.0f)", P, G));
         } else {
             leader->skill = std::max(0.5, leader->skill - p.leader_skill_gain);
@@ -257,9 +268,13 @@ void Simulation::interests_day() {
         if (!interest_active(in)) continue;
         // Funding: a standing budget plus dues skimmed off the trade through its stations.
         in.fund += in.budget_per_day;
+        world_.record(MoneyFlow::InterestBudget, in.budget_per_day);
         for (NodeId m : in.nodes) {
-            const Node& nd = world_.nodes[World::idx(m)];
-            if (!nd.fixed_market) in.fund += in.dues_rate * nd.inflow_today;
+            Node& nd = world_.nodes[World::idx(m)];
+            if (nd.fixed_market) continue;
+            const double dues = std::min(nd.cash, in.dues_rate * nd.inflow_today);  // paid out of the town's cash
+            nd.cash -= dues;
+            in.fund += dues;
         }
         in.loss_ema *= 1.0 - p.interest_loss_decay;
         for (auto& v : in.victims) v.second *= 1.0 - p.interest_loss_decay;
@@ -289,6 +304,13 @@ void Simulation::interests_day() {
         if (men < p.agency_min_men) continue;
 
         in.fund -= men * p.agency_cost_per_man;
+        Node& hq = world_.nodes[World::idx(in.hq)];  // the operatives' pay is spent where they are hired
+        if (hq.fixed_market) {
+            world_.record(MoneyFlow::EastSpending, -men * p.agency_cost_per_man);
+        } else {
+            hq.cash += men * p.agency_cost_per_man;
+            hq.inflow_today += men * p.agency_cost_per_man;
+        }
         in.last_op_day = world_.today;
         ++in.ops;
         Posse q;
@@ -299,7 +321,8 @@ void Simulation::interests_day() {
         q.gang_id = target->id;
         q.interest_id = static_cast<int>(&in - interests_.data());
         q.days_left = std::ceil(world_.route_days(in.hq, end)) + 2;
-        log_.add(world_.today, EventType::Law, in.hq,
+        log_.with({field("interest", in.name), field("men", men), field("gang", target->id), field("recent_loss", worst)});
+        log_.add(world_.today, EventType::Law, "detectives_hired", in.hq,
                  strf("The %s hires detectives: %d operatives sent against gang #%d (%d men) near the %s", in.name.c_str(),
                       men, target->id, target->men, ename(target->edge).c_str()),
                  strf("the gang has cost it %s in recent weeks (total losses %s); its fund of %s can pay for them, and "

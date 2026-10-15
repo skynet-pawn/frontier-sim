@@ -38,6 +38,26 @@ frontier_cli --trace                                  # also minor events and ev
 Each event prints with a `because:` line giving its cause. When something looks wrong, read the chain of
 causes before changing any numbers.
 
+## Tools
+
+```
+frontier_batch --seeds 20 --runs        # same scenario under 20 seeds: distributions, per-town outcomes, problems
+frontier_batch --seeds 50 --csv out.csv # one row per run
+ctest                                   # determinism, money audit and invariants, scripted-action tests
+```
+
+The **money audit** reconciles every cash balance against recorded flows in and out of the frontier economy
+(eastern markets, government pay, freight, emigrants and so on). Its residual must be exactly zero; the batch
+runner and `money_test` fail if it is not. The batch runner also checks invariants every day (no negative
+stock or cash, no NaNs).
+
+**Actions.** Traders change the world only through `act_buy`, `act_sell` and `act_travel` (and gangs through
+`act_gang_relocate`). The AI planner calls exactly these, so anything else, a script or later a player, gets the same
+costs, risks and log entries. `add_trader(..., controlled=true)` makes an outfit that waits for orders.
+
+**Events** carry a stable `kind` and typed `fields` (who, where, how much) next to the human-readable text and
+cause, ready for rumors, headlines or a viewer. Eastern markets have finite depth: a big sale depresses the price.
+
 ## How it works
 
 - **World** (`data/world.json`, `data/goods.json`): nodes (towns, forts, camps, ranges, eastern markets) and

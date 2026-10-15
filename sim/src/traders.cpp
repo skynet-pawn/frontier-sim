@@ -21,6 +21,7 @@ void Simulation::spawn_trader(NodeId at) {
     t.cash = rng_.uniform(sc_.capital_min, sc_.capital_max);
     t.base_risk_aversion = rng_.uniform(p.risk_aversion_min, p.risk_aversion_max);
     t.risk_aversion = t.base_risk_aversion;
+    world_.record(MoneyFlow::NewTraderCapital, t.cash);
     traders_.push_back(std::move(t));
 }
 
@@ -45,7 +46,11 @@ double Simulation::defense(int guards) const {
 
 void Simulation::retire(Trader& t, const char* why) {
     t.alive = false;
-    log_.add(world_.today, EventType::Trader, t.at, strf("Trader #%d leaves the trade (%s)", t.id, why),
+    world_.record(MoneyFlow::TraderExit, -(t.cash + t.pending_spend));  // whatever he had (or owed) leaves with him
+    t.cash = 0;
+    t.pending_spend = 0;
+    log_.with({field("trader", t.id), field("why", why)});
+    log_.add(world_.today, EventType::Trader, "trader_exit", t.at, strf("Trader #%d leaves the trade (%s)", t.id, why),
              why, true);
 }
 
@@ -63,6 +68,8 @@ void Simulation::step_trader(Trader& t) {
     } else if (Node& here = world_.nodes[World::idx(t.at)]; !here.fixed_market) {
         here.cash += cost;
         here.inflow_today += cost;
+    } else {
+        world_.record(MoneyFlow::EastSpending, -cost);
     }
     if (t.cash < 0 && t.cargo < 0) {
         retire(t, "capital exhausted by upkeep without profitable trades");
@@ -76,7 +83,7 @@ void Simulation::step_trader(Trader& t) {
     t.risk_aversion = std::max(t.base_risk_aversion, t.risk_aversion - p.risk_aversion_decay);
 
     if (!t.travelling) {
-        decide(t);
+        if (!t.controlled) decide(t);  // a controlled outfit waits for its owner's orders
         return;
     }
 
@@ -90,7 +97,8 @@ void Simulation::step_trader(Trader& t) {
             const double lost = t.qty * p.mishap_loss_fraction;
             const double value = lost * t.unit_cost;
             t.qty -= lost;
-            log_.add(world_.today, EventType::Trader, t.at,
+            log_.with({field("trader", t.id), field("edge", ename(eid)), field("lost_units", lost), field("value", value)});
+            log_.add(world_.today, EventType::Trader, "trader_mishap", t.at,
                      strf("Trader #%d loses %.0f %s on the %s %s", t.id, lost, good(t.cargo).unit.c_str(),
                           mode_name(e.mode), ename(eid).c_str()),
                      strf("%s hazard (%.2f%%/day): stampede, washout, or river crossing", mode_name(e.mode),
@@ -122,6 +130,8 @@ void Simulation::arrive(Trader& t) {
     if (!n.fixed_market) {
         n.cash += spend + t.pending_spend;
         n.inflow_today += spend + t.pending_spend;
+    } else {
+        world_.record(MoneyFlow::EastSpending, -(spend + t.pending_spend));
     }
     t.pending_spend = 0;
 
@@ -132,7 +142,7 @@ void Simulation::arrive(Trader& t) {
     t.travelling = false;
     t.route.clear();
     t.guards = 0;
-    decide(t);
+    if (!t.controlled) decide(t);
 }
 
 // ---------------------------------------------------------------- planning
@@ -300,26 +310,96 @@ void Simulation::ensure_opportunities() {
     }
 }
 
-// ---------------------------------------------------------------- acting
+// ---------------------------------------------------------------- actions
+//
+// These are the only ways a trader changes the world. The AI planner above calls them, and so can anything
+// else (a player, a script, a test): the same costs, the same risks and the same log entries apply, so a
+// clever player finds chinks in the model itself rather than in a special-cased interface.
 
-void Simulation::depart(Trader& t, NodeId dest, int guards) {
-    if (!world_.route(t.at, dest, t.route) || t.route.empty()) return;
-    t.leg = 0;
-    t.dest = dest;
-    t.guards = guards;
-    t.days_left = world_.edges[World::idx(t.route[0])].travel_days;
-    t.travelling = true;
+const char* action_result_name(ActionResult r) {
+    switch (r) {
+        case ActionResult::Ok:              return "ok";
+        case ActionResult::Busy:            return "busy (already travelling)";
+        case ActionResult::WrongPlace:      return "not possible here";
+        case ActionResult::HasCargo:        return "already carrying cargo";
+        case ActionResult::NoCargo:         return "no cargo";
+        case ActionResult::WrongKind:       return "this kind of outfit cannot move that good";
+        case ActionResult::NothingForSale:  return "nothing for sale";
+        case ActionResult::NoMoney:         return "no money";
+        case ActionResult::NoRoute:         return "no route";
+    }
+    return "?";
 }
 
-void Simulation::sell_cargo(Trader& t) {
+ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
+    if (t.travelling) return ActionResult::Busy;
+    if (dest < 0 || dest >= static_cast<NodeId>(world_.nodes.size()) || dest == t.at) return ActionResult::WrongPlace;
+    if (!world_.route(t.at, dest, scratch_route_) || scratch_route_.empty()) return ActionResult::NoRoute;
+    if (t.cargo >= 0) {
+        // Freight is paid on departure. Teamsters bill on delivery, so a trader may go into debt for it.
+        double miles[kModeCount] = {0, 0, 0};
+        for (EdgeId eid : scratch_route_) {
+            const Edge& e = world_.edges[World::idx(eid)];
+            miles[static_cast<int>(e.mode)] += e.miles;
+        }
+        const double freight = world_.freight_unit_cost(t.cargo, miles) * t.qty;
+        t.cash -= freight;
+        world_.record(MoneyFlow::Freight, -freight);
+        t.unit_cost += freight / t.qty;
+    }
+    t.route = scratch_route_;
+    t.leg = 0;
+    t.dest = dest;
+    t.guards = std::max(0, guards);
+    t.days_left = world_.edges[World::idx(t.route[0])].travel_days;
+    t.travelling = true;
+    return ActionResult::Ok;
+}
+
+Receipt Simulation::act_buy(Trader& t, GoodId g, double qty, double max_spend) {
+    Receipt r;
+    if (t.travelling) { r.result = ActionResult::Busy; return r; }
+    if (t.cargo >= 0) { r.result = ActionResult::HasCargo; return r; }
+    if (g < 0 || g >= static_cast<GoodId>(world_.goods.size()) || good(g).self_propelled != t.drover) {
+        r.result = ActionResult::WrongKind;  // drovers move cattle; freighters move everything else
+        return r;
+    }
+    if (max_spend < 0) max_spend = t.cash;
+    max_spend = std::min(max_spend, t.cash);
+    if (max_spend <= 0) { r.result = ActionResult::NoMoney; return r; }
+    qty = std::min(qty, world_.params.trader_capacity_lb / good(g).load_lb);  // what the outfit can carry
+    double spent = 0;
+    const double units = qty > 0 ? world_.buy(t.at, g, qty, max_spend, spent) : 0.0;
+    if (units <= 0) { r.result = ActionResult::NothingForSale; return r; }
+    t.cash -= spent;
+    t.cargo = g;
+    t.qty = units;
+    t.unit_cost = spent / units;
+    r.units = units;
+    r.money = spent;
+    if (trace)
+        log_.add(world_.today, EventType::Trade, "trade_bought", t.at,
+                 strf("Trader #%d buys %.0f %s at %s for %s", t.id, units, good(g).unit.c_str(), nname(t.at).c_str(),
+                      money(spent).c_str()),
+                 "", true);
+    return r;
+}
+
+Receipt Simulation::act_sell(Trader& t, double qty) {
+    Receipt r;
+    if (t.travelling) { r.result = ActionResult::Busy; return r; }
+    if (t.cargo < 0) { r.result = ActionResult::NoCargo; return r; }
+    if (qty < 0 || qty > t.qty) qty = t.qty;
     double revenue = 0;
-    const double sold = world_.sell(t.at, t.cargo, t.qty, revenue);
-    if (sold <= 0) return;
+    const double sold = world_.sell(t.at, t.cargo, qty, revenue);
+    if (sold <= 0) { r.result = ActionResult::NoMoney; return r; }  // the town has no cash to pay with
     const double profit = revenue - sold * t.unit_cost;
     t.cash += revenue;
     profit_today_ += profit;
+    r.units = sold;
+    r.money = revenue;
     if (trace)
-        log_.add(world_.today, EventType::Trade, t.at,
+        log_.add(world_.today, EventType::Trade, "trade_sold", t.at,
                  strf("Trader #%d sells %.0f %s at %s for %s (%s)", t.id, sold, good(t.cargo).unit.c_str(),
                       nname(t.at).c_str(), money(revenue).c_str(), profit >= 0 ? "profit" : "loss"),
                  strf("profit %s after freight", money(profit).c_str()), true);
@@ -328,7 +408,43 @@ void Simulation::sell_cargo(Trader& t) {
         t.cargo = -1;
         t.qty = 0;
     }
+    return r;
 }
+
+int Simulation::add_trader(NodeId at, double cash, bool drover, bool controlled) {
+    Trader t;
+    t.id = next_trader_id_++;
+    t.at = at;
+    t.cash = cash;
+    t.drover = drover;
+    t.controlled = controlled;
+    t.base_risk_aversion = t.risk_aversion = 1.0;
+    world_.record(MoneyFlow::NewTraderCapital, cash);
+    traders_.push_back(std::move(t));
+    return traders_.back().id;
+}
+
+Trader* Simulation::find_trader(int id) {
+    for (Trader& t : traders_)
+        if (t.id == id && t.alive) return &t;
+    return nullptr;
+}
+
+ActionResult Simulation::act_gang_relocate(Gang& g, EdgeId e) {
+    if (!g.active || g.ruling >= 0) return ActionResult::WrongPlace;  // a ruling gang stays with its town
+    if (e < 0 || e >= static_cast<EdgeId>(world_.edges.size())) return ActionResult::NoRoute;
+    const Edge& ed = world_.edges[World::idx(e)];
+    if (!ed.active || ed.mode != Mode::Trail) return ActionResult::NoRoute;
+    const NodeId home = nearest_node(e, g.hideout);
+    if (home < 0) return ActionResult::NoRoute;
+    if (home != g.hideout) g.influence = 0;  // influence is local
+    g.edge = e;
+    g.hideout = home;
+    g.last_review = world_.today;
+    return ActionResult::Ok;
+}
+
+// ---------------------------------------------------------------- the AI's turn
 
 void Simulation::decide(Trader& t) {
     const Params& p = world_.params;
@@ -337,20 +453,13 @@ void Simulation::decide(Trader& t) {
     if (t.cargo >= 0) {
         const Plan plan = plan_sell(t, scratch_paths_, true);
         if (plan.valid && plan.dest != t.at) {
-            const double freight = world_.freight_unit_cost(t.cargo, scratch_paths_[World::idx(plan.dest)].miles) * t.qty;
-            t.cash -= freight;
-            t.unit_cost += freight / t.qty;
-            depart(t, plan.dest, plan.guards);
+            act_travel(t, plan.dest, plan.guards);
             return;
         }
-        sell_cargo(t);
+        act_sell(t);
         if (t.cargo >= 0) {  // the town couldn't pay for everything: carry the rest elsewhere
             const Plan rest = plan_sell(t, scratch_paths_, false);
-            if (!rest.valid) return;
-            const double freight = world_.freight_unit_cost(t.cargo, scratch_paths_[World::idx(rest.dest)].miles) * t.qty;
-            t.cash -= freight;
-            t.unit_cost += freight / t.qty;
-            depart(t, rest.dest, rest.guards);
+            if (rest.valid) act_travel(t, rest.dest, rest.guards);
             return;
         }
     }
@@ -359,28 +468,16 @@ void Simulation::decide(Trader& t) {
     if (buy.valid && buy.utility >= p.min_profit) {
         const PathInfo& pi = scratch_paths_[World::idx(buy.dest)];
         const double freight_unit = world_.freight_unit_cost(buy.good, pi.miles);
+        // Keep back enough to pay the freight and the trip's running costs.
         const double max_spend = t.cash - daily_cost(buy.guards) * pi.days - freight_unit * buy.qty;
-        double spent = 0;
-        const double units = max_spend > 0 ? world_.buy(t.at, buy.good, buy.qty, max_spend, spent) : 0.0;
-        if (units > 0) {
-            const double freight = freight_unit * units;
-            t.cash -= spent + freight;
-            t.cargo = buy.good;
-            t.qty = units;
-            t.unit_cost = (spent + freight) / units;
-            if (trace)
-                log_.add(world_.today, EventType::Trade, t.at,
-                         strf("Trader #%d buys %.0f %s at %s for %s, bound for %s", t.id, units,
-                              good(buy.good).unit.c_str(), nname(t.at).c_str(), money(spent).c_str(),
-                              nname(buy.dest).c_str()),
-                         strf("expected profit %s with %d guards", money(buy.utility).c_str(), buy.guards), true);
-            depart(t, buy.dest, buy.guards);
+        if (max_spend > 0 && act_buy(t, buy.good, buy.qty, max_spend).result == ActionResult::Ok) {
+            act_travel(t, buy.dest, buy.guards);
             return;
         }
     }
 
     NodeId dest = -1;
-    if (plan_deadhead(t, dest)) depart(t, dest, 0);
+    if (plan_deadhead(t, dest)) act_travel(t, dest, 0);
 }
 
 }  // namespace frontier

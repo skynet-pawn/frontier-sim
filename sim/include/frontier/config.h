@@ -20,6 +20,7 @@ struct GoodDef {
     double spoilage_per_day = 0;
     bool self_propelled = false;  // walks to market (cattle): moved by drovers, not by freight wagons
     double min_target = 10;     // floor on a node's "normal stock", for goods nobody consumes
+    double market_depth = 0;    // eastern markets: units outstanding that move the price by half (0 = bottomless)
     double freight_mult[kModeCount] = {1, 1, 1};  // per-mode adjustment (e.g. cattle on rail)
 };
 
@@ -80,6 +81,7 @@ struct Params {
     double cover_days = 30;          // days of consumption a node treats as "normal stock"
     double stock_cap_days = 90;      // producers lose output beyond this many days of stock
     double spread = 0.10;            // merchant margin between buy and sell price
+    double market_recovery = 0.03;   // per day: how fast an eastern market absorbs a glut (or restocks)
 
     // Movement and freight ($ per pound-mile). Verify against sources before calibrating.
     double speed[kModeCount] = {12, 50, 120};  // miles/day: ox wagon, steamboat, rail

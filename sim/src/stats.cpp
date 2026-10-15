@@ -1,0 +1,131 @@
+#include "frontier/stats.h"
+
+#include <algorithm>
+#include <cmath>
+
+#include "frontier/date.h"
+#include "frontier/format.h"
+#include "frontier/simulation.h"
+
+namespace frontier {
+
+namespace {
+
+bool finite(double v) { return std::isfinite(v); }
+
+// Cheap per-day sanity checks. These catch bugs, not economics: negative stock, NaNs, money from nowhere.
+void check_invariants(const Simulation& sim, RunStats& out) {
+    if (!out.invariants_ok) return;
+    const World& w = sim.world();
+    auto fail = [&](const std::string& what) {
+        out.invariants_ok = false;
+        out.first_violation = format_date(w.today) + ": " + what;
+    };
+    for (const Node& n : w.nodes) {
+        if (n.fixed_market) continue;
+        if (!finite(n.cash) || !finite(n.population) || !finite(n.law_fund)) return fail("non-finite value at " + n.name);
+        if (n.population < -1e-9) return fail("negative population at " + n.name);
+        if (n.cash < -1e-6) return fail("negative cash at " + n.name);
+        for (std::size_t g = 0; g < n.stock.size(); ++g) {
+            if (!finite(n.stock[g])) return fail("non-finite stock at " + n.name);
+            if (n.stock[g] < -1e-6) return fail("negative stock of " + w.goods[g].id + " at " + n.name);
+        }
+    }
+    for (const Trader& t : sim.traders())
+        if (!finite(t.cash) || !finite(t.qty) || t.qty < -1e-9) return fail("bad trader state #" + std::to_string(t.id));
+}
+
+}  // namespace
+
+RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t seed) {
+    scenario.seed = seed;
+    Simulation sim(world, scenario);
+    RunStats r;
+    r.seed = seed;
+    r.days = scenario.days;
+    r.traders_start = r.traders_min = r.traders_max = static_cast<int>(sim.traders().size());
+    r.money_start = sim.money_audit().baseline;
+
+    const std::size_t N = sim.world().nodes.size();
+    r.towns.resize(N);
+    for (std::size_t i = 0; i < N; ++i) {
+        const Node& n = sim.world().nodes[i];
+        r.towns[i].id = n.id;
+        r.towns[i].name = n.name;
+        r.towns[i].pop_start = n.population;
+        r.towns[i].pop_peak = n.population;
+        if (!n.fixed_market) r.pop_start_total += n.population;
+    }
+
+    for (int d = 0; d < scenario.days; ++d) {
+        sim.step();
+        const int tc = static_cast<int>(sim.traders().size());
+        r.traders_min = std::min(r.traders_min, tc);
+        r.traders_max = std::max(r.traders_max, tc);
+        for (std::size_t i = 0; i < N; ++i) {
+            const Node& n = sim.world().nodes[i];
+            if (n.fixed_market) {
+                for (std::size_t g = 0; g < n.pressure.size(); ++g)
+                    if (n.fixed_price[g] > 0)
+                        r.east_price_low = std::min(r.east_price_low, sim.world().fixed_price_at(static_cast<NodeId>(i), static_cast<GoodId>(g), n.pressure[g]) / n.fixed_price[g]);
+                continue;
+            }
+            TownOutcome& o = r.towns[i];
+            o.pop_peak = std::max(o.pop_peak, n.population);
+            o.ever_ghost = o.ever_ghost || n.ghost;
+            if (n.captor >= 0) ++o.days_ruled_by_gang;
+        }
+        check_invariants(sim, r);
+    }
+
+    r.hash = sim.log().hash();
+    r.traders_end = static_cast<int>(sim.traders().size());
+    int drovers = 0;
+    for (const Trader& t : sim.traders()) drovers += t.drover ? 1 : 0;
+    r.drover_share_end = r.traders_end ? static_cast<double>(drovers) / r.traders_end : 0;
+
+    const EventLog& log = sim.log();
+    r.robberies = static_cast<int>(log.count_kind("robbery"));
+    for (const Event& e : log.events())
+        if (e.kind == "robbery" && !e.minor) ++r.robberies_over_1500;  // robberies are only minor below $1,500
+    r.gangs_formed = static_cast<int>(log.count_kind("gang_formed"));
+    r.gangs_disbanded = static_cast<int>(log.count_kind("gang_disbanded"));
+    r.posses = static_cast<int>(log.count_kind("posse_raised") + log.count_kind("posse_hired_leader"));
+    r.posse_victories = static_cast<int>(log.count_kind("posse_victory"));
+    r.posse_routs = static_cast<int>(log.count_kind("posse_routed"));
+    r.leaders_killed = static_cast<int>(log.count_kind("leader_killed"));
+    r.leaders_emerged = static_cast<int>(log.count_kind("leader_emerged"));
+    r.detective_parties = static_cast<int>(log.count_kind("detectives_hired"));
+    r.takeovers = static_cast<int>(log.count_kind("gang_takeover"));
+    r.towns_freed = static_cast<int>(log.count_kind("town_freed"));
+    r.infighting = static_cast<int>(log.count_kind("gang_infighting"));
+    r.vigilance = static_cast<int>(log.count_kind("vigilance_formed"));
+    r.famines = static_cast<int>(log.count_kind("famine"));
+    r.ghost_towns = static_cast<int>(log.count_kind("ghost_town"));
+
+    for (std::size_t i = 0; i < N; ++i) {
+        const Node& n = sim.world().nodes[i];
+        if (n.fixed_market) continue;
+        TownOutcome& o = r.towns[i];
+        o.pop_end = n.population;
+        o.income_end = n.income_ema;
+        o.ghost_end = n.ghost;
+        r.pop_end_total += n.population;
+        if (n.cash > r.richest_cash) {
+            r.richest_cash = n.cash;
+            r.richest_town = n.name;
+        }
+    }
+
+    const MoneyAudit audit = sim.money_audit();
+    r.money_end = audit.actual;
+    r.residual = audit.residual;
+    r.east_buys = audit.flows[static_cast<int>(MoneyFlow::EastBuys)];
+    r.east_sells = audit.flows[static_cast<int>(MoneyFlow::EastSells)];
+    r.emigrated = audit.flows[static_cast<int>(MoneyFlow::Emigration)];
+    r.east_bought_by_good = sim.world().east_bought_value;
+    r.east_sold_by_good = sim.world().east_sold_value;
+    return r;
+}
+
+}  // namespace frontier

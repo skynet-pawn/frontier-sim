@@ -7,6 +7,26 @@
 
 namespace frontier {
 
+const char* money_flow_name(MoneyFlow f) {
+    switch (f) {
+        case MoneyFlow::EastBuys:         return "east buys frontier goods";
+        case MoneyFlow::EastSells:        return "east sells to traders";
+        case MoneyFlow::Government:       return "government pay";
+        case MoneyFlow::Rush:             return "rush savings";
+        case MoneyFlow::NewTraderCapital: return "new trader capital";
+        case MoneyFlow::InterestBudget:   return "interest budgets";
+        case MoneyFlow::GangStake:        return "new gang purses";
+        case MoneyFlow::Freight:          return "freight paid out";
+        case MoneyFlow::EastSpending:     return "spending in eastern markets";
+        case MoneyFlow::Emigration:       return "emigrants' savings";
+        case MoneyFlow::TraderExit:       return "traders leaving";
+        case MoneyFlow::GangExit:         return "dissolved gangs";
+        case MoneyFlow::LeaderExit:       return "dead leaders";
+        case MoneyFlow::Count:            break;
+    }
+    return "?";
+}
+
 World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.goods), params(p), today(start_day) {
     for (const NodeDef& d : def.nodes) {
         Node n;
@@ -24,6 +44,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.fixed_price = d.fixed_price;
         n.reserve = d.reserve;
         n.extra_demand = d.extra_demand;
+        n.pressure.assign(d.stock.size(), 0.0);
         n.production = d.production;
         n.production_started.assign(d.production.size(), 0);
         // Assume the town was in steady state when the scenario begins.
@@ -43,6 +64,8 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         nodes[idx(d.b)].edges.push_back(id);
         edges.push_back(e);
     }
+    east_bought_value.assign(goods.size(), 0.0);
+    east_sold_value.assign(goods.size(), 0.0);
     update_active_edges(nullptr, nullptr);
     rebuild_routes();
 }
@@ -72,7 +95,7 @@ double World::normal_stock(NodeId n, GoodId g) const {
 
 double World::mid_price_at(NodeId n, GoodId g, double stock) const {
     const Node& node = nodes[idx(n)];
-    if (node.fixed_price[idx(g)] > 0) return node.fixed_price[idx(g)];
+    if (node.fixed_price[idx(g)] > 0) return fixed_price_at(n, g, node.pressure[idx(g)]);
     const double normal = normal_stock(n, g);
     const double s = std::max(stock, normal * 1e-3);
     // Scarcity pricing: the damper that pulls traders toward shortages.
@@ -94,6 +117,14 @@ double World::sell_price_at(NodeId n, GoodId g, double stock) const {
     return mid_price_at(n, g, stock) * std::max(0.05, 1 - params.spread / 2 - nodes[idx(n)].toll);
 }
 
+double World::fixed_price_at(NodeId n, GoodId g, double pressure) const {
+    const Node& node = nodes[idx(n)];
+    const double depth = goods[idx(g)].market_depth;
+    if (depth <= 0) return node.fixed_price[idx(g)];
+    const double p = std::clamp(pressure, -0.5 * depth, 5.0 * depth);
+    return node.fixed_price[idx(g)] / (1.0 + p / depth);
+}
+
 double World::mid_price(NodeId n, GoodId g) const { return mid_price_at(n, g, nodes[idx(n)].stock[idx(g)]); }
 
 namespace {
@@ -102,7 +133,15 @@ constexpr int kChunks = 8;  // a trade moves the price as it goes; quotes and ex
 
 double World::quote_buy(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
-    if (node.fixed_market) return q * buy_price_at(n, g, 0);
+    if (node.fixed_market) {
+        double total = 0, p = node.pressure[idx(g)];
+        const double u = q / kChunks;
+        for (int i = 0; i < kChunks; ++i) {
+            total += u * fixed_price_at(n, g, p - u / 2) * (1 + params.spread / 2);
+            p -= u;
+        }
+        return total;
+    }
     double total = 0, stock = node.stock[idx(g)];
     const double u = q / kChunks;
     for (int i = 0; i < kChunks; ++i) {
@@ -114,7 +153,15 @@ double World::quote_buy(NodeId n, GoodId g, double q) const {
 
 double World::quote_sell(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
-    if (node.fixed_market) return q * sell_price_at(n, g, 0);
+    if (node.fixed_market) {
+        double total = 0, p = node.pressure[idx(g)];
+        const double u = q / kChunks;
+        for (int i = 0; i < kChunks; ++i) {
+            total += u * fixed_price_at(n, g, p + u / 2) * (1 - params.spread / 2);
+            p += u;
+        }
+        return total;
+    }
     double total = 0, stock = node.stock[idx(g)];
     const double u = q / kChunks;
     for (int i = 0; i < kChunks; ++i) {
@@ -131,7 +178,7 @@ double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent)
     for (int i = 0; i < kChunks; ++i) {
         double u = q / kChunks;
         if (!node.fixed_market) u = std::min(u, node.stock[idx(g)]);
-        const double price = node.fixed_market ? buy_price_at(n, g, 0)
+        const double price = node.fixed_market ? fixed_price_at(n, g, node.pressure[idx(g)] - u / 2) * (1 + params.spread / 2)
                                                : buy_price_at(n, g, std::max(0.0, node.stock[idx(g)] - u / 2));
         double cost = u * price;
         if (spent + cost > max_spend) {
@@ -145,6 +192,10 @@ double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent)
             node.stock[idx(g)] -= u;
             node.cash += cost;
             node.inflow_today += cost;
+        } else {
+            node.pressure[idx(g)] -= u;  // the East is drawn down: its price rises
+            east_sold_value[idx(g)] += cost;
+            record(MoneyFlow::EastSells, -cost);
         }
     }
     return bought;
@@ -156,7 +207,8 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
     double sold = 0;
     for (int i = 0; i < kChunks; ++i) {
         double u = q / kChunks;
-        const double price = node.fixed_market ? sell_price_at(n, g, 0) : sell_price_at(n, g, node.stock[idx(g)] + u / 2);
+        const double price = node.fixed_market ? fixed_price_at(n, g, node.pressure[idx(g)] + u / 2) * (1 - params.spread / 2)
+                                               : sell_price_at(n, g, node.stock[idx(g)] + u / 2);
         double pay = u * price;
         if (!node.fixed_market) {
             if (node.cash <= 0) break;
@@ -166,6 +218,10 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
             }
             node.cash -= pay;
             node.stock[idx(g)] += u;
+        } else {
+            node.pressure[idx(g)] += u;  // the East takes the goods: its price falls
+            east_bought_value[idx(g)] += pay;
+            record(MoneyFlow::EastBuys, pay);
         }
         revenue += pay;
         sold += u;

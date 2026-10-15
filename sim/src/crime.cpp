@@ -92,6 +92,7 @@ void Simulation::create_gang(NodeId hideout, int men, const char* cause) {
     g.men = men;
     g.hideout = hideout;
     g.cash = men * 20.0;
+    world_.record(MoneyFlow::GangStake, g.cash);
     g.formed = world_.today;
     g.last_review = world_.today;
     double best = 0;
@@ -104,7 +105,8 @@ void Simulation::create_gang(NodeId hideout, int men, const char* cause) {
         world_.nodes[World::idx(hideout)].drifters += men;
         return;
     }
-    log_.add(world_.today, EventType::Gang, hideout,
+    log_.with({field("gang", g.id), field("men", men), field("node", nname(hideout))});
+    log_.add(world_.today, EventType::Gang, "gang_formed", hideout,
              strf("Gang #%d (%d men) forms at %s and takes to the %s", g.id, men, nname(hideout).c_str(),
                   ename(g.edge).c_str()),
              cause);
@@ -126,9 +128,12 @@ void Simulation::try_form_gang(NodeId n) {
 void Simulation::gang_dissolve(Gang& g, const char* why) {
     free_town(g, why);
     g.active = false;
+    world_.record(MoneyFlow::GangExit, -g.cash);  // what the gang still holds scatters with its men
+    g.cash = 0;
     Node& h = world_.nodes[World::idx(g.hideout)];
     h.drifters += g.men * 0.5;  // the rest scatter or die
-    log_.add(world_.today, EventType::Gang, g.hideout,
+    log_.with({field("gang", g.id), field("robberies", g.robberies), field("loot", g.loot), field("node", nname(g.hideout)), field("why", why)});
+    log_.add(world_.today, EventType::Gang, "gang_disbanded", g.hideout,
              strf("Gang #%d breaks up after %d robberies, %s taken in all", g.id, g.robberies, money(g.loot).c_str()),
              why);
 }
@@ -147,6 +152,9 @@ void Simulation::gang_day(Gang& g) {
         h.cash += upkeep;
         h.inflow_today += upkeep;
     } else {
+        spent = g.cash;  // the last of its money goes on supplies
+        h.cash += g.cash;
+        h.inflow_today += g.cash;
         g.cash = 0;
         if (--g.men < p.gang_min_men) {
             gang_dissolve(g, "the gang ran out of money and men drifted off");
@@ -168,7 +176,8 @@ void Simulation::gang_day(Gang& g) {
     if (!g.active) return;
 
     const bool stranded = g.edge < 0 || !world_.edges[World::idx(g.edge)].active;
-    if (stranded || world_.today - g.last_review >= p.gang_review_days) gang_review(g);
+    const bool review_due = world_.today - g.last_review >= p.gang_review_days;
+    if (stranded || (review_due && !g.controlled)) gang_review(g);
 }
 
 void Simulation::gang_review(Gang& g) {
@@ -200,7 +209,8 @@ void Simulation::gang_review(Gang& g) {
     g.edge = pick;
     if (new_home != g.hideout) g.influence = 0;  // influence is local
     g.hideout = new_home;
-    log_.add(world_.today, EventType::Gang, g.hideout,
+    log_.with({field("gang", g.id), field("men", g.men), field("node", nname(g.hideout)), field("from", from), field("to", ename(pick))});
+    log_.add(world_.today, EventType::Gang, "gang_moved", g.hideout,
              strf("Gang #%d (%d men) moves from %s to the %s", g.id, g.men, from.c_str(), ename(pick).c_str()),
              strf("better pickings: %s of cargo/day passes the new trail and fewer lawmen are near it; hideout is now %s",
                   money(world_.edges[World::idx(pick)].traffic_ema).c_str(), nname(g.hideout).c_str()),
@@ -225,7 +235,8 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
                 if (gr.first == t.at) { gr.second += 1; found = true; }
             if (!found) g.grudge.push_back({t.at, 1.0});
         }
-        log_.add(world_.today, EventType::Gang, t.at,
+        log_.with({field("trader", t.id), field("guards", t.guards), field("gang", g.id), field("lost", losses), field("edge", ename(eid))});
+        log_.add(world_.today, EventType::Gang, "gang_repulsed", t.at,
                  strf("Trader #%d (%d guards) beats off gang #%d on the %s; the gang loses %d men", t.id, t.guards,
                       g.id, ename(eid).c_str(), losses),
                  strf("defenders %.1f vs %d bandits", D, g.men + losses), t.guards == 0);
@@ -260,7 +271,8 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     if (!found) t.fear.push_back({eid, p.fear_bump});
     t.risk_aversion = std::min(p.risk_aversion_cap, t.risk_aversion + p.risk_aversion_bump);
 
-    log_.add(world_.today, EventType::Robbery, g.hideout,
+    log_.with({field("gang", g.id), field("men", g.men), field("trader", t.id), field("guards", t.guards), field("edge", ename(eid)), field("good", good(cargo).id), field("units", units), field("value", value), field("fence_pay", fence_pay), field("hideout", nname(g.hideout))});
+    log_.add(world_.today, EventType::Robbery, "robbery", g.hideout,
              strf("Gang #%d (%d men) robs trader #%d (%d guards) on the %s: %.0f %s, cost %s", g.id, g.men, t.id,
                   t.guards, ename(eid).c_str(), units, good(cargo).unit.c_str(), money(value).c_str()),
              strf("%s of cargo/day passes this trail; %s fences the goods for %s (%.0f%% of value)",

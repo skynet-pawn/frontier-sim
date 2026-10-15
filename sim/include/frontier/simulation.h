@@ -22,6 +22,7 @@ struct Trader {
     double qty = 0, unit_cost = 0;
     int guards = 0;
     bool drover = false;         // drovers move cattle only; freighters move everything else
+    bool controlled = false;     // driven by an outside controller (a player or a script), not the AI
 
     // Personality and memory: experience reshapes these (principle 4).
     double base_risk_aversion = 1;
@@ -59,6 +60,7 @@ struct Gang {
     NodeId ruling = -1;          // the town this gang runs, if any
     double competence = 0;       // how well the boss runs a town: 0 hopeless .. 1 shrewd
     double tribute = 0;          // share of the town's inflow taken
+    bool controlled = false;     // moves only when told to (act_gang_relocate)
 };
 
 // A leader for hire: someone who can raise, train and organize a posse. From the simulation's point of
@@ -71,6 +73,7 @@ struct Leader {
     double cash = 0;
     bool alive = true;
     bool busy = false;
+    double earned = 0;           // lifetime fees and bonuses (cash can leave with his death)
     int jobs = 0, wins = 0;
 };
 
@@ -103,6 +106,26 @@ struct Posse {
     double days_left = 0;
 };
 
+// What happened when something tried an action. The AI and any outside controller get the same answers.
+enum class ActionResult { Ok, Busy, WrongPlace, HasCargo, NoCargo, WrongKind, NothingForSale, NoMoney, NoRoute };
+const char* action_result_name(ActionResult r);
+struct Receipt {
+    ActionResult result = ActionResult::Ok;
+    double units = 0;
+    double money = 0;
+};
+
+// Result of reconciling every cash balance against the recorded flows in and out. A nonzero residual means
+// money is being created or destroyed somewhere the ledger does not know about.
+struct MoneyAudit {
+    double baseline = 0;         // total money when the scenario began
+    double net_flows = 0;        // recorded inflows minus outflows since
+    double expected = 0;         // baseline + net_flows
+    double actual = 0;           // sum of every cash balance now
+    double residual = 0;         // actual - expected
+    double flows[kMoneyFlowCount] = {};
+};
+
 class Simulation {
 public:
     Simulation(const WorldDef& def, const Scenario& scenario);
@@ -120,6 +143,18 @@ public:
     const std::vector<Leader>& leaders() const { return leaders_; }
     const std::vector<Interest>& interests() const { return interests_; }
     double avg_trader_profit() const { return avg_profit_ema_; }
+    double total_money() const;
+    MoneyAudit money_audit() const;
+
+    // ---- Actions. The AI uses exactly these; so can a player, a script or a test. ----
+    // A trader must be idle (not travelling) at a node to trade.
+    Receipt act_buy(Trader& t, GoodId g, double qty, double max_spend = -1);  // max_spend < 0: all his cash
+    Receipt act_sell(Trader& t, double qty = -1);                             // qty < 0: everything
+    ActionResult act_travel(Trader& t, NodeId dest, int guards);              // pays freight, hires guards
+    ActionResult act_gang_relocate(Gang& g, EdgeId e);
+    int add_trader(NodeId at, double cash, bool drover, bool controlled);     // returns the trader's id
+    Trader* find_trader(int id);                                              // ids stay valid; pointers may not
+    Gang* gang_by_id(int id) { return find_gang(id); }
     bool trace = false;          // log individual trades
 
     struct PathInfo {
@@ -158,9 +193,7 @@ private:
     Plan plan_sell(const Trader& t, const std::vector<PathInfo>& paths, bool allow_here);
     Plan plan_buy(const Trader& t, const std::vector<PathInfo>& paths);
     bool plan_deadhead(const Trader& t, NodeId& dest);
-    void depart(Trader& t, NodeId dest, int guards);
     void arrive(Trader& t);
-    void sell_cargo(Trader& t);
     void ensure_opportunities();
     void retire(Trader& t, const char* why);
 
@@ -195,6 +228,7 @@ private:
     const GoodDef& good(GoodId g) const { return world_.goods[World::idx(g)]; }
     Gang* find_gang(int id);
     Leader* find_leader(int id);
+    void pay_leader(Leader& l, double amount);
     void release_leader(Leader& l, NodeId at);
 
     World world_;
@@ -210,6 +244,7 @@ private:
     std::vector<std::vector<int>> edge_gangs_;  // gang ids per edge, rebuilt daily
     int next_trader_id_ = 1, next_gang_id_ = 1, next_posse_id_ = 1, next_leader_id_ = 1;
     double avg_profit_ema_ = 0;
+    double baseline_money_ = 0;
     double profit_today_ = 0;                   // realized trader profit, net of upkeep, for the join rate
 
     std::vector<double> opportunity_[2];        // [freighter, drover]: best standard-load profit at each node

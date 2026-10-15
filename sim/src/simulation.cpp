@@ -40,6 +40,39 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
         interests_.push_back(std::move(in));
     }
     for (const GangSeed& g : sc_.gangs) create_gang(g.hideout, g.men, "seeded in scenario.json");
+
+    // Everything created so far is the starting stock of money, not a flow.
+    for (double& f : world_.ledger) f = 0;
+    baseline_money_ = total_money();
+}
+
+double Simulation::total_money() const {
+    double m = 0;
+    for (const Node& n : world_.nodes)
+        if (!n.fixed_market) m += n.cash + n.law_fund;
+    for (const Trader& t : traders_) m += t.cash + t.pending_spend;  // pending: wages on the road, paid at the next stop
+    for (const Gang& g : gangs_) m += g.cash;
+    for (const Leader& l : leaders_) m += l.cash;
+    for (const Interest& in : interests_) m += in.fund;
+    return m;
+}
+
+MoneyAudit Simulation::money_audit() const {
+    MoneyAudit a;
+    a.baseline = baseline_money_;
+    for (int i = 0; i < kMoneyFlowCount; ++i) {
+        a.flows[i] = world_.ledger[i];
+        a.net_flows += world_.ledger[i];
+    }
+    a.expected = a.baseline + a.net_flows;
+    a.actual = total_money();
+    a.residual = a.actual - a.expected;
+    return a;
+}
+
+void Simulation::pay_leader(Leader& l, double amount) {
+    l.cash += amount;
+    l.earned += amount;
 }
 
 void Simulation::step() {
@@ -61,7 +94,8 @@ void Simulation::update_network() {
     auto describe = [&](EdgeId id, const char* verb) {
         const Edge& e = world_.edges[World::idx(id)];
         const std::string cause = e.note.empty() ? "scheduled in world.json" : e.note;
-        log_.add(world_.today, EventType::Network, e.a,
+        log_.with({field("mode", mode_name(e.mode)), field("a", nname(e.a)), field("b", nname(e.b)), field("miles", e.miles), field("change", verb)});
+        log_.add(world_.today, EventType::Network, "route_changed", e.a,
                  strf("%s between %s and %s %s (%.0f miles)", mode_name(e.mode), nname(e.a).c_str(),
                       nname(e.b).c_str(), verb, e.miles),
                  cause);
@@ -81,7 +115,8 @@ void Simulation::apply_shocks() {
                 for (GoodId g : sh.goods) {
                     const double lost = node.stock[World::idx(g)] * sh.fraction;
                     node.stock[World::idx(g)] -= lost;
-                    log_.add(world_.today, EventType::Shock, static_cast<NodeId>(n),
+                    log_.with({field("node", node.name), field("good", good(g).id), field("lost", lost), field("shock", sh.name)});
+                    log_.add(world_.today, EventType::Shock, "stock_loss", static_cast<NodeId>(n),
                              strf("%s: %s loses %s %s", sh.name.c_str(), node.name.c_str(), with_commas(lost).c_str(),
                                   good(g).unit.c_str()),
                              sh.cause);
@@ -91,10 +126,12 @@ void Simulation::apply_shocks() {
             Node& node = world_.nodes[World::idx(sh.node)];
             node.population += sh.people;
             node.cash += sh.people * sh.cash_per_person;
+            world_.record(MoneyFlow::Rush, sh.people * sh.cash_per_person);
             // Newcomers arrive on expectations of income that has not shown up yet.
             node.income_ema += sh.people * world_.params.support_income_per_person * 0.8;
             node.capacity = std::max(node.capacity, node.population);
-            log_.add(world_.today, EventType::Shock, sh.node,
+            log_.with({field("node", node.name), field("people", sh.people)});
+            log_.add(world_.today, EventType::Shock, "rush", sh.node,
                      strf("%s: %s people arrive at %s", sh.name.c_str(), with_commas(sh.people).c_str(),
                           node.name.c_str()),
                      sh.cause);
@@ -119,7 +156,7 @@ void Simulation::economy_day() {
             if (!n.production_started[i]) {
                 n.production_started[i] = 1;
                 if (pd.from != LONG_MIN)
-                    log_.add(world_.today, EventType::Production, id,
+                    log_.add(world_.today, EventType::Production, "output_begins", id,
                              strf("%s: %s output begins (%.0f %s/day at full labor)", n.name.c_str(),
                                   good(pd.good).name.c_str(), pd.rate, good(pd.good).unit.c_str()),
                              "scheduled start in world.json (strike, new range, or new post)");
@@ -131,7 +168,8 @@ void Simulation::economy_day() {
                 n.reserve[g] -= amount;
                 if (n.reserve[g] <= 1e-6 && amount > 0) {
                     n.reserve[g] = 0;
-                    log_.add(world_.today, EventType::Production, id,
+                    log_.with({field("node", n.name), field("good", good(pd.good).id)});
+                    log_.add(world_.today, EventType::Production, "reserve_exhausted", id,
                              strf("%s: %s is exhausted", n.name.c_str(), good(pd.good).name.c_str()),
                              "finite reserve fully extracted; output stops and the local economy loses its base");
                 }
@@ -142,6 +180,7 @@ void Simulation::economy_day() {
 
         n.cash += n.gov_income;
         n.inflow_today += n.gov_income;
+        world_.record(MoneyFlow::Government, n.gov_income);
 
         // Consumption. Food shortfall is what drives hunger.
         double fed = 0;
@@ -179,14 +218,16 @@ void Simulation::economy_day() {
             }
             const bool repeat = world_.today - n.last_famine_log < 90;
             n.last_famine_log = world_.today;
-            log_.add(world_.today, EventType::Famine, id,
+            log_.with({field("node", n.name), field("pop", n.population), field("hunger", n.hunger)});
+            log_.add(world_.today, EventType::Famine, "famine", id,
                      strf("%s is short of food (pop %s)", n.name.c_str(), with_commas(n.population).c_str()),
                      strf("%s stock covers %.1f days; town cash %s limits what traders can be paid", who.c_str(), cover,
                           money(n.cash).c_str()),
                      repeat);
         } else if (n.hunger < 0.08 && n.starving) {
             n.starving = false;
-            log_.add(world_.today, EventType::Famine, id, strf("%s has food again", n.name.c_str()),
+            log_.with({field("node", n.name)});
+            log_.add(world_.today, EventType::Famine, "famine_over", id, strf("%s has food again", n.name.c_str()),
                      "supply caught up with demand", true);
         }
 
@@ -222,7 +263,11 @@ void Simulation::update_population(NodeId id) {
     } else {
         const double loss = (n.population - target) * p.pop_decline_rate;
         // People leaving take their savings with them; a dead mining camp doesn't keep its gold money.
-        if (n.population > 0) n.cash -= n.cash * (loss / n.population) * p.emigrant_cash_share;
+        if (n.population > 0) {
+            const double leaves = n.cash * (loss / n.population) * p.emigrant_cash_share;
+            n.cash -= leaves;
+            world_.record(MoneyFlow::Emigration, -leaves);
+        }
         n.population -= loss;
         n.drifters += loss * p.leaver_drifter_fraction;
     }
@@ -235,7 +280,8 @@ void Simulation::update_population(NodeId id) {
         const bool quiet_up = world_.today - n.last_pop_log < 60 && n.last_pop_dir < 0;  // flip-flopping at a threshold
         n.last_pop_log = world_.today;
         n.last_pop_dir = 1;
-        log_.add(world_.today, EventType::Population, id,
+        log_.with({field("node", n.name), field("threshold", kPopBands[n.pop_band - 1]), field("pop", n.population), field("income", n.income_ema)});
+        log_.add(world_.today, EventType::Population, "pop_grew", id,
                  strf("%s grows past %s", n.name.c_str(), with_commas(kPopBands[n.pop_band - 1]).c_str()),
                  strf("income %s/day supports ~%s people; hunger %.2f", money(n.income_ema).c_str(),
                       with_commas(n.income_ema / p.support_income_per_person).c_str(), n.hunger),
@@ -246,7 +292,8 @@ void Simulation::update_population(NodeId id) {
         const bool quiet_down = world_.today - n.last_pop_log < 60 && n.last_pop_dir > 0;
         n.last_pop_log = world_.today;
         n.last_pop_dir = -1;
-        log_.add(world_.today, EventType::Population, id,
+        log_.with({field("node", n.name), field("threshold", kPopBands[n.pop_band]), field("pop", n.population), field("income", n.income_ema), field("peak_income", n.income_peak)});
+        log_.add(world_.today, EventType::Population, "pop_shrank", id,
                  strf("%s shrinks below %s", n.name.c_str(), with_commas(kPopBands[n.pop_band]).c_str()),
                  strf("income fell to %s/day from a peak of %s; hunger %.2f", money(n.income_ema).c_str(),
                       money(n.income_peak).c_str(), n.hunger),
@@ -254,13 +301,15 @@ void Simulation::update_population(NodeId id) {
     }
     if (!n.ghost && n.population < p.ghost_pop && n.peak_pop >= 150) {
         n.ghost = true;
-        log_.add(world_.today, EventType::Population, id,
+        log_.with({field("node", n.name), field("peak_pop", n.peak_pop), field("income", n.income_ema)});
+        log_.add(world_.today, EventType::Population, "ghost_town", id,
                  strf("%s becomes a ghost town (peak pop %s)", n.name.c_str(), with_commas(n.peak_pop).c_str()),
                  strf("income collapsed to %s/day from a peak of %s: no traffic or output left to live on",
                       money(n.income_ema).c_str(), money(n.income_peak).c_str()));
     } else if (n.ghost && n.population >= p.ghost_pop * 2) {
         n.ghost = false;
-        log_.add(world_.today, EventType::Population, id, strf("%s is repopulating", n.name.c_str()),
+        log_.with({field("node", n.name), field("pop", n.population)});
+        log_.add(world_.today, EventType::Population, "repopulating", id, strf("%s is repopulating", n.name.c_str()),
                  strf("income recovered to %s/day", money(n.income_ema).c_str()));
     }
 }
@@ -269,8 +318,12 @@ void Simulation::update_population(NodeId id) {
 
 void Simulation::end_of_day() {
     const Params& p = world_.params;
+    const double p_market_recovery = p.market_recovery;
     for (Node& n : world_.nodes) {
-        if (n.fixed_market) continue;
+        if (n.fixed_market) {
+            for (double& press : n.pressure) press *= 1.0 - p_market_recovery;
+            continue;
+        }
         const double tax = std::min(n.cash, n.inflow_today * p.law_tax_rate);
         n.cash -= tax;
         // Under a gang's rule the taxes go to the gang, not to the sheriff.

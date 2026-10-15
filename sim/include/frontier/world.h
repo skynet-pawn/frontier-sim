@@ -8,6 +8,27 @@
 
 namespace frontier {
 
+// Every way money enters or leaves the frontier economy. Anything else that changes a cash balance is a
+// transfer between two parties inside it. The money audit checks that nothing else leaks.
+enum class MoneyFlow {
+    EastBuys,          // + an eastern market pays traders for frontier goods
+    EastSells,         // - traders pay an eastern market for manufactured goods
+    Government,        // + army pay, agency contracts
+    Rush,              // + savings newcomers bring
+    NewTraderCapital,  // + eastern capital outfitting a new trader
+    InterestBudget,    // + standing security budgets of railroads and associations
+    GangStake,         // + the purse a new gang starts with
+    Freight,           // - teamsters, boats and railroads paid
+    EastSpending,      // - spending that lands in an eastern market (visits, wages, upkeep)
+    Emigration,        // - savings leaving with departing residents
+    TraderExit,        // - a trader's remaining cash when he quits or dies
+    GangExit,          // - a dissolved gang's remaining cash
+    LeaderExit,        // - a dead leader's cash
+    Count
+};
+inline constexpr int kMoneyFlowCount = static_cast<int>(MoneyFlow::Count);
+const char* money_flow_name(MoneyFlow f);
+
 // Runtime state of one place on the strategic graph: a town, fort, mine, range
 // or eastern market. Everything the economy needs is aggregate: no individual
 // residents, just totals.
@@ -20,6 +41,7 @@ struct Node {
 
     double population = 0, cash = 0;
     std::vector<double> stock, fixed_price, reserve, extra_demand;
+    std::vector<double> pressure;           // eastern markets: net units sold into the market, decaying
     std::vector<ProductionDef> production;
     std::vector<char> production_started;   // parallel to `production`, for one-time log lines
     std::vector<EdgeId> edges;
@@ -76,6 +98,9 @@ public:
     std::vector<Edge> edges;
     Params params;
     long today = 0;
+    double ledger[kMoneyFlowCount] = {};   // signed running total per MoneyFlow
+    std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
+    void record(MoneyFlow f, double amount) { ledger[static_cast<int>(f)] += amount; }
 
     // ---- Prices ----
     // Normal stock a node expects to hold: a month of local consumption, a month
@@ -84,6 +109,9 @@ public:
     double daily_demand(NodeId n, GoodId g) const;
     double daily_output(NodeId n, GoodId g) const;
     double mid_price_at(NodeId n, GoodId g, double stock) const;
+    // An eastern market's price once `pressure` units have been sold into it: finite depth, so no
+    // arbitrage is unlimited. Selling a lot depresses the price; buying a lot raises it. Pressure decays.
+    double fixed_price_at(NodeId n, GoodId g, double pressure) const;
     // Price a trader pays to buy / receives to sell one unit when the node holds `stock`.
     double buy_price_at(NodeId n, GoodId g, double stock) const;
     double sell_price_at(NodeId n, GoodId g, double stock) const;

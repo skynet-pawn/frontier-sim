@@ -35,7 +35,8 @@ void Simulation::capture_progress(Gang& g, double spent) {
     h.toll = g.tribute;
     h.captured_day = world_.today;
     h.captured_income = std::max(h.income_ema, 1.0);
-    log_.add(world_.today, EventType::Gang, g.hideout,
+    log_.with({field("gang", g.id), field("men", g.men), field("node", h.name), field("pop", h.population), field("competence", g.competence), field("tribute", g.tribute), field("spent", spent)});
+    log_.add(world_.today, EventType::Gang, "gang_takeover", g.hideout,
              strf("Gang #%d (%d men) takes over %s (pop %s)", g.id, g.men, h.name.c_str(), with_commas(h.population).c_str()),
              strf("its spending of %s/day is large against the town's income of %s/day, so its influence reached %.1f; "
                   "the law fund held only %s and no railroad, express or stock interest was within %.0f miles to back "
@@ -70,7 +71,8 @@ void Simulation::rule_town(Gang& g) {
         const int killed = std::max(1, static_cast<int>(std::ceil(g.men * 0.3)));
         g.men -= killed;
         g.competence *= 0.85;
-        log_.add(world_.today, EventType::Gang, g.ruling,
+        log_.with({field("gang", g.id), field("node", h.name), field("killed", killed), field("competence", g.competence)});
+        log_.add(world_.today, EventType::Gang, "gang_infighting", g.ruling,
                  strf("Gang #%d tears at itself in %s: %d men killed in a fight over the spoils", g.id, h.name.c_str(), killed),
                  strf("the boss's competence (%.2f) is too low to keep his lieutenants in line; the town pays %.0f%% on everything",
                       g.competence, g.tribute * 100));
@@ -83,7 +85,8 @@ void Simulation::free_town(Gang& g, const char* why) {
     if (g.ruling < 0) return;
     Node& h = world_.nodes[World::idx(g.ruling)];
     if (h.captor == g.id) {
-        log_.add(world_.today, EventType::Gang, g.ruling,
+        log_.with({field("gang", g.id), field("node", h.name), field("days", world_.today - h.captured_day), field("income", h.income_ema)});
+        log_.add(world_.today, EventType::Gang, "town_freed", g.ruling,
                  strf("%s is free of gang #%d after %ld days", h.name.c_str(), g.id, world_.today - h.captured_day),
                  strf("%s; income is now %s/day against %s when the gang took over (pop %s)", why,
                       money(h.income_ema).c_str(), money(h.captured_income).c_str(), with_commas(h.population).c_str()));
@@ -127,13 +130,14 @@ void Simulation::try_vigilance(NodeId n) {
     std::string led;
     if (hire) {
         hire->busy = true;
-        hire->cash += fee;
+        pay_leader(*hire, fee);
         nd.cash -= fee;
         ++hire->jobs;
         q.leader_id = hire->id;
         led = strf(", with %s hired to lead them (fee %s)", hire->name.c_str(), money(fee).c_str());
     }
-    log_.add(world_.today, EventType::Law, n,
+    log_.with({field("node", nd.name), field("men", men), field("gang", g->id)});
+    log_.add(world_.today, EventType::Law, "vigilance_formed", n,
              strf("Citizens of %s organize a vigilance committee of %d men against gang #%d (%d men)%s", nd.name.c_str(), men,
                   g->id, g->men, led.c_str()),
              strf("grievances: income is down %.0f%% since the takeover, the gang takes %.0f%% of all trade, hunger %.2f",

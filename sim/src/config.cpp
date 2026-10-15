@@ -74,6 +74,7 @@ WorldDef load_world(const std::string& dir) {
         g.spoilage_per_day = jg.value("spoilage_per_day", 0.0);
         g.self_propelled = jg.value("self_propelled", false);
         g.min_target = jg.value("min_target", 10.0);
+        g.market_depth = jg.value("market_depth", 0.0);
         if (jg.contains("freight_mult"))
             for (auto it = jg["freight_mult"].begin(); it != jg["freight_mult"].end(); ++it)
                 g.freight_mult[static_cast<int>(parse_mode(it.key()))] = it.value().get<double>();
@@ -229,7 +230,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
 #define P_D(f) dbl(#f, p.f)
 #define P_I(f) num(#f, p.f)
     P_D(price_elasticity); P_D(price_min_mult); P_D(price_max_mult); P_D(price_max_mult_producer); P_D(cover_days);
-    P_D(stock_cap_days); P_D(spread); P_D(mishap_loss_fraction);
+    P_D(stock_cap_days); P_D(spread); P_D(market_recovery); P_D(mishap_loss_fraction);
     P_D(support_income_per_person); P_D(income_ema_alpha); P_D(pop_growth_rate);
     P_D(pop_decline_rate); P_D(hunger_alpha); P_D(hunger_threshold); P_D(floor_pop);
     P_D(ghost_pop); P_D(leaver_drifter_fraction); P_D(emigrant_cash_share); P_D(newcomer_provision_days); P_D(transient_inflow_rate);

@@ -6,6 +6,7 @@ add_library(frontier_sim STATIC
     src/law.cpp
     src/rng.cpp
     src/simulation.cpp
+    src/stats.cpp
     src/traders.cpp
     src/world.cpp
 )

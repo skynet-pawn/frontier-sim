@@ -1,4 +1,15 @@
-add_executable(determinism_test determinism_test.cpp)
-target_link_libraries(determinism_test PRIVATE frontier_sim)
-target_compile_definitions(determinism_test PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
-add_test(NAME determinism COMMAND determinism_test)
+function(frontier_test name)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE frontier_sim)
+    target_compile_definitions(${name} PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+frontier_test(determinism_test)
+frontier_test(money_test)
+frontier_test(action_test)
+
+# Dev tool for hunting money leaks; not a test.
+add_executable(audit_probe audit_probe.cpp)
+target_link_libraries(audit_probe PRIVATE frontier_sim)
+target_compile_definitions(audit_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")

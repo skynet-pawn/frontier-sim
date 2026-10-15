@@ -107,12 +107,18 @@ int main(int argc, char** argv) {
         for (const Leader& l : sim.leaders())
             std::printf("  %-34s %-16s skill %.2f  jobs %d  wins %d  earned %s%s\n", l.name.c_str(),
                         sim.world().nodes[static_cast<std::size_t>(l.at)].name.c_str(), l.skill, l.jobs, l.wins,
-                        money(l.cash).c_str(), l.alive ? "" : "  (dead)");
+                        money(l.earned).c_str(), l.alive ? "" : "  (dead)");
 
         std::puts("\nprivate interests:");
         for (const Interest& in : sim.interests())
             std::printf("  %-34s fund %-10s losses to robbery %-10s detective parties %d (won %d)\n", in.name.c_str(),
                         money(in.fund).c_str(), money(in.losses_total).c_str(), in.ops, in.wins);
+
+        const MoneyAudit audit = sim.money_audit();
+        std::printf("\nmoney audit: started %s, now %s, residual %s (should be ~0)\n", money(audit.baseline).c_str(),
+                    money(audit.actual).c_str(), money(audit.residual).c_str());
+        for (int f = 0; f < kMoneyFlowCount; ++f)
+            std::printf("  %-30s %14s\n", money_flow_name(static_cast<MoneyFlow>(f)), money(audit.flows[f]).c_str());
 
         std::puts("\nevent counts:");
         for (int t = 0; t < kEventTypeCount; ++t)
