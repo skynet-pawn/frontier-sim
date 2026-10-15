@@ -10,3 +10,6 @@ add_subdirectory(sim)
 
 # Headless runner. A viewer, when it exists, is another consumer of `frontier_sim`.
 add_subdirectory(cli)
+
+enable_testing()
+add_subdirectory(tests)

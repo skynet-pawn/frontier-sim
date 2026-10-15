@@ -1,0 +1,35 @@
+{
+  "_note": "First slice: mid-1870s to mid-1880s drives and railheads. Run length is days; about 4400 days from 1874 reaches early 1886; the first year is warm-up while towns settle toward their trade income.",
+  "seed": 1,
+  "start": "1874-01-01",
+  "log_from": "1875-01-01",
+  "days": 4400,
+  "traders": 120,
+  "max_traders": 220,
+  "capital_min": 1500,
+  "capital_max": 5000,
+
+  "gangs": [
+    { "hideout": "fort_griffin", "men": 8 },
+    { "hideout": "dodge_city", "men": 7 }
+  ],
+
+  "shocks": [
+    { "name": "Black Hills gold rush", "kind": "rush", "date": "1876-03-01", "node": "deadwood",
+      "people": 1500, "cash_per_person": 40,
+      "cause": "Custer's 1874 expedition confirmed gold; the 1876 rush ignored the Fort Laramie treaty" },
+    { "name": "Hard winter", "kind": "stock_loss", "date": "1886-12-01", "tag": "northern_range",
+      "goods": ["beef_cattle"], "fraction": 0.6,
+      "cause": "overstocked northern range and a severe winter (the 1886-87 die-out)" }
+  ],
+
+  "params": {
+    "transient_inflow_rate": 0.00008,
+    "gang_form_min_drifters": 8,
+    "gang_form_chance": 0.02,
+    "leaver_drifter_fraction": 0.05,
+    "gang_encounter_prob": 0.03,
+    "trader_kill_prob": 0.05,
+    "trader_join_rate": 0.15
+  }
+}

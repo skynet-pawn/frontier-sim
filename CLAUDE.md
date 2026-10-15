@@ -90,6 +90,13 @@ If work stops after stage 2 or 3, something real still exists.
 - Native American sacred sites act as safe spaces, with a rare, real, human elder or storyteller rather than a mystical apparition. Several distinct elder characters from different nations. These are hand-authored, never generated, and depiction should be culturally respectful and historically grounded.
 - Outlaw storyline of aiding Native nations resisting expansion: a losing struggle in Red Dead Redemption 2's tone, where the player knows the outcome and the characters don't. The protagonist always has a self-serving or at least non-self-destructive reason to help. Cowboy-Native relations are shown as mutually beneficial rather than antagonistic.
 
+## Ideas backlog (economy and agents)
+
+- **Panic buying / hoarding.** A stock-out should itself raise demand (people stock up when shelves look empty), as the 2020 toilet-paper shortage showed. Model as a temporary demand multiplier at a node after a stock-out, with a traceable cause in the log and dampers (the surge exhausts itself, prices rise, traders respond).
+- **Information lag.** Traders currently see all prices with small noise. Make price knowledge travel with traders and telegraph lines.
+- **Seasons.** River freight, winter on the trail, drive season.
+- **Banks, credit and panics.** Cash scarcity is modelled; credit is not.
+
 ## Known risks
 
 - Scope creep toward the full open-world vision, which is team-sized.
@@ -106,8 +113,8 @@ If work stops after stage 2 or 3, something real still exists.
 ## Open decisions to settle at the start of the repo
 
 - ~~Language and framework.~~ Settled, see above. Developer has years of C, C++, Java, and C# experience. Candidates: C++ with SDL or raylib, C# with a lightweight framework, or Godot. Pick based on which keeps the sim code cleanest and easiest for outside contributors to read.
-- Time window (see above).
-- Tick granularity (suggested starting point: one day per tick for the strategic layer).
+- ~~Time window.~~ Started with the suggested slice: mid-1870s to mid-1880s (scenario starts 1874-01-01 as warm-up, log begins 1875-01-01).
+- ~~Tick granularity.~~ One day per tick.
 
 ## Working agreements for Claude Code
 
