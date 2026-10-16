@@ -282,7 +282,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(risk_aversion_cap); P_D(risk_aversion_decay); P_D(info_noise); P_D(min_profit);
     P_D(avail_fraction); P_D(deadhead_discount); P_D(lookahead_weight); P_D(trader_kill_prob);
     P_I(firms_initial); P_D(firm_capital_min); P_D(firm_capital_max); P_D(firm_capacity_lb); P_D(firm_upkeep);
-    P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha);
+    P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_danger_floor);
     P_D(firm_entry_rate); P_D(firm_hurdle); P_D(return_alpha); P_D(danger_ref); P_D(danger_alpha); P_D(settle_cash);
     P_D(settle_chance); P_D(settle_invest_share); P_D(firm_withdraw_rate); P_D(price_uncertainty_weight);
     P_D(spot_uncertainty_base); P_D(spot_uncertainty_thin);

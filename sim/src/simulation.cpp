@@ -138,8 +138,8 @@ void Simulation::trader_entry() {
     const double mean_firm = (p.firm_risk_aversion_min + p.firm_risk_aversion_max) / 2;
     const double report = std::clamp((return_ema_ - p.firm_hurdle) / p.firm_hurdle, 0.0, 3.0);
 
-    int free_in = draw_count(rng_, p.freelancer_entry_rate * rumor * std::max(0.0, 1.0 - 0.5 * mean_free * danger));
-    int firm_in = draw_count(rng_, p.firm_entry_rate * report * std::max(0.0, 1.0 - 0.5 * mean_firm * danger));
+    int free_in = draw_count(rng_, p.freelancer_entry_rate * rumor * std::max(p.entry_danger_floor, 1.0 - 0.5 * mean_free * danger));
+    int firm_in = draw_count(rng_, p.firm_entry_rate * report * std::max(p.entry_danger_floor, 1.0 - 0.5 * mean_firm * danger));
     free_in = std::min(free_in, std::max(0, sc_.max_traders - static_cast<int>(traders_.size())));
     for (int i = 0; i < free_in && !gateways_.empty(); ++i) spawn_trader(gateways_[rng_.next_below(gateways_.size())], false);
     for (int i = 0; i < firm_in && !markets_.empty(); ++i) spawn_trader(markets_[rng_.next_below(markets_.size())], true);

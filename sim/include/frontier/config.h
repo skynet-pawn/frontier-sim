@@ -175,6 +175,8 @@ struct Params {
     double story_profit_threshold = 2000;    // a trip this profitable becomes a story worth telling
     double story_ref = 2.0;                  // stories per day at which arrivals run at the base rate
     double story_alpha = 0.05;               // rumor memory: about 20 days
+    double story_fade = 0.03;                // a trader's recent winnings fade by this share a day (about a month)
+    double entry_danger_floor = 0.2;         // danger never shuts the frontier completely: some always come
     double firm_entry_rate = 0.03;           // firms outfitted per day at one hurdle above the hurdle return
     double firm_hurdle = 0.0004;             // daily return on capital a firm needs (about 15% a year) after risk
     double return_alpha = 0.01;              // report lag: about 100 days

@@ -34,6 +34,7 @@ struct Trader {
     std::vector<std::pair<EdgeId, double>> fear;  // sparse: daily extra risk this trader assigns to an edge
     int robberies = 0;
     double pending_spend = 0;    // upkeep accrued on the road, spent in the next town
+    double recent_profit = 0;    // what he has cleared lately, fading with time: a run of good legs makes a story
 
     // Travel state.
     std::vector<EdgeId> route;

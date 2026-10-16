@@ -91,6 +91,7 @@ void Simulation::step_trader(Trader& t) {
     const double cost = daily_cost(t, t.travelling ? t.guards : 0);
     t.cash -= cost;
     profit_today_ -= cost;
+    t.recent_profit *= 1.0 - p.story_fade;
     if (t.travelling) {
         t.pending_spend += cost;
     } else if (Node& here = world_.nodes[World::idx(t.at)]; !here.fixed_market) {
@@ -545,7 +546,13 @@ Receipt Simulation::sell_cargo(Trader& t, double qty) {
     const double profit = revenue - sold * t.unit_cost;
     t.cash += revenue;
     profit_today_ += profit;
-    if (profit > world_.params.story_profit_threshold) ++stories_today_;  // a trip worth telling about
+    // A freighter's good run is told as one story however many legs it took: the haul in and the haul back
+    // count together, and the tally fades so only quick earners talk.
+    t.recent_profit += profit;
+    if (t.recent_profit > world_.params.story_profit_threshold) {
+        ++stories_today_;
+        t.recent_profit = 0;
+    }
     r.units = sold;
     r.money = revenue;
     if (trace)
