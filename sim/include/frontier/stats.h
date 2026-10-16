@@ -42,6 +42,8 @@ struct RunStats {
     int merchant_orders = 0;
     double merchant_delivered = 0, merchant_lost = 0;   // dollars of ordered goods that arrived / were robbed
     int famines = 0, ghost_towns = 0, waypoint_sales = 0;
+    int famine_events = 0;   // raw famine log entries, before merging flicker into episodes
+    int famine_towns = 0;    // distinct towns that went hungry at least once
 
     // Towns
     std::vector<TownOutcome> towns;

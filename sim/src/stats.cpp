@@ -111,7 +111,23 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.infighting = static_cast<int>(log.count_kind("gang_infighting"));
     r.vigilance = static_cast<int>(log.count_kind("vigilance_formed"));
     r.waypoint_sales = static_cast<int>(log.count_kind("trade_waypoint"));
-    r.famines = static_cast<int>(log.count_kind("famine"));
+    // A town on the edge of food supply crosses the hunger thresholds again and again; that is one hungry
+    // spell, not many. Famine events at one town fewer than kFamineMergeDays apart (counting from the last
+    // famine or recovery) are one episode, and distinct towns say whether it was regional or chronic.
+    constexpr long kFamineMergeDays = 90;
+    r.famine_events = static_cast<int>(log.count_kind("famine"));
+    std::vector<long> last_famine_event(N, -1000000);
+    std::vector<bool> famine_seen(N, false);
+    for (const Event& e : log.events()) {
+        if (e.kind != "famine" && e.kind != "famine_over") continue;
+        const std::size_t i = World::idx(e.node);
+        if (e.kind == "famine") {
+            if (e.day - last_famine_event[i] >= kFamineMergeDays) ++r.famines;
+            if (!famine_seen[i]) ++r.famine_towns;
+            famine_seen[i] = true;
+        }
+        last_famine_event[i] = e.day;
+    }
     r.ghost_towns = static_cast<int>(log.count_kind("ghost_town"));
 
     for (std::size_t i = 0; i < N; ++i) {
