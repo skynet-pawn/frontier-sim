@@ -140,6 +140,10 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.east_sells = audit.flows[static_cast<int>(MoneyFlow::EastSells)];
     r.emigrated = audit.flows[static_cast<int>(MoneyFlow::Emigration)];
     for (std::size_t i = 0; i < N; ++i) r.towns[i].flour_bought = sim.flour_bought_at()[i];
+    for (std::size_t i = 0; i < N; ++i) r.towns[i].imported = sim.imported_value()[i];
+    r.merchant_orders = sim.merchant_orders();
+    r.merchant_delivered = sim.merchant_delivered();
+    r.merchant_lost = sim.merchant_lost();
     r.east_bought_by_good = sim.world().east_bought_value;
     r.east_sold_by_good = sim.world().east_sold_value;
     r.bought_by_freelancers = sim.bought_by_good(false);

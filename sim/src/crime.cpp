@@ -245,6 +245,7 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     }
 
     const double value = t.qty * t.unit_cost;
+    if (t.agent_for >= 0) lost_orders_value_ += value;  // the town paid for this
     const GoodId cargo = t.cargo;
     const double units = t.qty;
 

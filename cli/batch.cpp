@@ -138,6 +138,9 @@ int main(int argc, char** argv) {
         row("  towns freed", runs, [](const RunStats& r) { return double(r.towns_freed); });
         row("  vigilance committees", runs, [](const RunStats& r) { return double(r.vigilance); });
         row("sales made along the way", runs, [](const RunStats& r) { return double(r.waypoint_sales); });
+        row("merchant orders placed", runs, [](const RunStats& r) { return double(r.merchant_orders); });
+        row("  goods delivered ($M)", runs, [](const RunStats& r) { return r.merchant_delivered / 1e6; });
+        row("  goods robbed on the way ($M)", runs, [](const RunStats& r) { return r.merchant_lost / 1e6; });
         row("famine episodes", runs, [](const RunStats& r) { return double(r.famines); });
         row("ghost towns (events)", runs, [](const RunStats& r) { return double(r.ghost_towns); });
         row("total population, start", runs, [](const RunStats& r) { return r.pop_start_total; });
@@ -215,6 +218,13 @@ int main(int argc, char** argv) {
         for (std::size_t i = 0; i < world.nodes.size(); ++i) {
             double sum = 0;
             for (const RunStats& r : runs) sum += r.towns[i].flour_bought;
+            if (sum / seeds >= 500) std::printf("    %-18s %8.1f\n", world.nodes[i].name.c_str(), sum / seeds / 1000);
+        }
+
+        std::printf("\n  goods ordered in by each town's merchants (mean $k per run):\n");
+        for (std::size_t i = 0; i < world.nodes.size(); ++i) {
+            double sum = 0;
+            for (const RunStats& r : runs) sum += r.towns[i].imported;
             if (sum / seeds >= 500) std::printf("    %-18s %8.1f\n", world.nodes[i].name.c_str(), sum / seeds / 1000);
         }
 

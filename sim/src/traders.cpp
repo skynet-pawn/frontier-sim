@@ -35,6 +35,13 @@ void Simulation::traders_day() {
     std::iota(order.begin(), order.end(), std::size_t{0});
     rng_.shuffle(order);  // so no trader always gets first pick of a market
     for (std::size_t i : order) step_trader(traders_[i]);
+    // Town-hired convoys ride the same roads and meet the same gangs. Index loop: none are added while they move.
+    for (std::size_t i = 0; i < convoys_.size(); ++i) {
+        Trader& c = convoys_[i];
+        if (!c.alive) continue;
+        step_trader(c);
+        if (c.alive && !c.travelling) finish_convoy(c);  // robbed on the road: the outfit disbands
+    }
 }
 
 double Simulation::daily_cost(const Trader& t, int guards) const {
@@ -115,7 +122,7 @@ void Simulation::step_trader(Trader& t) {
     if (!t.travelling && !t.controlled && t.cargo < 0) {
         const Node& here = world_.nodes[World::idx(t.at)];
         // A freelancer who has made his pile may settle down.
-        if (!t.firm && !here.fixed_market && t.cash > p.settle_cash && rng_.chance(p.settle_chance)) {
+        if (!t.firm && !here.fixed_market && t.agent_for < 0 && t.cash > p.settle_cash && rng_.chance(p.settle_chance)) {
             settle_trader(t);
             return;
         }
@@ -190,7 +197,8 @@ void Simulation::arrive(Trader& t) {
 
     const bool more_road = t.leg < t.route.size() && world_.edges[World::idx(t.route[t.leg])].active;
     // A teamster passing through a town with a good price for his load sells some of it there.
-    const bool sold_out = more_road && t.cargo >= 0 && !t.controlled && sell_along_the_way(t);
+    // (A town's convoy is carrying an order and does not peddle it on the way.)
+    const bool sold_out = more_road && t.cargo >= 0 && !t.controlled && t.agent_for < 0 && sell_along_the_way(t);
     if (more_road && !sold_out) {
         t.days_left = world_.edges[World::idx(t.route[t.leg])].travel_days;
         return;
@@ -198,6 +206,7 @@ void Simulation::arrive(Trader& t) {
     t.travelling = false;
     t.route.clear();
     t.guards = 0;
+    if (t.agent_for >= 0) { finish_convoy(t); return; }
     if (!t.controlled) decide(t);
 }
 
@@ -364,7 +373,7 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
     for (std::size_t g = 0; g < world_.goods.size(); ++g) {
         if (world_.goods[g].self_propelled != t.drover) continue;
         const GoodId gid = static_cast<GoodId>(g);
-        const double avail = hn.fixed_market ? 1e12 : hn.stock[g] * p.avail_fraction;
+        const double avail = hn.fixed_market ? 1e12 : tradable_stock(t.at, gid);
         if (avail < 1) continue;
         const double load_units = t.capacity_lb / world_.goods[g].load_lb;
         const double unit_price = world_.buy_price(t.at, gid);
@@ -396,6 +405,15 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
         }
     }
     return best;
+}
+
+// What a trader may try to buy from a town's shelves. Storekeepers do not sell the last of what their own
+// customers will eat next fortnight, however high the offer from a richer camp; a poor fort that is outbid
+// would otherwise starve to feed a boom town (and its own garrison would be the first to notice).
+double Simulation::tradable_stock(NodeId n, GoodId g) const {
+    const double stock = world_.nodes[World::idx(n)].stock[World::idx(g)];
+    const double reserve = world_.daily_demand(n, g) * world_.params.local_reserve_days;
+    return std::max(0.0, stock - reserve) * world_.params.avail_fraction;
 }
 
 // When nothing profitable can be bought here, head for where the best opportunity is.
@@ -439,7 +457,7 @@ void Simulation::ensure_opportunities() {
             }
             for (std::size_t g = 0; g < world_.goods.size(); ++g) {
                 const GoodId gid = static_cast<GoodId>(g);
-                const double avail = hn.fixed_market ? 1e12 : hn.stock[g] * p.avail_fraction;
+                const double avail = hn.fixed_market ? 1e12 : tradable_stock(static_cast<NodeId>(n), gid);
                 if (avail < 1) continue;
                 const double price = world_.buy_price(static_cast<NodeId>(n), gid);
                 const double q = std::floor(std::min({p.trader_capacity_lb / world_.goods[g].load_lb, avail, standard_cash / price}));

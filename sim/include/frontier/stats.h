@@ -18,6 +18,7 @@ struct TownOutcome {
     double farmers_start = 0, farmers_peak = 0, farmers_end = 0;
     bool latent = false;         // started as a site on the map, not a town
     long founded_day = -1;       // days since the run began when it became a town (-1 = never / from the start)
+    double imported = 0;         // dollars of goods the town's merchants ordered in
     double flour_bought = 0;     // dollars of flour traders bought here
     double earned_sales = 0, earned_visitors = 0, earned_government = 0, earned_total = 0;   // lifetime, by source
 };
@@ -38,6 +39,8 @@ struct RunStats {
     int robberies = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
     int posses = 0, posse_victories = 0, posse_routs = 0, leaders_killed = 0, leaders_emerged = 0;
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
+    int merchant_orders = 0;
+    double merchant_delivered = 0, merchant_lost = 0;   // dollars of ordered goods that arrived / were robbed
     int famines = 0, ghost_towns = 0, waypoint_sales = 0;
 
     // Towns

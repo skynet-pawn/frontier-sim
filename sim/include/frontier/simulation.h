@@ -23,6 +23,7 @@ struct Trader {
     int guards = 0;
     bool drover = false;         // drovers move cattle only; freighters move everything else
     bool controlled = false;     // driven by an outside controller (a player or a script), not the AI
+    NodeId agent_for = -1;       // >= 0: a convoy hired by this town's merchants; it delivers there and disbands
     bool firm = false;           // an eastern firm's freight line or cattle syndicate, not a freelancer
     double capacity_lb = 12000;  // what the outfit can haul in one trip
     double upkeep = 1.5;         // $/day running costs, before guards
@@ -164,6 +165,11 @@ public:
     const std::vector<double>& bought_by_good(bool firm) const { return bought_value_[firm ? 1 : 0]; }
     // Dollars of flour traders bought at each node (diagnostic): who the farm hubs and the East really supply.
     const std::vector<double>& flour_bought_at() const { return flour_bought_at_; }
+    // Merchant imports (diagnostics): loads ordered, dollars of goods delivered or robbed, and goods bought per town.
+    int merchant_orders() const { return orders_placed_; }
+    double merchant_delivered() const { return delivered_value_; }
+    double merchant_lost() const { return lost_orders_value_; }
+    const std::vector<double>& imported_value() const { return imported_value_; }
     int entered_freelancers() const { return entered_freelancers_; }
     int entered_firms() const { return entered_firms_; }
     bool trace = false;          // log individual trades
@@ -221,8 +227,15 @@ private:
     void arrive(Trader& t);
     Receipt sell_cargo(Trader& t, double qty);   // the sale itself, with no check that the outfit is idle
     bool sell_along_the_way(Trader& t);          // true if the whole load went here and the trip is over
+    double tradable_stock(NodeId n, GoodId g) const;   // what traders may buy from a town's shelves
     void ensure_opportunities();
     void retire(Trader& t, const char* why, bool ruined = false);
+
+    // ---- merchant imports (merchants.cpp) ----
+    void merchants_day();
+    void order_for_town(NodeId id);
+    double dispatch_convoy(NodeId town, NodeId src, GoodId g, double units, double advance, double landed);
+    void finish_convoy(Trader& c);
 
     // ---- crime and law (crime.cpp) ----
     void crime_day();
@@ -264,6 +277,10 @@ private:
     Scenario sc_;
 
     std::vector<Trader> traders_;
+    std::vector<Trader> convoys_;               // freight hired by towns' merchants (not counted among the traders)
+    int orders_placed_ = 0;
+    double delivered_value_ = 0, lost_orders_value_ = 0;
+    std::vector<double> imported_value_;
     std::vector<Gang> gangs_;
     std::vector<Posse> posses_;
     std::vector<Leader> leaders_;

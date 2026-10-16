@@ -160,8 +160,17 @@ struct Params {
     double risk_aversion_bump = 0.3, risk_aversion_cap = 4, risk_aversion_decay = 0.002;
     double info_noise = 0.08;                // stale or imperfect price information
     double min_profit = 40;
+    double local_reserve_days = 12;          // a town's merchants keep this many days of their own people's needs off the market
     double avail_fraction = 0.6;             // share of a node's stock a trader will try to buy
     double deadhead_discount = 0.7;
+    // Merchant imports: a town short of a staple orders it ahead from the cheapest source and pays from its own cash.
+    int merchant_interval_days = 7;          // each town reviews its shelves weekly
+    double merchant_min_pop = 150;           // below this there is no merchant class to order anything
+    double merchant_reorder_days = 40;       // order when stock (and goods on the way) covers fewer days than this
+    double merchant_target_days = 75;         // ...and order enough to cover this many (a season's stock before winter)
+    double merchant_cash_share = 0.5;        // most of a town's cash one round of orders may commit
+    double merchant_margin = 0.15;           // landed cost must leave this much under the shelf price
+    int merchant_max_loads = 6;              // wagon trains per good per review
     double lookahead_weight = 0.5;           // share of the best next load at a destination that counts toward a trip's worth (freighters ran round trips)
 
     // Who comes west. Agents never see the sim's true profit: freelancers hear rumors (only the winners talk),

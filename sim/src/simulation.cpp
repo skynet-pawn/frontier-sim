@@ -22,6 +22,7 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
     bought_value_[0].assign(world_.goods.size(), 0.0);
     bought_value_[1].assign(world_.goods.size(), 0.0);
     flour_bought_at_.assign(world_.nodes.size(), 0.0);
+    imported_value_.assign(world_.nodes.size(), 0.0);
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
         Node& n = world_.nodes[i];
         while (n.pop_band < kBandCount && n.population >= kPopBands[n.pop_band]) ++n.pop_band;
@@ -63,6 +64,7 @@ double Simulation::total_money() const {
     for (const Node& n : world_.nodes)
         if (!n.fixed_market) m += n.cash + n.law_fund;
     for (const Trader& t : traders_) m += t.cash + t.pending_spend;  // pending: wages on the road, paid at the next stop
+    for (const Trader& t : convoys_) m += t.cash + t.pending_spend;  // a town's advance, riding with the wagons
     for (const Gang& g : gangs_) m += g.cash;
     for (const Leader& l : leaders_) m += l.cash;
     for (const Interest& in : interests_) m += in.fund;
@@ -92,6 +94,7 @@ void Simulation::step() {
     apply_shocks();
     apply_campaigns();
     economy_day();
+    merchants_day();
     traders_day();
     crime_day();
     end_of_day();
@@ -485,7 +488,7 @@ void Simulation::end_of_day() {
     double capital = 0;
     for (const Trader& t : traders_) capital += std::max(0.0, t.cash) + (t.cargo >= 0 ? t.qty * t.unit_cost : 0.0);
     if (capital > 0) return_ema_ += p.return_alpha * (profit_today_ / capital - return_ema_);
-    const double trader_count = std::max<double>(1.0, static_cast<double>(traders_.size()));
+    const double trader_count = std::max<double>(1.0, static_cast<double>(traders_.size() + convoys_.size()));
     danger_ema_ += p.danger_alpha * (robbed_today_ / trader_count - danger_ema_);
     story_ema_ += p.story_alpha * (stories_today_ - story_ema_);
     profit_today_ = 0;
@@ -494,6 +497,8 @@ void Simulation::end_of_day() {
     trader_entry();
     traders_.erase(std::remove_if(traders_.begin(), traders_.end(), [](const Trader& t) { return !t.alive; }),
                    traders_.end());
+    convoys_.erase(std::remove_if(convoys_.begin(), convoys_.end(), [](const Trader& t) { return !t.alive; }),
+                   convoys_.end());
 }
 
 std::string Simulation::ename(EdgeId e) const {
