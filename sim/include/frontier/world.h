@@ -42,6 +42,10 @@ struct Node {
     double garrison = 0;                    // soldiers currently posted
     std::vector<ContractDef> contracts;
     std::vector<double> contract_price, contract_backlog;  // per good: fixed price (0 = none) and unfilled quantity
+    // Open orders the town's merchants have posted (merchants.cpp), per good: units wanted and the delivered price offered.
+    // Unlike a government contract these are paid out of the town's own cash, and the offer rises while nobody fills it.
+    std::vector<double> order_qty, order_price, order_first_price;
+    std::vector<long> order_posted, order_raised, order_hired;
     std::vector<std::string> tags;
 
     // Farming and settlement (farms.cpp).
@@ -131,6 +135,7 @@ public:
     std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
     std::vector<std::string> zone_names;     // weather zones
     std::vector<double> zone_yield;          // this year's yield multiplier per zone (1 = normal)
+    double order_filled_value = 0, order_filled_units = 0;  // diagnostics: what traders have been paid for open orders
     GoodId flour_good = -1, forage_good = -1, money_good = -1;   // money_good: gold, which passes as currency in the camps
     // Flour-equivalent a node's farmers bring to market in a normal year, per day.
     double farm_output(NodeId n) const;

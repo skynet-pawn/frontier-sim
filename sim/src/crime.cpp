@@ -310,11 +310,7 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
         if (n != g.hideout) world_.nodes[World::idx(n)].outrage += p.outrage_per_robbery * share;
 
     ++t.robberies;
-    bool found = false;
-    for (auto& f : t.fear)
-        if (f.first == eid) { f.second += p.fear_bump * share; found = true; }
-    if (!found) t.fear.push_back({eid, p.fear_bump * share});
-    t.risk_aversion = std::min(p.risk_aversion_cap, t.risk_aversion + p.risk_aversion_bump * share);
+    bump_fear(t, eid, p.fear_bump * share, p.risk_aversion_bump * share, p.risk_aversion_cap);
 
     const std::string why_take =
         strf("%s of lootable cargo/day passes this trail; %s fences the goods for %s (%.0f%% of value)%s",

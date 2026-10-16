@@ -39,9 +39,10 @@ struct RunStats {
     int robberies = 0, tolls = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
     int posses = 0, posse_victories = 0, posse_routs = 0, leaders_killed = 0, leaders_emerged = 0;
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
-    int merchant_orders = 0;
+    int merchant_orders = 0, orders_expired = 0, convoys_hired = 0;
     double merchant_delivered = 0, merchant_lost = 0;   // dollars of ordered goods that arrived / were robbed
     int famines = 0, ghost_towns = 0, waypoint_sales = 0;
+    int houses_founded = 0, houses_end = 0, house_outfits_end = 0, house_recaps = 0, house_killed = 0, house_broke = 0;
     int famine_events = 0;   // raw famine log entries, before merging flicker into episodes
     int famine_towns = 0;    // distinct towns that went hungry at least once
 

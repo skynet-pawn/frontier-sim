@@ -33,6 +33,7 @@ struct Trader {
     double base_risk_aversion = 1;
     double risk_aversion = 1;
     std::vector<std::pair<EdgeId, double>> fear;  // sparse: daily extra risk this trader assigns to an edge
+    int house = -1;              // >= 0: a driver and wagons working for this freight house (see House)
     int robberies = 0;
     double pending_spend = 0;    // upkeep accrued on the road, spent in the next town
     double recent_profit = 0;    // what he has cleared lately, fading with time: a run of good legs makes a story
@@ -43,6 +44,27 @@ struct Trader {
     double days_left = 0;
     NodeId dest = -1;
     bool travelling = false;
+};
+
+// A freight house: a trader who got rich enough to stop driving and run other men's wagons (the Russell, Majors
+// & Waddell pattern, or an eastern firm's western agency). One owner's capital is spread over many outfits that
+// he sends out on the strength of what he knows, so one holdup costs him a load and a driver, not his business.
+// His outfits draw a working float from the house; a broken one is made good from house cash, not abandoned.
+// Because a single load is a small part of his wealth he judges risk coolly where a lone freelancer, who is dead
+// or ruined if it goes wrong, cannot. Index in Simulation::houses_ is the house id; closed houses stay in the list.
+struct House {
+    int id = 0;
+    bool alive = true;
+    bool eastern = false;        // an eastern firm's agency (large wagons, cautious temperament) rather than a freelancer's
+    int founder = 0;             // id of the trader who founded it
+    NodeId seat = -1;            // where it hires
+    double cash = 0;             // owner's capital not out working in an outfit
+    double start_capital = 0;
+    double wealth = 0;           // cash plus everything in the outfits, refreshed each morning
+    int outfits = 0;
+    long founded = 0, last_hire = -100000;
+    double base_risk_aversion = 1, risk_aversion = 1;   // the owner's temperament, and what experience has made of it
+    std::vector<std::pair<EdgeId, double>> fear;        // the owner's memory of dangerous roads, shared by every outfit
 };
 
 // A band of outlaws, treated as one object with a headcount.
@@ -167,9 +189,15 @@ public:
     const std::vector<double>& flour_bought_at() const { return flour_bought_at_; }
     // Merchant imports (diagnostics): loads ordered, dollars of goods delivered or robbed, and goods bought per town.
     int merchant_orders() const { return orders_placed_; }
+    int orders_expired() const { return orders_expired_; }
+    int convoys_hired() const { return convoys_hired_; }
     double merchant_delivered() const { return delivered_value_; }
     double merchant_lost() const { return lost_orders_value_; }
     const std::vector<double>& imported_value() const { return imported_value_; }
+    const std::vector<House>& houses() const { return houses_; }
+    int houses_founded() const { return houses_founded_; }
+    int house_recaps() const { return house_recaps_; }
+    int house_exits(bool ruined) const { return house_exits_[ruined ? 1 : 0]; }
     int entered_freelancers() const { return entered_freelancers_; }
     int entered_firms() const { return entered_firms_; }
     bool trace = false;          // log individual trades
@@ -234,8 +262,20 @@ private:
     // ---- merchant imports (merchants.cpp) ----
     void merchants_day();
     void order_for_town(NodeId id);
+    void orders_day();
+    bool cheapest_source(NodeId town, GoodId g, double load_units, NodeId& src, double& best);
+    void hire_for_order(NodeId id, GoodId g);
     double dispatch_convoy(NodeId town, NodeId src, GoodId g, double units, double advance, double landed);
     void finish_convoy(Trader& c);
+
+    // ---- freight houses (houses.cpp) ----
+    void houses_day();
+    void found_house(Trader& founder);
+    void hire_outfit(House& h);
+    bool recapitalize(Trader& t);
+    double effective_risk(const Trader& t) const;
+    std::vector<std::pair<EdgeId, double>>& fear_book(Trader& t);
+    void bump_fear(Trader& t, EdgeId eid, double amount, double risk_bump, double risk_cap);
 
     // ---- crime and law (crime.cpp) ----
     void crime_day();
@@ -281,7 +321,10 @@ private:
 
     std::vector<Trader> traders_;
     std::vector<Trader> convoys_;               // freight hired by towns' merchants (not counted among the traders)
-    int orders_placed_ = 0;
+    std::vector<House> houses_;
+    int houses_founded_ = 0, house_recaps_ = 0;
+    int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover
+    int orders_placed_ = 0, orders_expired_ = 0, convoys_hired_ = 0;
     double delivered_value_ = 0, lost_orders_value_ = 0;
     std::vector<double> imported_value_;
     std::vector<Gang> gangs_;

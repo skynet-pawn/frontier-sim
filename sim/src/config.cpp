@@ -280,11 +280,13 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(risk_prior); P_D(risk_prior_weight); P_D(risk_ema_alpha); P_D(fear_bump);
     P_D(fear_decay); P_D(risk_aversion_min); P_D(risk_aversion_max); P_D(firm_risk_aversion_min); P_D(firm_risk_aversion_max); P_D(risk_aversion_bump);
     P_D(risk_aversion_cap); P_D(risk_aversion_decay); P_D(info_noise); P_D(min_profit);
-    P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_target_days); P_D(merchant_cash_share); P_D(merchant_margin); P_I(merchant_max_loads); P_D(trader_kill_prob);
+    P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_target_days); P_D(merchant_cash_share); P_D(merchant_margin); P_I(merchant_max_loads);
+    P_I(merchant_order_raise_days); P_D(merchant_order_raise); P_D(merchant_order_cap_mult); P_I(merchant_order_expire_days); P_I(merchant_hire_after_days); P_D(trader_kill_prob);
     P_I(firms_initial); P_D(firm_capital_min); P_D(firm_capital_max); P_D(firm_capacity_lb); P_D(firm_upkeep);
     P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_danger_floor);
     P_D(firm_entry_rate); P_D(firm_hurdle); P_D(return_alpha); P_D(danger_ref); P_D(danger_alpha); P_D(settle_cash);
-    P_D(settle_chance); P_D(settle_invest_share); P_D(firm_withdraw_rate); P_D(price_uncertainty_weight);
+    P_D(settle_chance);
+    P_D(house_float); P_D(house_found_cash); P_D(house_found_chance); P_D(house_nerve); P_I(house_max_outfits); P_I(house_hire_days); P_D(settle_invest_share); P_D(firm_withdraw_rate); P_D(price_uncertainty_weight);
     P_D(spot_uncertainty_base); P_D(spot_uncertainty_thin);
     P_D(gang_encounter_prob); P_D(gang_upkeep); P_D(gang_recruit_cost); P_I(gang_min_men); P_I(gang_max_men);
     P_D(gang_form_min_drifters); P_D(gang_form_chance); P_I(gang_review_days);

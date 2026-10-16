@@ -70,6 +70,12 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.contracts = d.contracts;
         n.contract_price.assign(d.stock.size(), 0.0);
         n.contract_backlog.assign(d.stock.size(), 0.0);
+        n.order_qty.assign(d.stock.size(), 0.0);
+        n.order_price.assign(d.stock.size(), 0.0);
+        n.order_first_price.assign(d.stock.size(), 0.0);
+        n.order_posted.assign(d.stock.size(), 0);
+        n.order_raised.assign(d.stock.size(), 0);
+        n.order_hired.assign(d.stock.size(), 0);
         for (const ContractDef& c : d.contracts) n.contract_price[static_cast<std::size_t>(c.good)] = c.price;
         n.production = d.production;
         n.production_started.assign(d.production.size(), 0);
@@ -229,10 +235,15 @@ double World::dust_on_hand(NodeId n) const {
     return node.fixed_market ? 0.0 : std::max(0.0, node.stock[idx(money_good)]) * goods[idx(money_good)].base_cost;
 }
 
+// Revenue a seller can count on at a node: government contract first, then the town's open order, which the
+// town can pay only as far as its cash goes.
 double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
     if (node.fixed_market) return 0;
-    return std::min(q, node.contract_backlog[idx(g)]) * node.contract_price[idx(g)];
+    const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
+    const double price = node.order_price[idx(g)];
+    const double order_units = price > 0 ? std::min({q - under_contract, node.order_qty[idx(g)], std::max(0.0, node.cash) / price}) : 0.0;
+    return under_contract * node.contract_price[idx(g)] + order_units * price;
 }
 
 double World::quote_sell(NodeId n, GoodId g, double q) const {
@@ -251,14 +262,19 @@ double World::quote_sell(NodeId n, GoodId g, double q) const {
     const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
     const double contract_pay = under_contract * node.contract_price[idx(g)];
     q -= under_contract;
-    double total = 0, stock = node.stock[idx(g)] + under_contract;
+    // The town's own open order takes the next units at the offered price, as far as its cash goes.
+    const double oprice = node.order_price[idx(g)];
+    const double order_units = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
+    const double order_pay = order_units * oprice;
+    q -= order_units;
+    double total = 0, stock = node.stock[idx(g)] + under_contract + order_units;
     const double u = q / kChunks;
     for (int i = 0; i < kChunks; ++i) {
         total += u * sell_price_at(n, g, stock + u / 2);
         stock += u;
     }
     // Cash scarcity: a town can't pay more than it has. A camp that mines gold can pay the rest in dust.
-    return contract_pay + std::min(total, std::max(0.0, node.cash) + dust_on_hand(n));
+    return contract_pay + order_pay + std::min(total, std::max(0.0, node.cash - order_pay) + dust_on_hand(n));
 }
 
 double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent) {
@@ -309,6 +325,21 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
             revenue += pay;
             sold += under_contract;
             q -= under_contract;
+        }
+        // The town's open order, paid from its own cash.
+        const double oprice = node.order_price[idx(g)];
+        const double ou = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
+        if (ou > 0) {
+            const double pay = ou * oprice;
+            node.cash -= pay;
+            node.stock[idx(g)] += ou;
+            node.order_qty[idx(g)] -= ou;
+            if (node.order_qty[idx(g)] < 1e-6) node.order_qty[idx(g)] = node.order_price[idx(g)] = 0;
+            order_filled_value += pay;
+            order_filled_units += ou;
+            revenue += pay;
+            sold += ou;
+            q -= ou;
         }
     }
     for (int i = 0; i < kChunks; ++i) {

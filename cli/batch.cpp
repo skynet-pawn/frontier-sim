@@ -119,6 +119,12 @@ int main(int argc, char** argv) {
 
         std::printf("\n  %-34s %12s %12s %12s %12s\n", "metric", "min", "median", "mean", "max");
         row("traders at end", runs, [](const RunStats& r) { return double(r.traders_end); });
+        row("  of them in freight houses", runs, [](const RunStats& r) { return double(r.house_outfits_end); });
+        row("freight houses founded", runs, [](const RunStats& r) { return double(r.houses_founded); });
+        row("  houses open at end", runs, [](const RunStats& r) { return double(r.houses_end); });
+        row("  house drivers killed", runs, [](const RunStats& r) { return double(r.house_killed); });
+        row("  house outfits broke (house could not cover)", runs, [](const RunStats& r) { return double(r.house_broke); });
+        row("  broken outfits a house made good", runs, [](const RunStats& r) { return double(r.house_recaps); });
         row("traders, lowest point", runs, [](const RunStats& r) { return double(r.traders_min); });
         row("  of them eastern firms", runs, [](const RunStats& r) { return double(r.firms_end); });
         row("freelancers who arrived", runs, [](const RunStats& r) { return double(r.freelancers_entered); });
@@ -139,7 +145,9 @@ int main(int argc, char** argv) {
         row("  towns freed", runs, [](const RunStats& r) { return double(r.towns_freed); });
         row("  vigilance committees", runs, [](const RunStats& r) { return double(r.vigilance); });
         row("sales made along the way", runs, [](const RunStats& r) { return double(r.waypoint_sales); });
-        row("merchant orders placed", runs, [](const RunStats& r) { return double(r.merchant_orders); });
+        row("merchant orders posted", runs, [](const RunStats& r) { return double(r.merchant_orders); });
+        row("  town hired its own freighters", runs, [](const RunStats& r) { return double(r.convoys_hired); });
+        row("  withdrawn unfilled", runs, [](const RunStats& r) { return double(r.orders_expired); });
         row("  goods delivered ($M)", runs, [](const RunStats& r) { return r.merchant_delivered / 1e6; });
         row("  goods robbed on the way ($M)", runs, [](const RunStats& r) { return r.merchant_lost / 1e6; });
         row("famine episodes (merged)", runs, [](const RunStats& r) { return double(r.famines); });

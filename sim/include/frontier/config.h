@@ -170,6 +170,11 @@ struct Params {
     double merchant_target_days = 75;         // ...and order enough to cover this many (a season's stock before winter)
     double merchant_cash_share = 0.5;        // most of a town's cash one round of orders may commit
     double merchant_margin = 0.15;           // landed cost must leave this much under the shelf price
+    int merchant_order_raise_days = 7;       // an unfilled order's offer rises this often...
+    double merchant_order_raise = 0.25;      // ...by this much...
+    double merchant_order_cap_mult = 3.0;    // ...up to this multiple of the opening offer
+    int merchant_hire_after_days = 14;       // an order still open after this long: the town hires freighters itself (0 = never)
+    int merchant_order_expire_days = 90;     // and is withdrawn after this long unfilled
     int merchant_max_loads = 6;              // wagon trains per good per review
     double lookahead_weight = 0.5;           // share of the best next load at a destination that counts toward a trip's worth (freighters ran round trips)
 
@@ -191,6 +196,13 @@ struct Params {
     double return_alpha = 0.01;              // report lag: about 100 days
     double danger_ref = 0.004;               // robberies per trader-day that look like "the frontier is deadly"
     double danger_alpha = 0.02;
+    // Freight houses: a trader this rich founds one and runs other men's wagons. Rough numbers; tune from the runs.
+    double house_float = 8000;               // working capital the house gives each outfit
+    double house_found_cash = 24000;         // a trader holding this much founds a house (three floats: his own and two to spare)
+    double house_found_chance = 0.05;        // daily, once he is that rich
+    double house_nerve = 1.0;                // 1: a leader weighs risk only by the share of his wealth on the load; 0: as a lone trader would
+    int house_max_outfits = 12;
+    int house_hire_days = 30;                // at most one new outfit a month
     double settle_cash = 20000;              // a freelancer this rich may settle down
     double settle_chance = 0.004;
     double settle_invest_share = 0.7;        // share of his stake invested in the town where he settles

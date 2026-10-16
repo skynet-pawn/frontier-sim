@@ -88,6 +88,12 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     for (const Trader& t : sim.traders()) drovers += t.drover ? 1 : 0;
     r.drover_share_end = r.traders_end ? static_cast<double>(drovers) / r.traders_end : 0;
     for (const Trader& t : sim.traders()) r.firms_end += t.firm ? 1 : 0;
+    r.houses_founded = sim.houses_founded();
+    r.house_recaps = sim.house_recaps();
+    r.house_killed = sim.house_exits(false);
+    r.house_broke = sim.house_exits(true);
+    for (const House& h : sim.houses()) r.houses_end += h.alive ? 1 : 0;
+    for (const Trader& t : sim.traders()) r.house_outfits_end += t.house >= 0 ? 1 : 0;
     r.freelancers_entered = sim.entered_freelancers();
     r.firms_entered = sim.entered_firms();
     r.settled = static_cast<int>(sim.log().count_kind("trader_settled"));
@@ -159,7 +165,9 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     for (std::size_t i = 0; i < N; ++i) r.towns[i].flour_bought = sim.flour_bought_at()[i];
     for (std::size_t i = 0; i < N; ++i) r.towns[i].imported = sim.imported_value()[i];
     r.merchant_orders = sim.merchant_orders();
-    r.merchant_delivered = sim.merchant_delivered();
+    r.merchant_delivered = sim.merchant_delivered() + sim.world().order_filled_value;
+    r.orders_expired = sim.orders_expired();
+    r.convoys_hired = sim.convoys_hired();
     r.merchant_lost = sim.merchant_lost();
     r.east_bought_by_good = sim.world().east_bought_value;
     r.east_sold_by_good = sim.world().east_sold_value;

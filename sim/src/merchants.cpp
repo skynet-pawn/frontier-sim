@@ -1,11 +1,14 @@
-// Merchant imports: a town that is running short of a staple orders it ahead instead of waiting for a
-// speculative trader to choose it.
+// Merchant orders: a town that is running short of a staple posts an open order for it ahead, instead of
+// waiting for a speculative trader to choose it.
 //
 // Storekeepers in Deadwood, Helena or a fort town did not hope a freighter would bring flour; they wrote
-// to a wholesaler at the railhead, paid a freight contractor, and took delivery weeks later. Gold went out
-// and flour came in because someone with money in the town ordered it. Here the town's own cash pays for
-// the goods and the freight (so the money leaves the town exactly as it would to a trader), the load rides
-// the same roads and meets the same gangs as any other freight, and a robbed load is the town's loss.
+// to a wholesaler at the railhead and took delivery weeks later. Gold went out and flour came in because
+// someone with money in the town wanted it. Here the order sits on the town's board with a delivered price,
+// paid from the town's own cash on delivery. Any outfit that can profit from it, a freight house with spare
+// wagons or a drover with a herd on a nearby range, takes the job, so what a town gets depends on what the
+// freighters can actually carry. If nobody bites, the town raises its offer: scarcity pays, and the wagons
+// turn toward the hill. A town that has waited too long does what storekeepers did: it hires a freight outfit of
+// its own (`dispatch_convoy`), so a thin market never leaves it to starve.
 #include <algorithm>
 #include <cmath>
 
@@ -17,6 +20,7 @@ namespace frontier {
 void Simulation::merchants_day() {
     const Params& p = world_.params;
     if (p.merchant_interval_days <= 0) return;
+    orders_day();
     for (std::size_t ni = 0; ni < world_.nodes.size(); ++ni) {
         Node& n = world_.nodes[ni];
         const NodeId id = static_cast<NodeId>(ni);
@@ -34,13 +38,16 @@ void Simulation::order_for_town(NodeId id) {
     std::vector<double> inbound(world_.goods.size(), 0.0);
     for (const Trader& c : convoys_)
         if (c.alive && c.agent_for == id && c.cargo >= 0) inbound[World::idx(c.cargo)] += c.qty;
+    for (std::size_t g = 0; g < world_.goods.size(); ++g) inbound[g] += n.order_qty[g];  // already on the board
+    double committed = 0;  // what the town's open orders would cost it
+    for (std::size_t g = 0; g < world_.goods.size(); ++g) committed += n.order_qty[g] * n.order_price[g];
 
     // Most pressing shortage first, so scarce cash goes to food before whiskey.
     struct Want { GoodId g; double cover; double demand; };
     std::vector<Want> wants;
     for (std::size_t g = 0; g < world_.goods.size(); ++g) {
         const GoodDef& gd = world_.goods[g];
-        if (gd.self_propelled || gd.money) continue;
+        if (gd.money) continue;  // cattle and horses are ordered too: a drover with a herd nearby fills them
         const double demand = world_.daily_demand(id, static_cast<GoodId>(g));
         if (demand <= 0) continue;
         const double cover = (n.stock[g] + inbound[g]) / demand;
@@ -48,7 +55,7 @@ void Simulation::order_for_town(NodeId id) {
     }
     std::sort(wants.begin(), wants.end(), [](const Want& a, const Want& b) { return a.cover < b.cover; });
 
-    double budget = std::max(0.0, n.cash) * p.merchant_cash_share;
+    double budget = std::max(0.0, n.cash) * p.merchant_cash_share - committed;
     for (const Want& w : wants) {
         if (budget <= 0) break;
         const GoodDef& gd = world_.goods[World::idx(w.g)];
@@ -57,58 +64,133 @@ void Simulation::order_for_town(NodeId id) {
         const double load_units = p.trader_capacity_lb / gd.load_lb;
         const double local_price = world_.mid_price(id, w.g);
 
-        // The cheapest delivered price among sources that can spare the goods. Eastern markets always can.
         NodeId src = -1;
         double best = 1e18;
-        for (std::size_t s = 0; s < world_.nodes.size(); ++s) {
-            const Node& sn = world_.nodes[s];
-            const NodeId sid = static_cast<NodeId>(s);
-            if (sid == id || !sn.founded || !world_.route(sid, id, scratch_route_)) continue;
-            double spare = 1e12;
-            if (!sn.fixed_market) {
-                // A farm hub or neighbour sells only what it holds beyond its own month's cover.
-                spare = sn.stock[World::idx(w.g)] - world_.daily_demand(sid, w.g) * p.merchant_reorder_days;
-                if (spare < load_units * 0.25) continue;
-            }
-            double miles[kModeCount] = {0, 0, 0};
-            double gang_risk = 0;
-            for (EdgeId eid : scratch_route_) {
-                const Edge& e = world_.edges[World::idx(eid)];
-                miles[static_cast<int>(e.mode)] += e.miles;
-                gang_risk += (e.robbed_ema + p.risk_prior * p.risk_prior_weight) / (e.transits_ema + p.risk_prior_weight) * e.travel_days;
-            }
-            const double q = std::min(load_units, spare);
-            const double unit = world_.quote_buy(sid, w.g, q) / q + world_.freight_unit_cost(w.g, miles);
-            const double risked = unit / std::max(0.2, 1.0 - std::min(0.8, gang_risk));  // expected loss on the road raises the true price
-            if (risked < best) { best = risked; src = sid; }
-        }
-        if (src < 0) continue;
+        if (!cheapest_source(id, w.g, load_units, src, best)) continue;
         // Food is ordered for the people who must eat it, whatever the shelf price says: in a remote town the price only
         // climbs once the barrels are nearly empty, and a wagon train takes weeks. Other goods wait for a margin.
         if (gd.food_share <= 0 && best * (1.0 + p.merchant_margin) > local_price) continue;
 
-        double remaining = need;
-        int loads = 0;
-        while (remaining > 1.0 && loads < p.merchant_max_loads && budget > 0) {
-            const double units = std::min(remaining, load_units);
-            const double cost = units * best * 1.15 + 30;  // a margin for price slippage and wages on the road
-            if (cost > budget) break;
-            const double ordered = dispatch_convoy(id, src, w.g, units, cost, best);
-            if (ordered <= 0) break;
-            budget -= cost;
-            remaining -= ordered;
-            ++loads;
+        // Post the order at what the goods would cost landed, plus a margin for slippage and the road.
+        // An order already on the board keeps its (possibly raised) price; the new quantity joins it.
+        const std::size_t gi = World::idx(w.g);
+        const double offer = n.order_qty[gi] > 0 ? n.order_price[gi] : best * 1.15;
+        const double units = std::min({need, p.merchant_max_loads * load_units, budget / offer});
+        if (units < 1.0) continue;
+        if (n.order_qty[gi] <= 0) {
+            n.order_price[gi] = n.order_first_price[gi] = offer;
+            n.order_posted[gi] = n.order_raised[gi] = n.order_hired[gi] = world_.today;
         }
-        if (loads > 0) {
-            ++orders_placed_;
-            log_.with({field("town", n.name), field("good", gd.id), field("from", nname(src)), field("loads", loads), field("landed_cost", best), field("local_price", local_price)});
-            log_.add(world_.today, EventType::Trade, "merchant_order", id,
-                     strf("Merchants at %s order %d load%s of %s from %s", n.name.c_str(), loads, loads == 1 ? "" : "s",
-                          gd.name.c_str(), nname(src).c_str()),
-                     strf("stock covers %.0f days; landed cost $%.2f against $%.2f on the shelf", w.cover, best, local_price),
-                     loads < 2);
+        n.order_qty[gi] += units;
+        budget -= units * offer;
+        ++orders_placed_;
+        log_.with({field("town", n.name), field("good", gd.id), field("units", units), field("offer", offer), field("landed_cost", best), field("local_price", local_price), field("cover_days", w.cover)});
+        log_.add(world_.today, EventType::Trade, "merchant_order", id,
+                 strf("Merchants at %s post an order for %.0f %s of %s at $%.2f delivered", n.name.c_str(), units,
+                      gd.unit.c_str(), gd.name.c_str(), offer),
+                 strf("stock covers %.0f days; landed cost from %s is $%.2f against $%.2f on the shelf", w.cover,
+                      nname(src).c_str(), best, local_price),
+                 units * offer < 1500);
+    }
+}
+
+// The cheapest delivered price among sources that can spare the goods. Eastern markets always can.
+bool Simulation::cheapest_source(NodeId town, GoodId g, double load_units, NodeId& src, double& best) {
+    const Params& p = world_.params;
+    src = -1;
+    best = 1e18;
+    for (std::size_t s = 0; s < world_.nodes.size(); ++s) {
+        const Node& sn = world_.nodes[s];
+        const NodeId sid = static_cast<NodeId>(s);
+        if (sid == town || !sn.founded || !world_.route(sid, town, scratch_route_)) continue;
+        double spare = 1e12;
+        if (!sn.fixed_market) {
+            // A farm hub or neighbour sells only what it holds beyond its own month's cover.
+            spare = sn.stock[World::idx(g)] - world_.daily_demand(sid, g) * p.merchant_reorder_days;
+            if (spare < load_units * 0.25) continue;
+        }
+        double miles[kModeCount] = {0, 0, 0};
+        double gang_risk = 0;
+        for (EdgeId eid : scratch_route_) {
+            const Edge& e = world_.edges[World::idx(eid)];
+            miles[static_cast<int>(e.mode)] += e.miles;
+            gang_risk += (e.robbed_ema + p.risk_prior * p.risk_prior_weight) / (e.transits_ema + p.risk_prior_weight) * e.travel_days;
+        }
+        const double q = std::min(load_units, spare);
+        const double unit = world_.quote_buy(sid, g, q) / q + world_.freight_unit_cost(g, miles);
+        const double risked = unit / std::max(0.2, 1.0 - std::min(0.8, gang_risk));  // expected loss on the road raises the true price
+        if (risked < best) { best = risked; src = sid; }
+    }
+    return src >= 0;
+}
+
+// Orders nobody has filled get dearer: an unfilled order is the town telling the freighters it is short, and the
+// price is how they hear it. After a long wait the town gives up and the order is withdrawn.
+void Simulation::orders_day() {
+    const Params& p = world_.params;
+    for (std::size_t ni = 0; ni < world_.nodes.size(); ++ni) {
+        Node& n = world_.nodes[ni];
+        for (std::size_t g = 0; g < world_.goods.size(); ++g) {
+            if (n.order_qty[g] <= 0) continue;
+            if (world_.today - n.order_posted[g] >= p.merchant_order_expire_days) {
+                ++orders_expired_;
+                log_.with({field("town", n.name), field("good", world_.goods[g].id), field("units", n.order_qty[g]), field("offer", n.order_price[g])});
+                log_.add(world_.today, EventType::Trade, "order_expired", static_cast<NodeId>(ni),
+                         strf("Merchants at %s withdraw their order for %.0f %s of %s", n.name.c_str(), n.order_qty[g],
+                              world_.goods[g].unit.c_str(), world_.goods[g].name.c_str()),
+                         strf("nobody filled it in %d days, even at $%.2f", p.merchant_order_expire_days, n.order_price[g]));
+                n.order_qty[g] = n.order_price[g] = 0;
+                continue;
+            }
+            // Still open after a fortnight: the town stops waiting for a freighter to come by and hires one.
+            if (p.merchant_hire_after_days > 0 && world_.today - n.order_hired[g] >= p.merchant_hire_after_days)
+                hire_for_order(static_cast<NodeId>(ni), static_cast<GoodId>(g));
+            if (n.order_qty[g] <= 0) continue;
+            const double cap = n.order_first_price[g] * p.merchant_order_cap_mult;
+            if (world_.today - n.order_raised[g] >= p.merchant_order_raise_days && n.order_price[g] < cap) {
+                n.order_price[g] = std::min(cap, n.order_price[g] * (1.0 + p.merchant_order_raise));
+                n.order_raised[g] = world_.today;
+            }
         }
     }
+}
+
+// The town's own freighters for part of an open order: what is bought and hauled comes off the order, so a
+// freighter who turns up later finds less left to fill.
+void Simulation::hire_for_order(NodeId id, GoodId g) {
+    const Params& p = world_.params;
+    Node& n = world_.nodes[World::idx(id)];
+    const std::size_t gi = World::idx(g);
+    n.order_hired[gi] = world_.today;
+    const double load_units = p.trader_capacity_lb / world_.goods[gi].load_lb;
+    NodeId src = -1;
+    double best = 0;
+    if (!cheapest_source(id, g, load_units, src, best)) return;
+    double remaining = std::min(n.order_qty[gi], p.merchant_max_loads * load_units);
+    double budget = std::max(0.0, n.cash) * p.merchant_cash_share;
+    int loads = 0;
+    double hauled = 0;
+    while (remaining > 1.0 && loads < p.merchant_max_loads && budget > 0) {
+        const double units = std::min(remaining, load_units);
+        const double cost = units * best * 1.15 + 30;  // a margin for price slippage and wages on the road
+        if (cost > budget) break;
+        const double ordered = dispatch_convoy(id, src, g, units, cost, best);
+        if (ordered <= 0) break;
+        budget -= cost;
+        remaining -= ordered;
+        hauled += ordered;
+        ++loads;
+    }
+    if (loads == 0) return;
+    n.order_qty[gi] -= hauled;
+    if (n.order_qty[gi] < 1.0) n.order_qty[gi] = n.order_price[gi] = 0;
+    ++convoys_hired_;
+    log_.with({field("town", n.name), field("good", world_.goods[gi].id), field("from", nname(src)), field("loads", loads), field("units", hauled), field("landed_cost", best)});
+    log_.add(world_.today, EventType::Trade, "merchant_convoy", id,
+             strf("Merchants at %s hire %d load%s of %s from %s themselves", n.name.c_str(), loads, loads == 1 ? "" : "s",
+                  world_.goods[gi].name.c_str(), nname(src).c_str()),
+             strf("their order had gone %d days without a freighter taking it", p.merchant_hire_after_days),
+             loads < 2);
 }
 
 // Hires a freight outfit at `src` with an advance from the town. Returns the units actually bought.

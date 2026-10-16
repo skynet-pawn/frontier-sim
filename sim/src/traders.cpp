@@ -76,6 +76,7 @@ void Simulation::settle_trader(Trader& t) {
 }
 
 void Simulation::retire(Trader& t, const char* why, bool ruined) {
+    if (t.house >= 0) ++house_exits_[ruined ? 1 : 0];
     if (ruined) {  // a failed freelancer is out of work and out of luck: raw material for a gang
         Node& n = world_.nodes[World::idx(t.at)];
         if (!n.fixed_market) n.drifters += t.firm ? 3.0 : 1.0;
@@ -108,7 +109,7 @@ void Simulation::step_trader(Trader& t) {
     } else {
         world_.record(MoneyFlow::EastSpending, -cost);
     }
-    if (t.cash < 0 && t.cargo < 0) {
+    if (t.cash < 0 && t.cargo < 0 && !(t.house >= 0 && recapitalize(t))) {  // a house makes good its broken outfits
         retire(t, "capital exhausted by upkeep without profitable trades", true);
         return;
     }
@@ -122,12 +123,12 @@ void Simulation::step_trader(Trader& t) {
     if (!t.travelling && !t.controlled && t.cargo < 0) {
         const Node& here = world_.nodes[World::idx(t.at)];
         // A freelancer who has made his pile may settle down.
-        if (!t.firm && !here.fixed_market && t.agent_for < 0 && t.cash > p.settle_cash && rng_.chance(p.settle_chance)) {
+        if (!t.firm && t.house < 0 && !here.fixed_market && t.agent_for < 0 && t.cash > p.settle_cash && rng_.chance(p.settle_chance)) {
             settle_trader(t);
             return;
         }
         // An eastern firm whose returns have fallen short of its hurdle pulls its capital out.
-        if (t.firm && t.cash > 1.3 * t.start_capital && return_ema_ < p.firm_hurdle &&
+        if (t.firm && t.house < 0 && t.cash > 1.3 * t.start_capital && return_ema_ < p.firm_hurdle &&
             rng_.chance(p.firm_withdraw_rate * (p.firm_hurdle - return_ema_) / p.firm_hurdle)) {
             log_.with({field("trader", t.id), field("capital", t.cash)});
             log_.add(world_.today, EventType::Trader, "firm_withdrew", t.at,
@@ -219,8 +220,8 @@ double Simulation::edge_risk(const Trader& t, EdgeId eid) const {
     const Edge& e = world_.edges[World::idx(eid)];
     // Rumor: robberies per trader-day, with a prior so unknown trails aren't assumed safe or deadly.
     double risk = (e.robbed_ema + p.risk_prior * p.risk_prior_weight) / (e.transits_ema + p.risk_prior_weight);
-    for (const auto& f : t.fear)
-        if (f.first == eid) risk += f.second;  // personal experience
+    for (const auto& f : (t.house >= 0 ? houses_[static_cast<std::size_t>(t.house)].fear : t.fear))
+        if (f.first == eid) risk += f.second;  // personal experience (a house outfit has its owner's)
     return std::min(risk, 0.5);
 }
 
@@ -275,7 +276,7 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
             const double loss = loss_fraction(pi, defense(k) / d0);
             const double util = (1 - loss) * revenue - freight - daily_cost(t, k) * pi.days -
-                                (t.risk_aversion - 1) * loss * (t.unit_cost * t.qty + freight) + look(d);
+                                (effective_risk(t) - 1) * loss * (t.unit_cost * t.qty + freight) + look(d);
             if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), t.cargo, t.qty, k, true};
         }
     }
@@ -316,7 +317,7 @@ bool Simulation::sell_along_the_way(Trader& t) {
         double v = certainty_adjusted(t, t.at, t.cargo, q_here, world_.quote_sell(t.at, t.cargo, q_here)) + freight_unit * q_here;
         if (q_on > 0) {
             const double on = certainty_adjusted(t, t.dest, t.cargo, q_on, world_.quote_sell(t.dest, t.cargo, q_on) * noise);
-            v += (1 - loss) * on - (t.risk_aversion - 1) * loss * t.unit_cost * q_on + (1 - loss) * look_dest;
+            v += (1 - loss) * on - (effective_risk(t) - 1) * loss * t.unit_cost * q_on + (1 - loss) * look_dest;
         } else {
             v += look_here;  // unloaded here, he is free to take the best load going out of this town
         }
@@ -359,7 +360,7 @@ double Simulation::spot_uncertainty(NodeId d, GoodId g, double q) const {
 double Simulation::certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const {
     const double contract = std::min(revenue, world_.quote_sell_contract(d, g, q));
     const double spot = revenue - contract;
-    return revenue - (t.risk_aversion - 1.0) * world_.params.price_uncertainty_weight * spot_uncertainty(d, g, q) * spot;
+    return revenue - (effective_risk(t) - 1.0) * world_.params.price_uncertainty_weight * spot_uncertainty(d, g, q) * spot;
 }
 
 Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInfo>& paths) {
@@ -387,22 +388,42 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
             const double freight_unit = world_.freight_unit_cost(gid, pi.miles);
             const double est = (dn.fixed_market ? world_.sell_price_at(static_cast<NodeId>(d), gid, 0)
                                                 : world_.sell_price(static_cast<NodeId>(d), gid)) * noise[d];
-            if (est <= unit_price + freight_unit && look(d) <= 0) continue;  // no gap worth a trip, and nothing to load for the way back
+            // A town's open order pays its offered price whatever the shelf says, so it counts as the going price here.
+            const double order_here_price = !dn.fixed_market && dn.order_qty[g] >= 1 ? dn.order_price[g] : 0.0;
+            if (std::max(est, order_here_price) <= unit_price + freight_unit && look(d) <= 0) continue;  // no gap worth a trip, and nothing to load for the way back
 
-            for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
-                const double reserve = daily_cost(t, k) * pi.days;
-                const double free_cash = t.cash - reserve;
-                if (free_cash <= 0) continue;
-                double q = std::floor(std::min({load_units, avail, free_cash / (unit_price * 1.05 + freight_unit)}));
-                if (q < 1) continue;
+            // A town that eats a few head a day cannot take a thousand: the price collapses once its shelves fill.
+            // So he prices several lot sizes, including one that matches the town's open order, and ships the one
+            // that pays best. This is how a small camp gets served from a big herd.
+            const double cash_for_lot = t.cash - daily_cost(t, 0) * pi.days;
+            if (cash_for_lot <= 0) continue;
+            const double q_full = std::floor(std::min({load_units, avail, cash_for_lot / (unit_price * 1.05 + freight_unit)}));
+            if (q_full < 1) continue;
+            double lots[6];
+            int n_lots = 0;
+            auto add_lot = [&](double q) {
+                q = std::floor(q);
+                if (q < 1) return;
+                for (int i = 0; i < n_lots; ++i)
+                    if (lots[i] == q) return;
+                lots[n_lots++] = q;
+            };
+            for (double share : {1.0, 0.5, 0.25, 0.1}) add_lot(q_full * share);
+            if (!dn.fixed_market && dn.order_qty[g] >= 1) add_lot(std::min(q_full, dn.order_qty[g]));
+            for (int li = 0; li < n_lots; ++li) {
+                const double q = lots[li];
                 const double cost = world_.quote_buy(t.at, gid, q);
                 const double revenue = certainty_adjusted(t, static_cast<NodeId>(d), gid, q,
                                                           world_.quote_sell(static_cast<NodeId>(d), gid, q) * noise[d]);
                 const double freight = freight_unit * q;
-                const double loss = loss_fraction(pi, defense(k) / d0);
-                const double util = (1 - loss) * revenue - cost - freight - reserve -
-                                    (t.risk_aversion - 1) * loss * (cost + freight) + look(d);
-                if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), gid, q, k, true};
+                for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
+                    const double reserve = daily_cost(t, k) * pi.days;
+                    if (cost + freight + reserve > t.cash) continue;  // cannot afford this lot with this many guards
+                    const double loss = loss_fraction(pi, defense(k) / d0);
+                    const double util = (1 - loss) * revenue - cost - freight - reserve -
+                                        (effective_risk(t) - 1) * loss * (cost + freight) + look(d);
+                    if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), gid, q, k, true};
+                }
             }
         }
     }

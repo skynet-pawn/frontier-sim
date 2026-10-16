@@ -65,6 +65,7 @@ double Simulation::total_money() const {
         if (!n.fixed_market) m += n.cash + n.law_fund;
     for (const Trader& t : traders_) m += t.cash + t.pending_spend;  // pending: wages on the road, paid at the next stop
     for (const Trader& t : convoys_) m += t.cash + t.pending_spend;  // a town's advance, riding with the wagons
+    for (const House& h : houses_) m += h.cash;                       // owners' capital held back from their outfits
     for (const Gang& g : gangs_) m += g.cash;
     for (const Leader& l : leaders_) m += l.cash;
     for (const Interest& in : interests_) m += in.fund;
@@ -95,6 +96,7 @@ void Simulation::step() {
     apply_campaigns();
     economy_day();
     merchants_day();
+    houses_day();
     traders_day();
     crime_day();
     end_of_day();
@@ -488,6 +490,7 @@ void Simulation::end_of_day() {
     // Reported return on capital: the audited figure an eastern firm would read, months late.
     double capital = 0;
     for (const Trader& t : traders_) capital += std::max(0.0, t.cash) + (t.cargo >= 0 ? t.qty * t.unit_cost : 0.0);
+    for (const House& h : houses_) capital += h.cash;  // idle house capital earns nothing, and the return reported to eastern firms shows it
     if (capital > 0) return_ema_ += p.return_alpha * (profit_today_ / capital - return_ema_);
     const double trader_count = std::max<double>(1.0, static_cast<double>(traders_.size() + convoys_.size()));
     danger_ema_ += p.danger_alpha * (robbed_today_ / trader_count - danger_ema_);
