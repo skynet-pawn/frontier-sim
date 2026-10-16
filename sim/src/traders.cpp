@@ -241,6 +241,10 @@ double loss_fraction(const Simulation::PathInfo& pi, double defense_ratio) {
 
 Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathInfo>& paths, bool allow_here) {
     const Params& p = world_.params;
+    ensure_opportunities();
+    // A teamster does not judge a trip alone: where it ends he can load for the way back (gold out of a camp,
+    // cattle out of Texas). Part of the best load waiting there counts toward the trip.
+    auto look = [&](std::size_t d) { return p.lookahead_weight * opportunity_[t.drover ? 1 : 0][d]; };
     Plan best;
     const double d0 = defense(0);
     for (std::size_t d = 0; d < world_.nodes.size(); ++d) {
@@ -252,14 +256,14 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         const double revenue = certainty_adjusted(t, static_cast<NodeId>(d), t.cargo, t.qty,
                                                   world_.quote_sell(static_cast<NodeId>(d), t.cargo, t.qty) * noise);
         if (here) {
-            if (!best.valid || revenue > best.utility) best = {revenue, t.at, t.cargo, t.qty, 0, true};
+            if (!best.valid || revenue + look(d) > best.utility) best = {revenue + look(d), t.at, t.cargo, t.qty, 0, true};
             continue;
         }
         const double freight = world_.freight_unit_cost(t.cargo, pi.miles) * t.qty;
         for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
             const double loss = loss_fraction(pi, defense(k) / d0);
             const double util = (1 - loss) * revenue - freight - daily_cost(t, k) * pi.days -
-                                (t.risk_aversion - 1) * loss * (t.unit_cost * t.qty + freight);
+                                (t.risk_aversion - 1) * loss * (t.unit_cost * t.qty + freight) + look(d);
             if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), t.cargo, t.qty, k, true};
         }
     }
@@ -287,6 +291,11 @@ bool Simulation::sell_along_the_way(Trader& t) {
     const double loss = loss_fraction(rest, defense(t.guards) / defense(0));
     const double freight_unit = world_.freight_unit_cost(t.cargo, miles);
     const GoodId cargo = t.cargo;
+    // He set out for the load waiting at the far end as much as for the sale, so that counts here too: a trip
+    // judged with the backhaul at departure must not be dropped at the first town for lack of it.
+    ensure_opportunities();
+    const double look_dest = p.lookahead_weight * opportunity_[t.drover ? 1 : 0][World::idx(t.dest)];
+    const double look_here = p.lookahead_weight * opportunity_[t.drover ? 1 : 0][World::idx(t.at)];
     const double noise = 1.0 + p.info_noise * rng_.uniform(-1, 1);
 
     // Value of selling a share here and carrying the remainder on to the destination.
@@ -295,7 +304,9 @@ bool Simulation::sell_along_the_way(Trader& t) {
         double v = certainty_adjusted(t, t.at, t.cargo, q_here, world_.quote_sell(t.at, t.cargo, q_here)) + freight_unit * q_here;
         if (q_on > 0) {
             const double on = certainty_adjusted(t, t.dest, t.cargo, q_on, world_.quote_sell(t.dest, t.cargo, q_on) * noise);
-            v += (1 - loss) * on - (t.risk_aversion - 1) * loss * t.unit_cost * q_on;
+            v += (1 - loss) * on - (t.risk_aversion - 1) * loss * t.unit_cost * q_on + (1 - loss) * look_dest;
+        } else {
+            v += look_here;  // unloaded here, he is free to take the best load going out of this town
         }
         return v;
     };
@@ -341,6 +352,8 @@ double Simulation::certainty_adjusted(const Trader& t, NodeId d, GoodId g, doubl
 
 Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInfo>& paths) {
     const Params& p = world_.params;
+    ensure_opportunities();
+    auto look = [&](std::size_t d) { return p.lookahead_weight * opportunity_[t.drover ? 1 : 0][d]; };
     const Node& hn = world_.nodes[World::idx(t.at)];
     const double d0 = defense(0);
     std::vector<double> noise(world_.nodes.size());
@@ -362,7 +375,7 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
             const double freight_unit = world_.freight_unit_cost(gid, pi.miles);
             const double est = (dn.fixed_market ? world_.sell_price_at(static_cast<NodeId>(d), gid, 0)
                                                 : world_.sell_price(static_cast<NodeId>(d), gid)) * noise[d];
-            if (est <= unit_price + freight_unit) continue;  // no gap worth a trip
+            if (est <= unit_price + freight_unit && look(d) <= 0) continue;  // no gap worth a trip, and nothing to load for the way back
 
             for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
                 const double reserve = daily_cost(t, k) * pi.days;
@@ -376,7 +389,7 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
                 const double freight = freight_unit * q;
                 const double loss = loss_fraction(pi, defense(k) / d0);
                 const double util = (1 - loss) * revenue - cost - freight - reserve -
-                                    (t.risk_aversion - 1) * loss * (cost + freight);
+                                    (t.risk_aversion - 1) * loss * (cost + freight) + look(d);
                 if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), gid, q, k, true};
             }
         }

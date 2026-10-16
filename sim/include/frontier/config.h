@@ -162,6 +162,7 @@ struct Params {
     double min_profit = 40;
     double avail_fraction = 0.6;             // share of a node's stock a trader will try to buy
     double deadhead_discount = 0.7;
+    double lookahead_weight = 0.5;           // share of the best next load at a destination that counts toward a trip's worth (freighters ran round trips)
 
     // Who comes west. Agents never see the sim's true profit: freelancers hear rumors (only the winners talk),
     // eastern firms read reports that are months old. Both are deterred by danger in proportion to their risk aversion.

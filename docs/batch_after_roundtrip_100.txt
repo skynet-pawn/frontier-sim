@@ -1,0 +1,163 @@
+Frontier batch: 100 seeds (1..100), 4400 days from 1874-01-01, 12 threads
+
+  metric                                      min       median         mean          max
+  traders at end                               19           37        36.63           64 
+  traders, lowest point                        15           27        26.59           40 
+    of them eastern firms                       6           15        14.53           29 
+  freelancers who arrived                      36           56        56.47           88 
+  firms who arrived                             7           25        25.67           56 
+  settled (made their pile)                     0            0         0.43            3 
+  firms that withdrew                           0            0            0            0 
+  traders ruined or killed                    145        165.5        165.1          201 
+  drover share at end                     0.05405       0.2121        0.218       0.3846 
+  robberies                                   697        901.5        897.8         1106 
+    of them over $1,500                       143          204        204.9          278 
+  gangs formed                                451          497        496.4          540 
+  posses raised                               115        167.5        166.9          219 
+    posse victories                            83        106.5        105.6          131 
+    posses routed                              78          114        115.6          162 
+  detective parties                            62           80        79.57          103 
+  town takeovers by gangs                       1            5          5.4           10 
+    towns freed                                 1            5          5.4           10 
+    vigilance committees                        0            1         1.82            9 
+  sales made along the way                    980         1538         1537         1957 
+  famine episodes                              71          105        105.2          152 
+  ghost towns (events)                          2            3          2.7            4 
+  total population, start               3.793e+04    3.793e+04    3.793e+04    3.793e+04 
+  total population, end                 4.952e+04    5.939e+04    5.847e+04    6.364e+04 
+  money in circulation, end ($M)            15.24         18.9        19.07        23.25 
+  east bought from frontier ($M)            38.45        46.45        46.01        53.07 
+  east sold to frontier ($M)                1.797        2.814        2.801        3.802 
+  emigrants took away ($M)                  16.59        20.94        20.75        23.42 
+  richest town's cash ($M)                  2.014        2.471        2.526        3.358 
+  lowest eastern price multiplier          0.6669        0.735       0.7368       0.7947 
+
+  east purchases by good (median $M across runs):
+    beef_cattle    buys     5.16   sells     0.15
+    flour          buys     5.33   sells     0.27
+    tools          buys     0.00   sells     0.00
+    whiskey        buys     0.72   sells     1.60
+    ammunition     buys     0.08   sells     0.32
+    hides          buys     0.03   sells     0.00
+    gold           buys    11.81   sells     0.05
+    timber         buys     0.16   sells     0.29
+    horses         buys     0.75   sells     0.05
+    forage         buys     3.26   sells     0.03
+    cotton         buys    18.95   sells     0.00
+
+  goods bought by traders (median $M): freelancers | firms
+    beef_cattle        0.70 |     1.00
+    flour              0.14 |     0.24
+    tools              0.01 |     0.00
+    whiskey            1.69 |     0.04
+    ammunition         0.63 |     0.11
+    hides              0.00 |     0.02
+    gold               4.11 |     5.80
+    timber             0.09 |     0.20
+    horses             0.39 |     0.16
+    forage             0.06 |     0.28
+    cotton             0.04 |     0.01
+
+  town                  start     peak      end ghost@end ever ghost    ruled
+  Nueces Strip             60      150       50       0%         0%       0 d
+  San Antonio           15000    20788    18334       0%         0%      73 d
+  Austin                 6000    14000    13605       0%         0%       0 d
+  Fort Worth             1000     8046     8000       0%         0%     274 d
+  Fort Griffin            400      565      156       0%         0%     404 d
+  Doan's Crossing          30       63       33       0%         0%       0 d
+  Fort Sill Agency        600      800      419       0%         0%       0 d
+  Tascosa                  80      172      115       0%         0%       0 d
+  Caldwell                100     1529      691       0%         0%       0 d
+  Dodge City              400      686      157       0%         0%       0 d
+  Wichita                3000     6231     2625       0%         0%       0 d
+  Abilene                1500     3855     2237       0%         0%       0 d
+  Ellsworth               800     2500      713       0%         0%       0 d
+  Ogallala                150      342      246       0%       100%       0 d
+  Cheyenne               2500     2500     1106       0%         0%       0 d
+  Fort Laramie            300      573      300       0%         0%       0 d
+  Deadwood                 20     6629       25     100%       100%       0 d
+  Miles City              100     1001      856       0%         0%       0 d
+  Helena                 3000     4501     4234       0%         0%       0 d
+  Fort Benton            1200     1200      354       0%         0%       0 d
+  Bozeman                 350      824      688       0%         0%       0 d
+  Great Bend              300     2449      280       0%         0%       0 d
+  Gainesville            1000     3091     3055       0%         0%       0 d
+  Spearfish Valley          0      601      156       0%         0%       0 d
+  Garden City               0        0        0       0%         0%       0 d
+  Billings                  0      500      500       0%         0%       0 d
+  Milk River Range         40      233      154       0%         0%       0 d
+
+  farming districts (median farmers): start        peak      end   founded
+  San Antonio                             700     3000     2995
+  Austin                                 1000     3500     3494
+  Fort Worth                              450     4000     3993
+  Fort Griffin                              0      309       35
+  Caldwell                                  0     1279      489
+  Dodge City                                0      499       47
+  Wichita                                1100     5221     1483
+  Abilene                                 450     3459     1439
+  Ellsworth                               220     2065      483
+  Ogallala                                  0      257      150
+  Cheyenne                                  0      300      213
+  Helena                                  150      700      698
+  Bozeman                                 200      700      630
+  Great Bend                              150     1997      189
+  Gainesville                             600     1800     1784
+  Spearfish Valley                          0      600      156   100% of runs, median year 1876.5
+  Garden City                               0        0        0   never
+  Billings                                  0      500      500   100% of runs, median year 1882.4
+
+  flour traders bought, by place (mean $k per run):
+    Kansas City           176.6
+    Omaha                  19.7
+    St. Paul                2.2
+    Galveston              80.8
+    San Antonio            10.2
+    Austin                 15.8
+    Fort Worth              5.9
+    Fort Sill Agency        2.1
+    Caldwell                9.9
+    Wichita                 4.9
+    Abilene                46.2
+    Ellsworth               1.1
+    Ogallala                1.4
+    Cheyenne                2.5
+    Fort Laramie            1.6
+    Deadwood                0.7
+    Miles City              0.7
+    Helena                  1.3
+    Fort Benton             0.7
+    Bozeman                17.7
+    Great Bend              0.6
+    Gainesville             2.8
+
+  what towns live on (share of lifetime earnings):
+  town                  goods  visitors      govt   other $/day (mean)
+  Nueces Strip            98%        1%        0%      0%           48
+  San Antonio             71%        1%       27%      1%         1491
+  Austin                  90%        1%        8%      1%         1866
+  Fort Worth              97%        1%        0%      2%         1508
+  Fort Griffin            79%        7%        0%     14%           52
+  Doan's Crossing         21%       27%        0%     52%           17
+  Fort Sill Agency        14%        9%       68%      9%          175
+  Tascosa                 86%        2%        0%     12%           84
+  Caldwell                66%       16%        0%     19%           64
+  Dodge City              44%       16%        0%     41%           27
+  Wichita                 93%        2%        0%      5%          289
+  Abilene                 94%        1%        0%      5%          217
+  Ellsworth               94%        0%        0%      6%           74
+  Ogallala                20%       78%        0%      2%           14
+  Cheyenne                 6%       37%        0%     57%           34
+  Fort Laramie             1%        5%       92%      2%          103
+  Deadwood                99%        0%        0%      1%         1053
+  Miles City              19%        8%       70%      3%          150
+  Helena                  99%        0%        0%      1%         3347
+  Fort Benton              4%       86%        0%     10%           55
+  Bozeman                 69%       31%        0%      0%            6
+  Great Bend              93%        0%        0%      7%           50
+  Gainesville             99%        0%        0%      1%          467
+  Spearfish Valley        36%       64%        0%      0%            0
+  Billings                83%       17%        0%     -0%            0
+  Milk River Range        98%        1%        0%      1%          112
+
+no invariant violations; money audit balanced in every run

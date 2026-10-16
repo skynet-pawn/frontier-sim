@@ -22,6 +22,7 @@ const char* money_flow_name(MoneyFlow f) {
         case MoneyFlow::TraderExit:       return "traders leaving";
         case MoneyFlow::GangExit:         return "dissolved gangs";
         case MoneyFlow::LeaderExit:       return "dead leaders";
+        case MoneyFlow::DustPaid:         return "gold dust paid as money";
         case MoneyFlow::Count:            break;
     }
     return "?";
@@ -31,6 +32,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
     for (std::size_t g = 0; g < goods.size(); ++g) {
         if (goods[g].id == "flour") flour_good = static_cast<GoodId>(g);
         if (goods[g].id == "forage") forage_good = static_cast<GoodId>(g);
+        if (goods[g].money && money_good < 0) money_good = static_cast<GoodId>(g);
     }
     for (const NodeDef& d : def.nodes) {
         Node n;
@@ -221,6 +223,12 @@ double World::quote_buy(NodeId n, GoodId g, double q) const {
     return total;
 }
 
+double World::dust_on_hand(NodeId n) const {
+    if (money_good < 0) return 0;
+    const Node& node = nodes[idx(n)];
+    return node.fixed_market ? 0.0 : std::max(0.0, node.stock[idx(money_good)]) * goods[idx(money_good)].base_cost;
+}
+
 double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
     if (node.fixed_market) return 0;
@@ -249,7 +257,8 @@ double World::quote_sell(NodeId n, GoodId g, double q) const {
         total += u * sell_price_at(n, g, stock + u / 2);
         stock += u;
     }
-    return contract_pay + std::min(total, std::max(0.0, node.cash));  // cash scarcity: a town can't pay what it doesn't have
+    // Cash scarcity: a town can't pay more than it has. A camp that mines gold can pay the rest in dust.
+    return contract_pay + std::min(total, std::max(0.0, node.cash) + dust_on_hand(n));
 }
 
 double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent) {
@@ -308,12 +317,22 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
                                                : sell_price_at(n, g, node.stock[idx(g)] + u / 2);
         double pay = u * price;
         if (!node.fixed_market) {
-            if (node.cash <= 0) break;
-            if (pay > node.cash) {
-                u = node.cash / price;
-                pay = node.cash;
+            // Cash first; a gold camp short of cash pays the balance in dust, which is money to the trader too.
+            const double cash_pay = std::min(pay, std::max(0.0, node.cash));
+            double dust_pay = 0;
+            if (cash_pay < pay && money_good >= 0 && g != money_good) {
+                const double face = goods[idx(money_good)].base_cost;
+                dust_pay = std::min(pay - cash_pay, std::max(0.0, node.stock[idx(money_good)]) * face);
+                node.stock[idx(money_good)] -= dust_pay / face;
+                record(MoneyFlow::DustPaid, dust_pay);
             }
-            node.cash -= pay;
+            const double paid = cash_pay + dust_pay;
+            if (paid <= 0) break;
+            if (paid < pay) {
+                u *= paid / pay;
+                pay = paid;
+            }
+            node.cash -= cash_pay;
             node.stock[idx(g)] += u;
         } else {
             node.pressure[idx(g)] += u;  // the East takes the goods: its price falls

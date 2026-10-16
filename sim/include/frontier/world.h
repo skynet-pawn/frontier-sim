@@ -25,6 +25,7 @@ enum class MoneyFlow {
     TraderExit,        // - a trader's remaining cash when he quits or dies
     GangExit,          // - a dissolved gang's remaining cash
     LeaderExit,        // - a dead leader's cash
+    DustPaid,          // + gold dust a camp pays for supplies becomes money in the trader's hands (coined at the assay office)
     Count
 };
 inline constexpr int kMoneyFlowCount = static_cast<int>(MoneyFlow::Count);
@@ -128,7 +129,7 @@ public:
     std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
     std::vector<std::string> zone_names;     // weather zones
     std::vector<double> zone_yield;          // this year's yield multiplier per zone (1 = normal)
-    GoodId flour_good = -1, forage_good = -1;
+    GoodId flour_good = -1, forage_good = -1, money_good = -1;   // money_good: gold, which passes as currency in the camps
     // Flour-equivalent a node's farmers bring to market in a normal year, per day.
     double farm_output(NodeId n) const;
     double farm_cash_output(NodeId n) const;   // cash crop per day (cotton)
@@ -158,7 +159,8 @@ public:
 
     // Planning quotes: total cost / revenue for q units, averaging price slippage.
     double quote_buy(NodeId n, GoodId g, double q) const;
-    double quote_sell(NodeId n, GoodId g, double q) const;  // limited by the node's cash
+    double quote_sell(NodeId n, GoodId g, double q) const;  // limited by the node's cash and dust
+    double dust_on_hand(NodeId n) const;                    // value of the gold a camp could pay out in place of cash
     double quote_sell_contract(NodeId n, GoodId g, double q) const;  // the part of a sale that a federal contract pays (certain)
 
     // Execution. Both move stock and cash and count the node's inflow.
