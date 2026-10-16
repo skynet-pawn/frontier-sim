@@ -23,6 +23,10 @@ struct Trader {
     int guards = 0;
     bool drover = false;         // drovers move cattle only; freighters move everything else
     bool controlled = false;     // driven by an outside controller (a player or a script), not the AI
+    bool firm = false;           // an eastern firm's freight line or cattle syndicate, not a freelancer
+    double capacity_lb = 12000;  // what the outfit can haul in one trip
+    double upkeep = 1.5;         // $/day running costs, before guards
+    double start_capital = 0;
 
     // Personality and memory: experience reshapes these (principle 4).
     double base_risk_aversion = 1;
@@ -155,6 +159,10 @@ public:
     int add_trader(NodeId at, double cash, bool drover, bool controlled);     // returns the trader's id
     Trader* find_trader(int id);                                              // ids stay valid; pointers may not
     Gang* gang_by_id(int id) { return find_gang(id); }
+    // Dollars of goods bought by each kind of trader, by good (diagnostic): index 0 freelancers, 1 firms.
+    const std::vector<double>& bought_by_good(bool firm) const { return bought_value_[firm ? 1 : 0]; }
+    int entered_freelancers() const { return entered_freelancers_; }
+    int entered_firms() const { return entered_firms_; }
     bool trace = false;          // log individual trades
 
     struct PathInfo {
@@ -183,7 +191,12 @@ private:
     void end_of_day();
 
     // ---- traders (traders.cpp) ----
-    void spawn_trader(NodeId at);
+    void spawn_trader(NodeId at, bool firm);
+    void trader_entry();
+    void settle_trader(Trader& t);
+    double spot_uncertainty(NodeId d, GoodId g, double q) const;
+    double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;
+    double daily_cost(const Trader& t, int guards) const;
     void traders_day();
     void step_trader(Trader& t);
     void decide(Trader& t);
@@ -196,7 +209,7 @@ private:
     bool plan_deadhead(const Trader& t, NodeId& dest);
     void arrive(Trader& t);
     void ensure_opportunities();
-    void retire(Trader& t, const char* why);
+    void retire(Trader& t, const char* why, bool ruined = false);
 
     // ---- crime and law (crime.cpp) ----
     void crime_day();
@@ -246,6 +259,12 @@ private:
     int next_trader_id_ = 1, next_gang_id_ = 1, next_posse_id_ = 1, next_leader_id_ = 1;
     double avg_profit_ema_ = 0;
     double baseline_money_ = 0;
+    // What entrants can see (never the true profit): rumor of success stories and the reported return on capital.
+    double story_ema_ = 0, return_ema_ = 0, danger_ema_ = 0;
+    int stories_today_ = 0, robbed_today_ = 0;
+    int entered_freelancers_ = 0, entered_firms_ = 0, entered_window_f_ = 0, entered_window_firm_ = 0;
+    std::vector<NodeId> gateways_, markets_;
+    std::vector<double> bought_value_[2];
     double profit_today_ = 0;                   // realized trader profit, net of upkeep, for the join rate
 
     std::vector<double> opportunity_[2];        // [freighter, drover]: best standard-load profit at each node

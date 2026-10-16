@@ -63,6 +63,11 @@ cause, ready for rumors, headlines or a viewer. Eastern markets have finite dept
 - **World** (`data/world.json`, `data/goods.json`): nodes (towns, forts, camps, ranges, eastern markets) and
   edges (trail, river, rail, each with dates it opens or closes). Prices come from stock versus normal stock;
   freight cost comes from distance, weight and mode.
+- **Who comes west.** Entrants never see true profit. Freelancers (small capital, low risk aversion, go themselves)
+  arrive on rumor of success stories, which only the winners tell. Eastern firms (large capital and capacity, high risk
+  aversion, a hurdle return) read reports that are months old. Both are deterred by danger in proportion to their risk
+  aversion, and risk-averse firms mark down uncertain spot revenue, so contracts and eastern markets suit them.
+  Ruined freelancers add to the drifters who form gangs; rich ones settle in town; firms withdraw capital when returns fall short.
 - **Traders** score every (destination, good, guards) option as expected profit minus risk, and remember
   where they were robbed. **Gangs** form from idle men, park on busy trails and fence loot in a town.
   Robbery angers towns; funded towns raise **posses**, and can hire a **leader for hire**

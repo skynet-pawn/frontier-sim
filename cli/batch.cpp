@@ -120,6 +120,12 @@ int main(int argc, char** argv) {
         std::printf("\n  %-34s %12s %12s %12s %12s\n", "metric", "min", "median", "mean", "max");
         row("traders at end", runs, [](const RunStats& r) { return double(r.traders_end); });
         row("traders, lowest point", runs, [](const RunStats& r) { return double(r.traders_min); });
+        row("  of them eastern firms", runs, [](const RunStats& r) { return double(r.firms_end); });
+        row("freelancers who arrived", runs, [](const RunStats& r) { return double(r.freelancers_entered); });
+        row("firms who arrived", runs, [](const RunStats& r) { return double(r.firms_entered); });
+        row("settled (made their pile)", runs, [](const RunStats& r) { return double(r.settled); });
+        row("firms that withdrew", runs, [](const RunStats& r) { return double(r.firm_withdrawals); });
+        row("traders ruined or killed", runs, [](const RunStats& r) { return double(r.trader_exits); });
         row("drover share at end", runs, [](const RunStats& r) { return r.drover_share_end; });
         row("robberies", runs, [](const RunStats& r) { return double(r.robberies); });
         row("  of them over $1,500", runs, [](const RunStats& r) { return double(r.robberies_over_1500); });
@@ -151,6 +157,17 @@ int main(int argc, char** argv) {
                 sold.push_back(r.east_sold_by_good[g] / 1e6);
             }
             std::printf("    %-14s buys %8.2f   sells %8.2f\n", world.goods[g].id.c_str(), spread(bought).median, spread(sold).median);
+        }
+
+        // Who carries what: the specialization check. Median dollars of goods each kind of trader bought.
+        std::printf("\n  goods bought by traders (median $M): freelancers | firms\n");
+        for (std::size_t g = 0; g < world.goods.size(); ++g) {
+            std::vector<double> fl, fi;
+            for (const RunStats& r : runs) {
+                fl.push_back(r.bought_by_freelancers[g] / 1e6);
+                fi.push_back(r.bought_by_firms[g] / 1e6);
+            }
+            std::printf("    %-14s %8.2f | %8.2f\n", world.goods[g].id.c_str(), spread(fl).median, spread(fi).median);
         }
 
         // Which towns tend to live or die. Median end population against where they started.

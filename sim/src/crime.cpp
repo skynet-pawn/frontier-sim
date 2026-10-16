@@ -257,6 +257,7 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     g.cash += fence_pay;
     g.loot += fence_pay;
     ++g.robberies;
+    ++robbed_today_;
     g.last_robbery = world_.today;
     note_interest_loss(eid, g, cargo, value);
 

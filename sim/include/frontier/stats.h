@@ -27,6 +27,7 @@ struct RunStats {
     // Traders
     int traders_start = 0, traders_end = 0, traders_min = 0, traders_max = 0;
     double drover_share_end = 0;
+    int firms_end = 0, freelancers_entered = 0, firms_entered = 0, settled = 0, firm_withdrawals = 0, trader_exits = 0;
 
     // Events (by kind)
     int robberies = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
@@ -45,6 +46,7 @@ struct RunStats {
     std::string richest_town;
     std::vector<double> east_bought_by_good;   // dollars, by good id
     std::vector<double> east_sold_by_good;
+    std::vector<double> bought_by_freelancers, bought_by_firms;   // dollars by good
     double east_price_low = 1;                 // lowest eastern price multiplier seen (depth check)
 
     // Invariants

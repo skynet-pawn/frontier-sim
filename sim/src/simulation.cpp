@@ -19,12 +19,21 @@ constexpr int kBandCount = static_cast<int>(sizeof kPopBands / sizeof kPopBands[
 Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
     : world_(def, scenario.params, scenario.start), rng_(scenario.seed), sc_(scenario) {
     edge_gangs_.resize(world_.edges.size());
+    bought_value_[0].assign(world_.goods.size(), 0.0);
+    bought_value_[1].assign(world_.goods.size(), 0.0);
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
         Node& n = world_.nodes[i];
         while (n.pop_band < kBandCount && n.population >= kPopBands[n.pop_band]) ++n.pop_band;
     }
-    for (int i = 0; i < sc_.traders; ++i)
-        spawn_trader(static_cast<NodeId>(rng_.next_below(world_.nodes.size())));
+    for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
+        const Node& n = world_.nodes[i];
+        if (n.fixed_market) markets_.push_back(static_cast<NodeId>(i));
+        if (n.fixed_market || n.kind == "railhead") gateways_.push_back(static_cast<NodeId>(i));  // where newcomers step off the train
+    }
+    for (int i = 0; i < sc_.traders; ++i) {
+        const bool firm = i < world_.params.firms_initial && !markets_.empty();
+        spawn_trader(firm ? markets_[rng_.next_below(markets_.size())] : static_cast<NodeId>(rng_.next_below(world_.nodes.size())), firm);
+    }
     for (const LeaderSeed& l : sc_.leaders) {
         Leader ld;
         ld.id = next_leader_id_++;
@@ -108,6 +117,48 @@ void Simulation::update_network() {
 
 // Troop strength follows threats from outside the model (campaigns, new posts, withdrawals), not local
 // robbery: the Army was there to face large-scale conflict, not to police every road.
+// Who comes west. Entrants never see the true profit. Freelancers act on rumor: success stories travel
+// fast and the failures stay quiet. Eastern firms act on reported returns, which are accurate but months
+// old. Both are put off by danger in proportion to their risk aversion. Because entry lags returns, the
+// market overshoots: crowding cuts returns, but the stories keep coming for a while.
+int draw_count(Rng& rng, double expected) {
+    int n = static_cast<int>(std::floor(expected));
+    if (rng.chance(expected - n)) ++n;
+    return n;
+}
+
+void Simulation::trader_entry() {
+    const Params& p = world_.params;
+    const double danger = std::min(1.0, danger_ema_ / p.danger_ref);
+    const double rumor = std::clamp(story_ema_ / p.story_ref, 0.0, 3.0);
+    const double mean_free = (p.risk_aversion_min + p.risk_aversion_max) / 2;
+    const double mean_firm = (p.firm_risk_aversion_min + p.firm_risk_aversion_max) / 2;
+    const double report = std::clamp((return_ema_ - p.firm_hurdle) / p.firm_hurdle, 0.0, 3.0);
+
+    int free_in = draw_count(rng_, p.freelancer_entry_rate * rumor * std::max(0.0, 1.0 - 0.5 * mean_free * danger));
+    int firm_in = draw_count(rng_, p.firm_entry_rate * report * std::max(0.0, 1.0 - 0.5 * mean_firm * danger));
+    free_in = std::min(free_in, std::max(0, sc_.max_traders - static_cast<int>(traders_.size())));
+    for (int i = 0; i < free_in && !gateways_.empty(); ++i) spawn_trader(gateways_[rng_.next_below(gateways_.size())], false);
+    for (int i = 0; i < firm_in && !markets_.empty(); ++i) spawn_trader(markets_[rng_.next_below(markets_.size())], true);
+    entered_freelancers_ += free_in;
+    entered_firms_ += firm_in;
+    entered_window_f_ += free_in;
+    entered_window_firm_ += firm_in;
+
+    if (world_.today % 30 == 0 && (entered_window_f_ > 0 || entered_window_firm_ > 0)) {
+        log_.with({field("freelancers", entered_window_f_), field("firms", entered_window_firm_), field("rumor", story_ema_),
+                   field("reported_return", return_ema_ * 365), field("danger", danger_ema_)});
+        log_.add(world_.today, EventType::Trader, "traders_arrive", -1,
+                 strf("%d freelancers and %d eastern firms take up trading in the past month", entered_window_f_,
+                      entered_window_firm_),
+                 strf("rumor of %.1f success stories a day; firms read a reported return of %.0f%% a year against a %.0f%% hurdle; "
+                      "robbery danger %.0f%% of the 'deadly' level",
+                      story_ema_, return_ema_ * 36500, p.firm_hurdle * 36500, danger * 100),
+                 true);
+        entered_window_f_ = entered_window_firm_ = 0;
+    }
+}
+
 void Simulation::apply_campaigns() {
     for (const CampaignDef& c : sc_.campaigns) {
         const bool starting = c.from == world_.today;
@@ -405,28 +456,17 @@ void Simulation::end_of_day() {
         const double avg = profit_today_ / static_cast<double>(traders_.size());
         avg_profit_ema_ += 0.02 * (avg - avg_profit_ema_);
     }
+    // Reported return on capital: the audited figure an eastern firm would read, months late.
+    double capital = 0;
+    for (const Trader& t : traders_) capital += std::max(0.0, t.cash) + (t.cargo >= 0 ? t.qty * t.unit_cost : 0.0);
+    if (capital > 0) return_ema_ += p.return_alpha * (profit_today_ / capital - return_ema_);
+    const double trader_count = std::max<double>(1.0, static_cast<double>(traders_.size()));
+    danger_ema_ += p.danger_alpha * (robbed_today_ / trader_count - danger_ema_);
+    story_ema_ += p.story_alpha * (stories_today_ - story_ema_);
     profit_today_ = 0;
-
-    // Eastern capital follows visible opportunity: where price gaps exceed costs, new outfits appear.
-    // This is the damper on excess profit, and the reason a depleted trade network recruits its own recovery.
-    if (static_cast<int>(traders_.size()) < sc_.max_traders) {
-        ensure_opportunities();
-        double pull = 0;
-        for (const auto& opp : opportunity_) {
-            std::vector<double> best = opp;
-            std::sort(best.begin(), best.end(), std::greater<double>());
-            const std::size_t top = std::min<std::size_t>(6, best.size());
-            double sum = 0;
-            for (std::size_t i = 0; i < top; ++i) sum += best[i];
-            if (top) pull = std::max(pull, std::clamp(sum / static_cast<double>(top) / p.trader_join_opportunity_ref, 0.0, 2.0));
-        }
-        if (rng_.chance(p.trader_join_rate * pull)) {
-            std::vector<NodeId> markets;
-            for (std::size_t i = 0; i < world_.nodes.size(); ++i)
-                if (world_.nodes[i].fixed_market) markets.push_back(static_cast<NodeId>(i));
-            if (!markets.empty()) spawn_trader(markets[rng_.next_below(markets.size())]);
-        }
-    }
+    robbed_today_ = 0;
+    stories_today_ = 0;
+    trader_entry();
     traders_.erase(std::remove_if(traders_.begin(), traders_.end(), [](const Trader& t) { return !t.alive; }),
                    traders_.end());
 }

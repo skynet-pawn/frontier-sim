@@ -188,6 +188,12 @@ double World::quote_buy(NodeId n, GoodId g, double q) const {
     return total;
 }
 
+double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
+    const Node& node = nodes[idx(n)];
+    if (node.fixed_market) return 0;
+    return std::min(q, node.contract_backlog[idx(g)]) * node.contract_price[idx(g)];
+}
+
 double World::quote_sell(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
     if (node.fixed_market) {

@@ -12,14 +12,19 @@
 
 namespace frontier {
 
-void Simulation::spawn_trader(NodeId at) {
+void Simulation::spawn_trader(NodeId at, bool firm) {
     const Params& p = world_.params;
     Trader t;
     t.id = next_trader_id_++;
     t.at = at;
-    t.drover = rng_.chance(p.drover_fraction);
-    t.cash = rng_.uniform(sc_.capital_min, sc_.capital_max);
-    t.base_risk_aversion = rng_.uniform(p.risk_aversion_min, p.risk_aversion_max);
+    t.firm = firm;
+    t.drover = rng_.chance(firm ? p.firm_drover_fraction : p.drover_fraction);
+    t.cash = firm ? rng_.uniform(p.firm_capital_min, p.firm_capital_max) : rng_.uniform(sc_.capital_min, sc_.capital_max);
+    t.start_capital = t.cash;
+    t.capacity_lb = firm ? p.firm_capacity_lb : p.trader_capacity_lb;
+    t.upkeep = firm ? p.firm_upkeep : p.trader_upkeep;
+    t.base_risk_aversion = firm ? rng_.uniform(p.firm_risk_aversion_min, p.firm_risk_aversion_max)
+                                : rng_.uniform(p.risk_aversion_min, p.risk_aversion_max);
     t.risk_aversion = t.base_risk_aversion;
     world_.record(MoneyFlow::NewTraderCapital, t.cash);
     traders_.push_back(std::move(t));
@@ -30,6 +35,10 @@ void Simulation::traders_day() {
     std::iota(order.begin(), order.end(), std::size_t{0});
     rng_.shuffle(order);  // so no trader always gets first pick of a market
     for (std::size_t i : order) step_trader(traders_[i]);
+}
+
+double Simulation::daily_cost(const Trader& t, int guards) const {
+    return t.upkeep + guards * world_.params.guard_wage;
 }
 
 double Simulation::daily_cost(int guards) const {
@@ -44,7 +53,26 @@ double Simulation::defense(int guards) const {
     return g2 / (g2 + d * d);
 }
 
-void Simulation::retire(Trader& t, const char* why) {
+void Simulation::settle_trader(Trader& t) {
+    const Params& p = world_.params;
+    Node& n = world_.nodes[World::idx(t.at)];
+    const double invest = t.cash * p.settle_invest_share;  // a store, a saloon, a ranch: the stake stays in town
+    n.cash += invest;
+    world_.record(MoneyFlow::TraderExit, -(t.cash - invest + t.pending_spend));
+    log_.with({field("trader", t.id), field("node", n.name), field("stake", t.cash), field("invested", invest)});
+    log_.add(world_.today, EventType::Trader, "trader_settled", t.at,
+             strf("Trader #%d settles in %s with a stake of %s", t.id, n.name.c_str(), money(t.cash).c_str()),
+             strf("he made his pile and put %s into a business in town", money(invest).c_str()));
+    t.alive = false;
+    t.cash = 0;
+    t.pending_spend = 0;
+}
+
+void Simulation::retire(Trader& t, const char* why, bool ruined) {
+    if (ruined) {  // a failed freelancer is out of work and out of luck: raw material for a gang
+        Node& n = world_.nodes[World::idx(t.at)];
+        if (!n.fixed_market) n.drifters += t.firm ? 3.0 : 1.0;
+    }
     t.alive = false;
     world_.record(MoneyFlow::TraderExit, -(t.cash + t.pending_spend));  // whatever he had (or owed) leaves with him
     t.cash = 0;
@@ -60,7 +88,7 @@ void Simulation::step_trader(Trader& t) {
 
     // Wages, feed and supplies are money spent in the economy: on the road it is spent at the next stop,
     // and an idle trader spends it where he waits.
-    const double cost = daily_cost(t.travelling ? t.guards : 0);
+    const double cost = daily_cost(t, t.travelling ? t.guards : 0);
     t.cash -= cost;
     profit_today_ -= cost;
     if (t.travelling) {
@@ -72,7 +100,7 @@ void Simulation::step_trader(Trader& t) {
         world_.record(MoneyFlow::EastSpending, -cost);
     }
     if (t.cash < 0 && t.cargo < 0) {
-        retire(t, "capital exhausted by upkeep without profitable trades");
+        retire(t, "capital exhausted by upkeep without profitable trades", true);
         return;
     }
 
@@ -82,6 +110,28 @@ void Simulation::step_trader(Trader& t) {
                  t.fear.end());
     t.risk_aversion = std::max(t.base_risk_aversion, t.risk_aversion - p.risk_aversion_decay);
 
+    if (!t.travelling && !t.controlled && t.cargo < 0) {
+        const Node& here = world_.nodes[World::idx(t.at)];
+        // A freelancer who has made his pile may settle down.
+        if (!t.firm && !here.fixed_market && t.cash > p.settle_cash && rng_.chance(p.settle_chance)) {
+            settle_trader(t);
+            return;
+        }
+        // An eastern firm whose returns have fallen short of its hurdle pulls its capital out.
+        if (t.firm && t.cash > 1.3 * t.start_capital && return_ema_ < p.firm_hurdle &&
+            rng_.chance(p.firm_withdraw_rate * (p.firm_hurdle - return_ema_) / p.firm_hurdle)) {
+            log_.with({field("trader", t.id), field("capital", t.cash)});
+            log_.add(world_.today, EventType::Trader, "firm_withdrew", t.at,
+                     strf("An eastern firm withdraws its outfit #%d with %s", t.id, money(t.cash).c_str()),
+                     strf("reported returns of %.0f%% a year fell short of its %.0f%% hurdle", return_ema_ * 36500, p.firm_hurdle * 36500),
+                     true);
+            world_.record(MoneyFlow::TraderExit, -(t.cash + t.pending_spend));
+            t.cash = 0;
+            t.pending_spend = 0;
+            t.alive = false;
+            return;
+        }
+    }
     if (!t.travelling) {
         if (!t.controlled) decide(t);  // a controlled outfit waits for its owner's orders
         return;
@@ -194,7 +244,8 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         const bool here = static_cast<NodeId>(d) == t.at;
         if (here && !allow_here) continue;
         const double noise = 1.0 + p.info_noise * rng_.uniform(-1, 1);
-        const double revenue = world_.quote_sell(static_cast<NodeId>(d), t.cargo, t.qty) * noise;
+        const double revenue = certainty_adjusted(t, static_cast<NodeId>(d), t.cargo, t.qty,
+                                                  world_.quote_sell(static_cast<NodeId>(d), t.cargo, t.qty) * noise);
         if (here) {
             if (!best.valid || revenue > best.utility) best = {revenue, t.at, t.cargo, t.qty, 0, true};
             continue;
@@ -202,12 +253,27 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         const double freight = world_.freight_unit_cost(t.cargo, pi.miles) * t.qty;
         for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
             const double loss = loss_fraction(pi, defense(k) / d0);
-            const double util = (1 - loss) * revenue - freight - daily_cost(k) * pi.days -
+            const double util = (1 - loss) * revenue - freight - daily_cost(t, k) * pi.days -
                                 (t.risk_aversion - 1) * loss * (t.unit_cost * t.qty + freight);
             if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), t.cargo, t.qty, k, true};
         }
     }
     return best;
+}
+
+// How uncertain the price is that a seller will actually get. A federal contract and the eastern markets are
+// certain; a small town's spot market is not, and the thinner it is relative to the load, the less so.
+double Simulation::spot_uncertainty(NodeId d, GoodId g, double q) const {
+    const Params& p = world_.params;
+    if (world_.nodes[World::idx(d)].fixed_market) return 0.03;
+    return p.spot_uncertainty_base + p.spot_uncertainty_thin * std::min(1.0, q / world_.normal_stock(d, g));
+}
+
+// A risk-averse outfit marks down uncertain revenue; a gambler marks it up slightly. Contract revenue is certain.
+double Simulation::certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const {
+    const double contract = std::min(revenue, world_.quote_sell_contract(d, g, q));
+    const double spot = revenue - contract;
+    return revenue - (t.risk_aversion - 1.0) * world_.params.price_uncertainty_weight * spot_uncertainty(d, g, q) * spot;
 }
 
 Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInfo>& paths) {
@@ -223,7 +289,7 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
         const GoodId gid = static_cast<GoodId>(g);
         const double avail = hn.fixed_market ? 1e12 : hn.stock[g] * p.avail_fraction;
         if (avail < 1) continue;
-        const double load_units = p.trader_capacity_lb / world_.goods[g].load_lb;
+        const double load_units = t.capacity_lb / world_.goods[g].load_lb;
         const double unit_price = world_.buy_price(t.at, gid);
 
         for (std::size_t d = 0; d < world_.nodes.size(); ++d) {
@@ -236,13 +302,14 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
             if (est <= unit_price + freight_unit) continue;  // no gap worth a trip
 
             for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
-                const double reserve = daily_cost(k) * pi.days;
+                const double reserve = daily_cost(t, k) * pi.days;
                 const double free_cash = t.cash - reserve;
                 if (free_cash <= 0) continue;
                 double q = std::floor(std::min({load_units, avail, free_cash / (unit_price * 1.05 + freight_unit)}));
                 if (q < 1) continue;
                 const double cost = world_.quote_buy(t.at, gid, q);
-                const double revenue = world_.quote_sell(static_cast<NodeId>(d), gid, q) * noise[d];
+                const double revenue = certainty_adjusted(t, static_cast<NodeId>(d), gid, q,
+                                                          world_.quote_sell(static_cast<NodeId>(d), gid, q) * noise[d]);
                 const double freight = freight_unit * q;
                 const double loss = loss_fraction(pi, defense(k) / d0);
                 const double util = (1 - loss) * revenue - cost - freight - reserve -
@@ -367,11 +434,12 @@ Receipt Simulation::act_buy(Trader& t, GoodId g, double qty, double max_spend) {
     if (max_spend < 0) max_spend = t.cash;
     max_spend = std::min(max_spend, t.cash);
     if (max_spend <= 0) { r.result = ActionResult::NoMoney; return r; }
-    qty = std::min(qty, world_.params.trader_capacity_lb / good(g).load_lb);  // what the outfit can carry
+    qty = std::min(qty, t.capacity_lb / good(g).load_lb);  // what the outfit can carry
     double spent = 0;
     const double units = qty > 0 ? world_.buy(t.at, g, qty, max_spend, spent) : 0.0;
     if (units <= 0) { r.result = ActionResult::NothingForSale; return r; }
     t.cash -= spent;
+    bought_value_[t.firm ? 1 : 0][World::idx(g)] += spent;
     t.cargo = g;
     t.qty = units;
     t.unit_cost = spent / units;
@@ -396,6 +464,7 @@ Receipt Simulation::act_sell(Trader& t, double qty) {
     const double profit = revenue - sold * t.unit_cost;
     t.cash += revenue;
     profit_today_ += profit;
+    if (profit > world_.params.story_profit_threshold) ++stories_today_;  // a trip worth telling about
     r.units = sold;
     r.money = revenue;
     if (trace)
@@ -469,7 +538,7 @@ void Simulation::decide(Trader& t) {
         const PathInfo& pi = scratch_paths_[World::idx(buy.dest)];
         const double freight_unit = world_.freight_unit_cost(buy.good, pi.miles);
         // Keep back enough to pay the freight and the trip's running costs.
-        const double max_spend = t.cash - daily_cost(buy.guards) * pi.days - freight_unit * buy.qty;
+        const double max_spend = t.cash - daily_cost(t, buy.guards) * pi.days - freight_unit * buy.qty;
         if (max_spend > 0 && act_buy(t, buy.good, buy.qty, max_spend).result == ActionResult::Ok) {
             act_travel(t, buy.dest, buy.guards);
             return;

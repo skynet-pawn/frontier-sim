@@ -83,6 +83,12 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     int drovers = 0;
     for (const Trader& t : sim.traders()) drovers += t.drover ? 1 : 0;
     r.drover_share_end = r.traders_end ? static_cast<double>(drovers) / r.traders_end : 0;
+    for (const Trader& t : sim.traders()) r.firms_end += t.firm ? 1 : 0;
+    r.freelancers_entered = sim.entered_freelancers();
+    r.firms_entered = sim.entered_firms();
+    r.settled = static_cast<int>(sim.log().count_kind("trader_settled"));
+    r.firm_withdrawals = static_cast<int>(sim.log().count_kind("firm_withdrew"));
+    r.trader_exits = static_cast<int>(sim.log().count_kind("trader_exit"));
 
     const EventLog& log = sim.log();
     r.robberies = static_cast<int>(log.count_kind("robbery"));
@@ -125,6 +131,8 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.emigrated = audit.flows[static_cast<int>(MoneyFlow::Emigration)];
     r.east_bought_by_good = sim.world().east_bought_value;
     r.east_sold_by_good = sim.world().east_sold_value;
+    r.bought_by_freelancers = sim.bought_by_good(false);
+    r.bought_by_firms = sim.bought_by_good(true);
     return r;
 }
 

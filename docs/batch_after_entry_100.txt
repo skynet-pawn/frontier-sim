@@ -1,0 +1,81 @@
+Frontier batch: 100 seeds (1..100), 4400 days from 1874-01-01, 12 threads
+
+  metric                                      min       median         mean          max
+  traders at end                               70           91        91.98          122 
+  traders, lowest point                        29           53        53.65           83 
+    of them eastern firms                      31           48        47.42           66 
+  freelancers who arrived                      71        106.5        106.8          151 
+  firms who arrived                            60           87        86.88          121 
+  settled (made their pile)                     0            0         0.38            3 
+  firms that withdrew                           0            0         0.17            2 
+  traders ruined or killed                    184        219.5        221.2          263 
+  drover share at end                      0.2099       0.3404       0.3388       0.4741 
+  robberies                                   312        455.5        457.1          572 
+    of them over $1,500                       202        333.5          335          436 
+  gangs formed                                138        162.5        161.6          185 
+  posses raised                                42         79.5        78.88          105 
+    posse victories                            48           69        68.73           88 
+    posses routed                              28         52.5        52.51           77 
+  detective parties                            41           62        61.35           76 
+  town takeovers by gangs                       2            5         4.94            9 
+    towns freed                                 2            5         4.94            9 
+    vigilance committees                        0            3          3.3           12 
+  famine episodes                             172        228.5        228.4          297 
+  ghost towns (events)                          1            3         2.65            4 
+  total population, start               2.158e+04    2.158e+04    2.158e+04    2.158e+04 
+  total population, end                  1.41e+04     1.49e+04    1.497e+04    1.605e+04 
+  money in circulation, end ($M)            14.03        16.76         16.9         20.2 
+  east bought from frontier ($M)            29.05        34.71        34.95           41 
+  east sold to frontier ($M)               0.2593       0.3301       0.3404       0.4971 
+  emigrants took away ($M)                  14.84        18.27        18.13        21.01 
+  richest town's cash ($M)                  1.621        2.677        2.662        3.747 
+  lowest eastern price multiplier          0.9037       0.9189       0.9186       0.9319 
+
+  east purchases by good (median $M across runs):
+    beef_cattle    buys    11.98   sells     0.00
+    flour          buys     0.14   sells     0.15
+    tools          buys     0.00   sells     0.00
+    whiskey        buys     0.00   sells     0.02
+    ammunition     buys     0.00   sells     0.02
+    hides          buys     0.04   sells     0.02
+    gold           buys    20.18   sells     0.07
+    timber         buys     0.00   sells     0.00
+    horses         buys     2.76   sells     0.00
+    forage         buys     0.01   sells     0.04
+
+  goods bought by traders (median $M): freelancers | firms
+    beef_cattle        2.07 |     2.15
+    flour              0.21 |     0.09
+    tools              0.00 |     0.00
+    whiskey            0.04 |     0.00
+    ammunition         0.03 |     0.00
+    hides              0.01 |     0.03
+    gold               4.64 |    12.41
+    timber             0.00 |     0.00
+    horses             1.00 |     0.54
+    forage             0.00 |     0.07
+
+  town                  start     peak      end ghost@end ever ghost    ruled
+  Nueces Strip             60      150       52       0%         0%       0 d
+  San Antonio            3000     3047     2401       0%         0%     169 d
+  Austin                 4000     4050     3602       0%         0%       0 d
+  Fort Worth             1000     1321      759       0%         0%     287 d
+  Fort Griffin            400      420      209       0%         0%     795 d
+  Doan's Crossing          30       83       45       0%         0%       0 d
+  Fort Sill Agency        600      900      610       0%         0%       0 d
+  Tascosa                  80      262      259       0%         0%       0 d
+  Caldwell                100      202       20      67%        67%       0 d
+  Dodge City              400      408      100       0%         0%       0 d
+  Wichita                3000     3005     1741       0%         0%       0 d
+  Abilene                1500     1501      645       0%         0%       0 d
+  Ellsworth               800      800      300       0%         0%       0 d
+  Ogallala                150      150       41      61%        97%       0 d
+  Cheyenne               2500     2500      836       0%         0%       0 d
+  Fort Laramie            300      685      432       0%         0%       0 d
+  Deadwood                 20     1496        5     100%       100%       0 d
+  Miles City              100     1573      903       0%         0%       0 d
+  Helena                 3000     4257     1500       0%         0%       0 d
+  Fort Benton             500      500      106       0%         0%       0 d
+  Milk River Range         40      300      166       0%         0%       0 d
+
+no invariant violations; money audit balanced in every run

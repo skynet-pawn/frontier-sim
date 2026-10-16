@@ -95,6 +95,7 @@ If work stops after stage 2 or 3, something real still exists.
 - **Panic buying / hoarding.** A stock-out should itself raise demand (people stock up when shelves look empty), as the 2020 toilet-paper shortage showed. Model as a temporary demand multiplier at a node after a stock-out, with a traceable cause in the log and dampers (the surge exhausts itself, prices rise, traders respond).
 - **State and federal forces** (Texas Rangers, US Marshals, the Army) as the top rung of the law escalation ladder; today the Army and state capitals only count as "backup" that blocks gang capture.
 - **Private armies with a label** (Johnson County War): an association labels small ranchers "rustlers" and invades.
+- **Credit depends on who you deal with.** A draft or IOU from a far-off stranger is worth something to the Army or a big town, little to a remote camp, and nothing to a Comanchero. Acceptance should depend on the counterparty's trust and ties.
 - **Information lag.** Traders currently see all prices with small noise. Make price knowledge travel with traders and telegraph lines.
 - **Seasons.** River freight, winter on the trail, drive season.
 - **Banks, credit and panics.** Cash scarcity is modelled; credit is not.

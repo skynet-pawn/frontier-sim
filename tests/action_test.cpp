@@ -31,7 +31,8 @@ int main() {
     // A quiet frontier: nobody else trades, no bandits, no accidents, so the outcome is only the outfit's own.
     sc.traders = 0;
     sc.gangs.clear();
-    sc.params.trader_join_rate = 0;
+    sc.params.freelancer_entry_rate = 0;
+    sc.params.firm_entry_rate = 0;
     sc.params.gang_form_chance = 0;
     for (double& h : sc.params.hazard) h = 0;
     Simulation sim(world, sc);

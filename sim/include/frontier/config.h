@@ -140,14 +140,37 @@ struct Params {
     double risk_ema_alpha = 0.03;
     double fear_bump = 0.04;                 // daily risk a trader adds to an edge after being robbed there
     double fear_decay = 0.01;
-    double risk_aversion_min = 0.8, risk_aversion_max = 1.3;
+    double risk_aversion_min = 0.5, risk_aversion_max = 1.1;          // freelancers: gamblers and fortune seekers
+    double firm_risk_aversion_min = 1.6, firm_risk_aversion_max = 2.6;  // eastern firms: they want certainty
     double risk_aversion_bump = 0.3, risk_aversion_cap = 4, risk_aversion_decay = 0.002;
     double info_noise = 0.08;                // stale or imperfect price information
     double min_profit = 40;
     double avail_fraction = 0.6;             // share of a node's stock a trader will try to buy
     double deadhead_discount = 0.7;
-    double trader_join_rate = 0.02;          // daily chance an eastern investor outfits a new trader
-    double trader_join_opportunity_ref = 400;  // profit on a standard load (avg of the best few) at which joining doubles
+
+    // Who comes west. Agents never see the sim's true profit: freelancers hear rumors (only the winners talk),
+    // eastern firms read reports that are months old. Both are deterred by danger in proportion to their risk aversion.
+    int firms_initial = 20;                  // of the scenario's starting traders
+    double firm_capital_min = 10000, firm_capital_max = 30000;
+    double firm_capacity_lb = 48000;         // a freight line, not two wagons
+    double firm_upkeep = 6.0;                // managers, teamsters, agents
+    double firm_drover_fraction = 0.2;
+    double freelancer_entry_rate = 0.25;     // arrivals per day when rumor is at its reference level
+    double story_profit_threshold = 2000;    // a trip this profitable becomes a story worth telling
+    double story_ref = 2.0;                  // stories per day at which arrivals run at the base rate
+    double story_alpha = 0.05;               // rumor memory: about 20 days
+    double firm_entry_rate = 0.03;           // firms outfitted per day at one hurdle above the hurdle return
+    double firm_hurdle = 0.0004;             // daily return on capital a firm needs (about 15% a year) after risk
+    double return_alpha = 0.01;              // report lag: about 100 days
+    double danger_ref = 0.004;               // robberies per trader-day that look like "the frontier is deadly"
+    double danger_alpha = 0.02;
+    double settle_cash = 20000;              // a freelancer this rich may settle down
+    double settle_chance = 0.004;
+    double settle_invest_share = 0.7;        // share of his stake invested in the town where he settles
+    double firm_withdraw_rate = 0.01;        // daily, scaled by how far returns fall short of the hurdle
+    double price_uncertainty_weight = 0.5;   // how much a thin spot market worries a risk-averse outfit
+    double spot_uncertainty_base = 0.10;
+    double spot_uncertainty_thin = 0.40;
     double trader_kill_prob = 0.10;
 
     // Bandits.
