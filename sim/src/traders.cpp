@@ -151,6 +151,8 @@ void Simulation::step_trader(Trader& t) {
     e.transits_today += 1;
     if (t.cargo >= 0) {
         e.traffic_today += t.qty * t.unit_cost;
+        const GangTake visible = gang_take(p.assumed_gang_men, false, t);  // what an ordinary gang would see in the wagons
+        if (visible.worth) e.loot_today += visible.loot;
 
         if (rng_.chance(e.hazard)) {
             const double lost = t.qty * p.mishap_loss_fraction;

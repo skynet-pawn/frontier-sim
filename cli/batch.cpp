@@ -127,7 +127,8 @@ int main(int argc, char** argv) {
         row("firms that withdrew", runs, [](const RunStats& r) { return double(r.firm_withdrawals); });
         row("traders ruined or killed", runs, [](const RunStats& r) { return double(r.trader_exits); });
         row("drover share at end", runs, [](const RunStats& r) { return r.drover_share_end; });
-        row("robberies", runs, [](const RunStats& r) { return double(r.robberies); });
+        row("robberies (whole load taken)", runs, [](const RunStats& r) { return double(r.robberies); });
+        row("tolls (gang took part of a load)", runs, [](const RunStats& r) { return double(r.tolls); });
         row("  of them over $1,500", runs, [](const RunStats& r) { return double(r.robberies_over_1500); });
         row("gangs formed", runs, [](const RunStats& r) { return double(r.gangs_formed); });
         row("posses raised", runs, [](const RunStats& r) { return double(r.posses); });

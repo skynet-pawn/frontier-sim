@@ -241,6 +241,9 @@ private:
     void crime_day();
     void rebuild_edge_gangs();
     bool resolve_encounter(Gang& g, Trader& t, EdgeId e);
+    struct GangTake { double units = 0, value = 0, loot = 0; bool worth = false; };  // value: owner's loss; loot: what the goods are worth
+    GangTake gang_take(double men, bool desperate, const Trader& t) const;
+    bool gang_desperate(const Gang& g) const;
     void gang_day(Gang& g);
     void gang_review(Gang& g);
     void gang_dissolve(Gang& g, const char* why);

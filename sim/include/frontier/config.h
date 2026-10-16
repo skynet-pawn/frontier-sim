@@ -213,6 +213,13 @@ struct Params {
     double fence_rate = 0.45;                // fraction of value a fence pays for stolen goods
     double fence_cash_share = 0.5;           // the fence can spend at most this share of its cash
     double gang_loss_when_repulsed = 0.3;
+    // What a gang can carry off, and whether a stop is worth it. A rider takes what fits on his saddle, so cheap bulk
+    // (flour, timber) is never worth a fight while gold, ammunition and whiskey are. All rough; tune from the runs.
+    double gang_carry_lb_per_man = 60;       // lb a rider can take off a wagon
+    double gang_head_per_man = 15;           // head of livestock one man can drive off
+    double gang_min_take_per_man = 5;        // $ a stop must yield per man before the gang bothers
+    double gang_desperate_days = 5;          // days of cash on hand below which a gang takes whatever it can get
+    double gang_desperate_floor_mult = 0.2;  // a desperate gang's floor (and it will take food)
     double law_deter_scale = 1500;           // law fund at which a town halves a gang's interest
 
     // Law.

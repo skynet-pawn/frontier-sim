@@ -96,6 +96,7 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
 
     const EventLog& log = sim.log();
     r.robberies = static_cast<int>(log.count_kind("robbery"));
+    r.tolls = static_cast<int>(log.count_kind("toll"));
     for (const Event& e : log.events())
         if (e.kind == "robbery" && !e.minor) ++r.robberies_over_1500;  // robberies are only minor below $1,500
     r.gangs_formed = static_cast<int>(log.count_kind("gang_formed"));

@@ -111,6 +111,8 @@ struct Edge {
     double robbed_today = 0, transits_today = 0;
     // What a gang can see: how much cargo value moves along here.
     double traffic_today = 0, traffic_ema = 0;
+    // The part of it a gang would stop a wagon for (gold, livestock, goods dense enough to carry off).
+    double loot_today = 0, loot_ema = 0;
 
     NodeId other(NodeId n) const { return n == a ? b : a; }
 };

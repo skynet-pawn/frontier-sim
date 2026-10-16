@@ -51,7 +51,7 @@ double Simulation::grudge_of(const Gang& g, NodeId n) const {
     return 0;
 }
 
-// How attractive an edge is to a gang: cargo value passing by, divided by competition,
+// How attractive an edge is to a gang: lootable cargo passing by, divided by competition,
 // discounted by nearby law and by towns that have already hit back.
 double Simulation::gang_edge_score(const Gang& g, EdgeId eid) const {
     const Params& p = world_.params;
@@ -68,7 +68,7 @@ double Simulation::gang_edge_score(const Gang& g, EdgeId eid) const {
         if (gid != g.id) ++rivals;
     const double law = 1.0 + (a.law_fund + b.law_fund) / p.law_deter_scale;
     const double grudge = 1.0 + grudge_of(g, e.a) + grudge_of(g, e.b);
-    return (e.traffic_ema + 1.0) / (1.0 + 2.0 * rivals) / law / grudge;
+    return (e.loot_ema + 1.0) / (1.0 + 2.0 * rivals) / law / grudge;
 }
 
 // The edge endpoint that can serve as a hideout: a real town, not an eastern market.
@@ -212,15 +212,54 @@ void Simulation::gang_review(Gang& g) {
     log_.with({field("gang", g.id), field("men", g.men), field("node", nname(g.hideout)), field("from", from), field("to", ename(pick))});
     log_.add(world_.today, EventType::Gang, "gang_moved", g.hideout,
              strf("Gang #%d (%d men) moves from %s to the %s", g.id, g.men, from.c_str(), ename(pick).c_str()),
-             strf("better pickings: %s of cargo/day passes the new trail and fewer lawmen are near it; hideout is now %s",
-                  money(world_.edges[World::idx(pick)].traffic_ema).c_str(), nname(g.hideout).c_str()),
+             strf("better pickings: %s of lootable cargo/day passes the new trail and fewer lawmen are near it; hideout is now %s",
+                  money(world_.edges[World::idx(pick)].loot_ema).c_str(), nname(g.hideout).c_str()),
              true);
 }
 
-// Returns true if the trader was robbed (the trip is over).
+// A gang running out of money has no choice: it takes what it can get, food included.
+bool Simulation::gang_desperate(const Gang& g) const {
+    const Params& p = world_.params;
+    const double upkeep = g.men * p.gang_upkeep;
+    return upkeep > 0 && g.cash < upkeep * p.gang_desperate_days;
+}
+
+// What a gang of `men` could carry off a trader's load, and whether that is worth a fight. Riders take what fits
+// on a saddle, densest value first in effect: a handful of men can empty a gold shipment but not a flour wagon.
+// Livestock walks away on its own (it needs hands, not saddlebags). Food is left alone unless the gang is hungry
+// for cash, and a gang that is desperate lowers its standards.
+Simulation::GangTake Simulation::gang_take(double men, bool desperate, const Trader& t) const {
+    const Params& p = world_.params;
+    GangTake take;
+    if (t.cargo < 0 || t.qty <= 0) return take;
+    const GoodDef& gd = good(t.cargo);
+    if (gd.money) {
+        take.units = t.qty;
+    } else if (gd.self_propelled) {
+        take.units = std::min(t.qty, men * p.gang_head_per_man);
+    } else {
+        if (gd.food_share > 0 && !desperate) return take;
+        take.units = std::min(t.qty, men * p.gang_carry_lb_per_man / std::max(gd.weight_lb, 1e-9));
+    }
+    take.value = take.units * t.unit_cost;
+    // The gang judges the goods, not the trader's bill: his unit cost carries freight, which would make heavy
+    // bulk (timber, hides) look rich. The fence pays for the goods, so the goods' own price is the measure.
+    take.loot = take.units * gd.base_cost;
+    const double floor = men * p.gang_min_take_per_man * (desperate ? p.gang_desperate_floor_mult : 1.0);
+    take.worth = gd.money || take.loot >= floor;
+    return take;
+}
+
+// Returns true if the trader was robbed of everything (the trip is over). A gang that can carry off only part of
+// a load takes a toll and lets the wagons go on.
 bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     const Params& p = world_.params;
     Edge& e = world_.edges[World::idx(eid)];
+    const bool short_of_cash = gang_desperate(g);
+    const GangTake take = gang_take(g.men, short_of_cash, t);
+    if (!take.worth) return false;  // not worth the risk of a fight: the wagons pass
+    // Say so in the log only when being short of cash is what made this stop worthwhile.
+    const bool desperate = short_of_cash && !gang_take(g.men, false, t).worth;
     const double D = p.trader_base_defenders + p.guard_strength * t.guards;
     const double G = g.men;
     const double p_gang = G * G / (G * G + D * D);
@@ -244,10 +283,13 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
         return false;
     }
 
-    const double value = t.qty * t.unit_cost;
-    if (t.agent_for >= 0) lost_orders_value_ += value;  // the town paid for this
+    const double value = take.value;
+    const double units = take.units;
     const GoodId cargo = t.cargo;
-    const double units = t.qty;
+    const double load_value = t.qty * t.unit_cost;
+    const bool whole = units >= t.qty - 1e-9;
+    const double share = load_value > 0 ? std::min(1.0, value / load_value) : 1.0;  // how much of the load went
+    if (t.agent_for >= 0) lost_orders_value_ += value;  // the town paid for this
 
     // Stolen goods need a buyer: the hideout town pays a discount from its own cash, then holds the stock.
     Node& hide = world_.nodes[World::idx(g.hideout)];
@@ -262,25 +304,39 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     g.last_robbery = world_.today;
     note_interest_loss(eid, g, cargo, value);
 
-    e.robbed_today += 1;
+    // A toll is a smaller danger signal than being cleaned out, to the road's reputation and to the towns at either end.
+    e.robbed_today += share;
     for (NodeId n : {e.a, e.b})
-        if (n != g.hideout) world_.nodes[World::idx(n)].outrage += p.outrage_per_robbery;
+        if (n != g.hideout) world_.nodes[World::idx(n)].outrage += p.outrage_per_robbery * share;
 
     ++t.robberies;
     bool found = false;
     for (auto& f : t.fear)
-        if (f.first == eid) { f.second += p.fear_bump; found = true; }
-    if (!found) t.fear.push_back({eid, p.fear_bump});
-    t.risk_aversion = std::min(p.risk_aversion_cap, t.risk_aversion + p.risk_aversion_bump);
+        if (f.first == eid) { f.second += p.fear_bump * share; found = true; }
+    if (!found) t.fear.push_back({eid, p.fear_bump * share});
+    t.risk_aversion = std::min(p.risk_aversion_cap, t.risk_aversion + p.risk_aversion_bump * share);
 
-    log_.with({field("gang", g.id), field("men", g.men), field("trader", t.id), field("guards", t.guards), field("edge", ename(eid)), field("good", good(cargo).id), field("units", units), field("value", value), field("fence_pay", fence_pay), field("hideout", nname(g.hideout))});
-    log_.add(world_.today, EventType::Robbery, "robbery", g.hideout,
-             strf("Gang #%d (%d men) robs trader #%d (%d guards) on the %s: %.0f %s, cost %s", g.id, g.men, t.id,
-                  t.guards, ename(eid).c_str(), units, good(cargo).unit.c_str(), money(value).c_str()),
-             strf("%s of cargo/day passes this trail; %s fences the goods for %s (%.0f%% of value)",
-                  money(e.traffic_ema).c_str(), nname(g.hideout).c_str(), money(fence_pay).c_str(),
-                  value > 0 ? 100.0 * fence_pay / value : 0.0),
-             value < 1500);
+    const std::string why_take =
+        strf("%s of lootable cargo/day passes this trail; %s fences the goods for %s (%.0f%% of value)%s",
+             money(e.loot_ema).c_str(), nname(g.hideout).c_str(), money(fence_pay).c_str(),
+             value > 0 ? 100.0 * fence_pay / value : 0.0,
+             desperate ? "; the gang is nearly out of cash and takes what it can get" : "");
+    log_.with({field("gang", g.id), field("men", g.men), field("trader", t.id), field("guards", t.guards), field("edge", ename(eid)), field("good", good(cargo).id), field("units", units), field("value", value), field("fence_pay", fence_pay), field("hideout", nname(g.hideout)), field("desperate", desperate ? 1 : 0)});
+    if (whole) {
+        log_.add(world_.today, EventType::Robbery, "robbery", g.hideout,
+                 strf("Gang #%d (%d men) robs trader #%d (%d guards) on the %s: %.0f %s, cost %s", g.id, g.men, t.id,
+                      t.guards, ename(eid).c_str(), units, good(cargo).unit.c_str(), money(value).c_str()),
+                 why_take, value < 1500);
+    } else {
+        log_.add(world_.today, EventType::Robbery, "toll", g.hideout,
+                 strf("Gang #%d (%d men) takes a toll from trader #%d (%d guards) on the %s: %.0f of %.0f %s, cost %s",
+                      g.id, g.men, t.id, t.guards, ename(eid).c_str(), units, t.qty, good(cargo).unit.c_str(),
+                      money(value).c_str()),
+                 strf("%s; the gang can carry off only %.0f%% of the load", why_take.c_str(), 100.0 * share),
+                 value < 1500);
+        t.qty -= units;
+        return false;  // the wagons go on with the rest
+    }
 
     t.cargo = -1;
     t.qty = 0;

@@ -36,7 +36,7 @@ struct RunStats {
     int firms_end = 0, freelancers_entered = 0, firms_entered = 0, settled = 0, firm_withdrawals = 0, trader_exits = 0;
 
     // Events (by kind)
-    int robberies = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
+    int robberies = 0, tolls = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
     int posses = 0, posse_victories = 0, posse_routs = 0, leaders_killed = 0, leaders_emerged = 0;
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
     int merchant_orders = 0;

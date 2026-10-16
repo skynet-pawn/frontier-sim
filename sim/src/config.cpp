@@ -290,6 +290,8 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(gang_form_min_drifters); P_D(gang_form_chance); P_I(gang_review_days);
     P_D(gang_range_miles); P_D(fence_rate); P_D(fence_cash_share);
     P_D(gang_loss_when_repulsed);
+    P_D(gang_carry_lb_per_man); P_D(gang_head_per_man); P_D(gang_min_take_per_man);
+    P_D(gang_desperate_days); P_D(gang_desperate_floor_mult);
     P_D(interest_loss_decay); P_D(agency_loss_threshold); P_D(agency_min_fund); P_D(agency_cost_per_man);
     P_I(agency_min_men); P_I(agency_max_men); P_D(agency_skill); P_I(agency_cooldown); P_D(backup_range);
     P_D(capture_gain); P_D(capture_decay); P_D(capture_threshold); P_I(capture_min_men); P_D(capture_law_resist);

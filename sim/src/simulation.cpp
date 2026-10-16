@@ -477,7 +477,8 @@ void Simulation::end_of_day() {
         e.robbed_ema += p.risk_ema_alpha * (e.robbed_today - e.robbed_ema);
         e.transits_ema += p.risk_ema_alpha * (e.transits_today - e.transits_ema);
         e.traffic_ema += 0.05 * (e.traffic_today - e.traffic_ema);
-        e.robbed_today = e.transits_today = e.traffic_today = 0;
+        e.loot_ema += 0.05 * (e.loot_today - e.loot_ema);
+        e.robbed_today = e.transits_today = e.traffic_today = e.loot_today = 0;
     }
 
     if (!traders_.empty()) {
