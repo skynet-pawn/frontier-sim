@@ -37,11 +37,10 @@ void Simulation::draw_weather() {
     }
 }
 
-// What a farmer here could net for a hundredweight of flour: the best of the local market and any outlet
-// worth the freight, less the merchant's cut. `outlet` is where that best price is paid.
-double Simulation::farm_gate_price(NodeId id, NodeId& outlet) {
+// What a farmer here could net for a unit of a crop, against his break-even: the best of the local market and any
+// outlet worth the freight, less the merchant's cut. `outlet` is where that best price is paid.
+double Simulation::crop_gate_ratio(NodeId id, GoodId fl, NodeId& outlet) {
     const Params& p = world_.params;
-    const GoodId fl = world_.flour_good;
     const Node& n = world_.nodes[World::idx(id)];
     double best = 0;
     outlet = -1;
@@ -62,7 +61,24 @@ double Simulation::farm_gate_price(NodeId id, NodeId& outlet) {
             outlet = static_cast<NodeId>(d);
         }
     }
-    return std::min(best * p.farm_marketing_share, p.farm_gate_cap * p.farm_break_even);
+    return std::min(best * p.farm_marketing_share / (p.farm_break_even_share * world_.goods[World::idx(fl)].base_cost), p.farm_gate_cap);
+}
+
+// A district sells grain and, where the land and climate allow, a cash crop: settlers follow whichever pays better.
+double Simulation::farm_gate_ratio(NodeId id, NodeId& outlet, GoodId& crop) {
+    const Node& n = world_.nodes[World::idx(id)];
+    crop = world_.flour_good;
+    double best = crop_gate_ratio(id, crop, outlet);
+    if (n.cash_good >= 0) {
+        NodeId o = -1;
+        const double r = crop_gate_ratio(id, n.cash_good, o);
+        if (r > best) {
+            best = r;
+            outlet = o;
+            crop = n.cash_good;
+        }
+    }
+    return best;
 }
 
 void Simulation::found_town(NodeId id) {
@@ -85,11 +101,12 @@ void Simulation::found_town(NodeId id) {
     n.income_peak = n.income_ema;
     world_.refresh_contract_prices();  // a new grain district may now be the cheapest supplier to a post
     const std::string where = n.gate_outlet >= 0 ? nname(n.gate_outlet) : std::string("nearby markets");
-    log_.with({field("node", n.name), field("settlers", n.population), field("gate_price", n.farm_gate), field("outlet", where)});
+    const std::string crop = n.gate_good >= 0 ? world_.goods[World::idx(n.gate_good)].name : std::string("grain");
+    log_.with({field("node", n.name), field("settlers", n.population), field("gate_ratio", n.farm_gate), field("crop", crop), field("outlet", where)});
     log_.add(world_.today, EventType::Population, "town_founded", id,
              strf("%s is founded: %s settlers file claims", n.name.c_str(), with_commas(n.population).c_str()),
-             strf("grain would net a farmer %s/cwt (break-even %s), best sold at %s; a road already reaches the site",
-                  money(n.farm_gate).c_str(), money(p.farm_break_even).c_str(), where.c_str()));
+             strf("%s would net a farmer %.1fx his break-even, best sold at %s; a road already reaches the site",
+                  crop.c_str(), n.farm_gate, where.c_str()));
 }
 
 void Simulation::farms_day() {
@@ -114,10 +131,12 @@ void Simulation::farms_day() {
             // A site becomes a town when settling it has paid for a few months running.
             if (!monthly || world_.today < n.farm_open) continue;
             NodeId outlet = -1;
-            const double gate = farm_gate_price(id, outlet);
+            GoodId crop = -1;
+            const double gate = farm_gate_ratio(id, outlet, crop);
             n.farm_gate = n.farm_gate > 0 ? n.farm_gate + p.farm_gate_alpha * (gate - n.farm_gate) : gate;
             n.gate_outlet = outlet;
-            n.found_streak = n.farm_gate >= p.found_gate_ratio * p.farm_break_even ? n.found_streak + 1 : 0;
+            n.gate_good = crop;
+            n.found_streak = n.farm_gate >= p.found_gate_ratio ? n.found_streak + 1 : 0;
             if (n.found_streak >= p.found_months) found_town(id);
             continue;
         }
@@ -125,14 +144,16 @@ void Simulation::farms_day() {
 
         if (n.farm_gate <= 0 || monthly) {
             NodeId outlet = -1;
-            const double gate = farm_gate_price(id, outlet);
+            GoodId crop = -1;
+            const double gate = farm_gate_ratio(id, outlet, crop);
             n.farm_gate = n.farm_gate > 0 ? n.farm_gate + p.farm_gate_alpha * (gate - n.farm_gate) : gate;
             n.gate_outlet = outlet;
+            n.gate_good = crop;
         }
 
         // Settlers follow the price, held back by bad years and by land that is not yet open.
         const double cap = world_.today >= n.farm_open ? n.farm_capacity : 0.0;
-        const double appeal = std::clamp((n.farm_gate / p.farm_break_even - 0.8) / 0.6, 0.0, 1.0);
+        const double appeal = std::clamp((n.farm_gate - 0.8) / 0.6, 0.0, 1.0);
         const double target = std::max(n.farm_core, cap * appeal * std::clamp(n.yield_memory, 0.3, 1.0));
         if (n.farmers < target) {
             const double add = std::min(target - n.farmers, cap * p.farm_settle_base + n.farmers * p.farm_settle_growth);
@@ -150,6 +171,14 @@ void Simulation::farms_day() {
         if (harvest) {
             const double yield = n.zone >= 0 ? world_.zone_yield[static_cast<std::size_t>(n.zone)] : 1.0;
             n.farm_store += world_.farm_output(id) * yield * 365.0 / p.farm_harvest_days;
+            n.cash_store += world_.farm_cash_output(id) * yield * 365.0 / p.farm_harvest_days;
+        }
+        if (n.cash_good >= 0) {
+            const double out = n.cash_store * p.farm_release_rate;
+            n.cash_store -= out;
+            n.cash_store *= 1.0 - world_.goods[World::idx(n.cash_good)].spoilage_per_day;
+            double& crop = n.stock[World::idx(n.cash_good)];
+            crop = std::min(crop + out, world_.farm_cash_output(id) * p.stock_cap_days * 2 + 20);
         }
         const double release = n.farm_store * p.farm_release_rate;
         n.farm_store -= release;
@@ -166,7 +195,7 @@ void Simulation::farms_day() {
 // by the wagonload: a trader's two-wagon outfit would never bother with a flour run, so without this the surplus
 // would simply rot and the farmers would give up. They ship only while the East nets more than the town pays.
 void Simulation::ship_farm_goods(NodeId id, Node& n) {
-    for (GoodId g : {world_.flour_good, world_.forage_good}) {
+    for (GoodId g : {world_.flour_good, world_.forage_good, n.cash_good}) {
         if (g < 0) continue;
         const std::size_t gi = World::idx(g);
         const double q = n.stock[gi] * 0.1;

@@ -195,7 +195,8 @@ private:
     // ---- farms and new towns (farms.cpp) ----
     void farms_day();
     void draw_weather();
-    double farm_gate_price(NodeId id, NodeId& outlet);
+    double crop_gate_ratio(NodeId id, GoodId g, NodeId& outlet);
+    double farm_gate_ratio(NodeId id, NodeId& outlet, GoodId& crop);
     void found_town(NodeId id);
     void ship_farm_goods(NodeId id, Node& n);
 

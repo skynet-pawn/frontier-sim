@@ -39,7 +39,7 @@
       "cause": "Rocky Mountain locusts stripped crops across Kansas and Nebraska in 1874 (extent approximate; verify)" },
 
     { "name": "Black Hills gold rush", "kind": "rush", "date": "1876-03-01", "node": "deadwood",
-      "people": 1500, "cash_per_person": 40,
+      "people": 6000, "cash_per_person": 40,
       "cause": "Custer's 1874 expedition confirmed gold; the 1876 rush ignored the Fort Laramie treaty" },
     { "name": "Hard winter", "kind": "stock_loss", "date": "1886-12-01", "tag": "northern_range",
       "goods": ["beef_cattle"], "fraction": 0.6,

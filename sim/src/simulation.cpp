@@ -213,6 +213,10 @@ void Simulation::apply_shocks() {
         } else if (sh.kind == "rush") {
             Node& node = world_.nodes[World::idx(sh.node)];
             node.population += sh.people;
+            // Argonauts came with a few weeks' supplies; the shortage hits when those run out.
+            for (std::size_t g = 0; g < world_.goods.size(); ++g)
+                if (world_.goods[g].food_share > 0)
+                    node.stock[g] += sh.people * world_.goods[g].need_per_person_per_day * world_.params.rush_provision_days;
             node.cash += sh.people * sh.cash_per_person;
             world_.record(MoneyFlow::Rush, sh.people * sh.cash_per_person);
             // Newcomers arrive on expectations of income that has not shown up yet.
@@ -264,6 +268,12 @@ void Simulation::economy_day() {
                 }
             }
             n.stock[g] += amount;
+            // Where gold is mined it is money: the miners spend their dust at the stores as they dig it, whether or
+            // not a trader has yet come to carry it out. (Traders buying it later is not counted a second time.)
+            if (good(pd.good).money) {
+                n.inflow_today += amount * good(pd.good).base_cost;
+                n.earned_sales += amount * good(pd.good).base_cost;
+            }
             n.stock[g] = std::min(n.stock[g], pd.rate * p.stock_cap_days);  // unsold output is lost
         }
 

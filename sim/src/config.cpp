@@ -76,6 +76,7 @@ WorldDef load_world(const std::string& dir) {
         g.min_target = jg.value("min_target", 10.0);
         g.market_depth = jg.value("market_depth", 0.0);
         g.garrison_need = jg.value("garrison_need", 0.0);
+        g.money = jg.value("money", false);
         if (jg.contains("freight_mult"))
             for (auto it = jg["freight_mult"].begin(); it != jg["freight_mult"].end(); ++it)
                 g.freight_mult[static_cast<int>(parse_mode(it.key()))] = it.value().get<double>();
@@ -106,6 +107,10 @@ WorldDef load_world(const std::string& dir) {
         n.farm_yield = jn.value("farm_yield", 1.0);
         n.farm_open = date_or(jn, "farm_open", LONG_MIN);
         n.climate = jn.value("climate", "");
+        if (jn.contains("cash_crop")) {
+            n.cash_good = find_good(w.goods, jn["cash_crop"].get<std::string>(), ctx);
+            n.cash_rate = jn.value("cash_rate", 0.006);
+        }
         n.latent = jn.value("latent", false);
         n.found_pop = jn.value("found_pop", 40.0);
         if (jn.contains("contracts"))
@@ -268,7 +273,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(stock_cap_days); P_D(spread); P_D(market_recovery); P_D(mishap_loss_fraction);
     P_D(support_income_per_person); P_D(income_ema_alpha); P_D(pop_growth_rate);
     P_D(pop_decline_rate); P_D(hunger_alpha); P_D(hunger_threshold); P_D(floor_pop);
-    P_D(ghost_pop); P_D(leaver_drifter_fraction); P_D(emigrant_cash_share); P_D(newcomer_provision_days); P_D(transient_inflow_rate);
+    P_D(ghost_pop); P_D(leaver_drifter_fraction); P_D(emigrant_cash_share); P_D(newcomer_provision_days); P_D(rush_provision_days); P_D(transient_inflow_rate);
     P_D(drifter_decay); P_D(law_tax_rate); P_D(visit_spend); P_D(garrison_pay_per_soldier); P_D(contract_backlog_days); P_D(quartermaster_share); P_I(quartermaster_interval_days); P_D(guard_visit_spend); P_D(visit_spend_value_rate);
     P_D(trader_capacity_lb); P_D(drover_fraction); P_D(trader_upkeep); P_D(guard_wage); P_I(guard_step);
     P_I(max_guards); P_D(trader_base_defenders); P_D(guard_strength); P_D(assumed_gang_men);
@@ -295,7 +300,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_I(posse_cooldown); P_I(posse_min_men_led); P_D(leader_fee_per_day); P_D(leader_bonus_share);
     P_D(leader_range); P_D(leader_death_prob); P_D(leader_skill_gain); P_D(leader_skill_cap); P_D(leader_emerge_chance); P_D(posse_range); P_D(gang_terrain_advantage);
     P_D(farm_surplus_per_farmer); P_I(farm_harvest_start); P_I(farm_harvest_days); P_D(farm_release_rate);
-    P_D(farm_forage_ratio); P_D(farm_break_even); P_D(farm_marketing_share); P_D(farm_outlet_units); P_D(farm_weather_sd);
+    P_D(farm_forage_ratio); P_D(farm_break_even_share); P_D(farm_marketing_share); P_D(farm_outlet_units); P_D(farm_weather_sd);
     P_D(farm_settle_base); P_D(farm_settle_growth); P_D(farm_leave_rate); P_D(farm_core_share); P_D(farm_gate_cap); P_D(farm_gate_alpha); P_D(found_gate_ratio);
     P_I(found_months); P_D(found_cash_per_person);
 #undef P_D

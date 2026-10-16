@@ -48,6 +48,10 @@ struct Node {
     long farm_open = LONG_MIN;
     int zone = -1;                          // weather zone (index into World::zone_names)
     double farm_core = 0;                   // farmers who stay through bad prices (subsistence)
+    GoodId cash_good = -1;                  // cash crop other than grain (cotton)
+    double cash_rate = 0;
+    double cash_store = 0;                  // cash crop in the barns
+    GoodId gate_good = -1;                  // which crop currently pays best
     double farm_store = 0;                  // grain in the barns, waiting to be sold
     double farm_gate = 0;                   // what a farmer here can net per cwt, remembered (smoothed)
     double yield_memory = 1;                // recent yields: bad years discourage new settlers
@@ -127,6 +131,7 @@ public:
     GoodId flour_good = -1, forage_good = -1;
     // Flour-equivalent a node's farmers bring to market in a normal year, per day.
     double farm_output(NodeId n) const;
+    double farm_cash_output(NodeId n) const;   // cash crop per day (cotton)
     void record(MoneyFlow f, double amount) { ledger[static_cast<int>(f)] += amount; }
 
     // ---- Prices ----

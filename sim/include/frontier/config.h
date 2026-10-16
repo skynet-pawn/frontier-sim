@@ -21,6 +21,7 @@ struct GoodDef {
     bool self_propelled = false;  // walks to market (cattle): moved by drovers, not by freight wagons
     double min_target = 10;     // floor on a node's "normal stock", for goods nobody consumes
     double garrison_need = 0;   // extra daily need per soldier (horses, forage, repairs), beyond the per-person need
+    bool money = false;         // dust and bullion pass as currency in the camps that mine it
     double market_depth = 0;    // eastern markets: units outstanding that move the price by half (0 = bottomless)
     double freight_mult[kModeCount] = {1, 1, 1};  // per-mode adjustment (e.g. cattle on rail)
 };
@@ -62,6 +63,8 @@ struct NodeDef {
     double farm_yield = 1;       // 0..1.2: soil and rainfall; arid country yields less
     long farm_open = LONG_MIN;   // date the land opens to settlers (treaty, survey, railroad land grant)
     std::string climate;         // weather zone: neighbouring farms share droughts and locusts
+    GoodId cash_good = -1;       // the district's cash crop besides grain (cotton), if any
+    double cash_rate = 0;        // units of it marketed per farmer-day, over a normal year
     // A latent site is only a place on the map: no town until a reason to settle appears (see farms.cpp).
     bool latent = false;
     double found_pop = 40;       // settlers who arrive when the town is founded
@@ -123,6 +126,7 @@ struct Params {
     double floor_pop = 5;
     double ghost_pop = 25;
     double newcomer_provision_days = 20;     // days of food new arrivals carry with them
+    double rush_provision_days = 60;         // gold-rush argonauts were told to bring a season's supplies
     double emigrant_cash_share = 0.8;        // share of a town's cash that leaves with its departing residents
     double leaver_drifter_fraction = 0.15;   // share of people leaving a bust town who turn to drifting
     double transient_inflow_rate = 0.0004;   // drifters arriving per resident per day
@@ -252,7 +256,7 @@ struct Params {
     int farm_harvest_days = 100;             // grain comes in over about three months...
     double farm_release_rate = 0.008;        // ...and goes to market steadily out of the barn (share of the store per day)
     double farm_forage_ratio = 1.0;          // hay and feed grain cwt per cwt of flour
-    double farm_break_even = 2.0;            // $/cwt a farmer must net at the farm gate to stay on the land
+    double farm_break_even_share = 0.6667;   // a farmer must net this share of a crop's base price to stay on the land
     double farm_marketing_share = 0.85;      // share of the merchant's price that reaches the farmer
     double farm_outlet_units = 300;          // size of the sale a farm district prices its outlets by
     double farm_weather_sd = 0.3;            // year-to-year swings in yield
@@ -262,7 +266,7 @@ struct Params {
     double farm_core_share = 0.6;            // share of the starting farmers who stay however the price falls: they eat what they grow
     double farm_gate_cap = 2.5;              // settlers discount price spikes: the gate price counts for at most this many break-evens
     double farm_gate_alpha = 0.1;            // how fast the remembered farm-gate price follows the market (monthly)
-    double found_gate_ratio = 1.25;          // a site is settled when the remembered gate price is this far above break-even
+    double found_gate_ratio = 1.25;          // a site is settled when the remembered gate price is this many break-evens
     int found_months = 3;                    // ...for this many months running
     double found_cash_per_person = 40;       // savings settlers bring
 };

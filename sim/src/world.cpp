@@ -45,6 +45,8 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.farm_core = d.farmers * p.farm_core_share;
         n.farm_capacity = d.farm_capacity;
         n.farm_yield = d.farm_yield;
+        n.cash_good = d.cash_good;
+        n.cash_rate = d.cash_rate;
         n.farm_open = d.farm_open;
         n.latent = d.latent;
         n.founded = !d.latent;
@@ -107,11 +109,17 @@ double World::farm_output(NodeId n) const {
     return node.farmers * params.farm_surplus_per_farmer * node.farm_yield;
 }
 
+double World::farm_cash_output(NodeId n) const {
+    const Node& node = nodes[idx(n)];
+    return node.cash_good < 0 ? 0.0 : node.farmers * node.cash_rate * node.farm_yield;
+}
+
 double World::daily_output(NodeId n, GoodId g) const {
     double produced = 0;
     for (const ProductionDef& p : nodes[idx(n)].production)
         if (p.good == g) produced += p.rate;
     if (g == flour_good) produced += farm_output(n);
+    if (g >= 0 && g == nodes[idx(n)].cash_good) produced += farm_cash_output(n);
     if (g == forage_good) produced += farm_output(n) * params.farm_forage_ratio;
     return produced;
 }
@@ -264,8 +272,10 @@ double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent)
         if (!node.fixed_market) {
             node.stock[idx(g)] -= u;
             node.cash += cost;
-            node.inflow_today += cost;
-            node.earned_sales += cost;
+            if (!goods[idx(g)].money) {
+                node.inflow_today += cost;
+                node.earned_sales += cost;
+            }
         } else {
             node.pressure[idx(g)] -= u;  // the East is drawn down: its price rises
             east_sold_value[idx(g)] += cost;

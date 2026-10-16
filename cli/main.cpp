@@ -32,7 +32,7 @@ void print_towns(const frontier::Simulation& sim) {
     std::printf("\n%s  traders %zu  gangs %zu  avg trader profit $%.1f/day\n", format_date(w.today).c_str(),
                 sim.traders().size(), sim.gangs().size(), sim.avg_trader_profit());
     std::printf("%-18s %7s %7s %9s %9s %6s %7s %7s %7s %7s %6s\n", "town", "pop", "peak", "cash", "income/d", "hunger",
-                "flour", "cattle", "gold", "farmers", "gate$");
+                "flour", "cattle", "gold", "farmers", "gate x");
     GoodId flour = -1, cattle = -1, gold = -1;
     for (std::size_t g = 0; g < w.goods.size(); ++g) {
         if (w.goods[g].id == "flour") flour = static_cast<GoodId>(g);

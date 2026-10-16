@@ -14,7 +14,7 @@
       "need_per_person_per_day": 0.004, "min_target": 20 },
     { "id": "hides", "market_depth": 250000, "name": "Buffalo hides", "unit": "hide", "base_cost": 2.5, "weight_lb": 40,
       "spoilage_per_day": 0.0002, "min_target": 300 },
-    { "id": "gold", "market_depth": 300000, "name": "Gold", "unit": "oz", "base_cost": 20.67, "weight_lb": 0.07, "load_lb": 2,
+    { "id": "gold", "money": true, "market_depth": 300000, "name": "Gold", "unit": "oz", "base_cost": 20.67, "weight_lb": 0.07, "load_lb": 2,
       "min_target": 200 },
     { "id": "timber", "market_depth": 30000, "name": "Timber", "unit": "mbf", "base_cost": 12.0, "weight_lb": 2500,
       "need_per_person_per_day": 0.0004, "min_target": 5 },
@@ -22,6 +22,8 @@
       "self_propelled": true, "garrison_need": 0.0004, "spoilage_per_day": 0.0004, "min_target": 30,
       "freight_mult": { "rail": 15 } },
     { "id": "forage", "market_depth": 150000, "name": "Hay and grain", "unit": "cwt", "base_cost": 1.2, "weight_lb": 100,
-      "garrison_need": 0.15, "spoilage_per_day": 0.0008, "min_target": 40 }
+      "garrison_need": 0.15, "spoilage_per_day": 0.0008, "min_target": 40 },
+    { "id": "cotton", "market_depth": 400000, "name": "Cotton", "unit": "bale", "base_cost": 55.0, "weight_lb": 500,
+      "spoilage_per_day": 0.0001, "min_target": 20 }
   ]
 }

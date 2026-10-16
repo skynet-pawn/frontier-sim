@@ -272,6 +272,7 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
 // discount he used to pick the destination. This is how a supply line feeds the towns strung along it.
 bool Simulation::sell_along_the_way(Trader& t) {
     const Params& p = world_.params;
+    if (world_.nodes[World::idx(t.at)].fixed_market) return false;  // dumping a load back on the East is turning round, not a sale
     double miles[kModeCount] = {0, 0, 0}, days = 0, gang_risk = 0, hazard_risk = 0;
     for (std::size_t i = t.leg; i < t.route.size(); ++i) {
         const Edge& e = world_.edges[World::idx(t.route[i])];
