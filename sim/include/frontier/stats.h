@@ -15,6 +15,10 @@ struct TownOutcome {
     bool ghost_end = false;
     bool ever_ghost = false;
     int days_ruled_by_gang = 0;
+    double farmers_start = 0, farmers_peak = 0, farmers_end = 0;
+    bool latent = false;         // started as a site on the map, not a town
+    long founded_day = -1;       // days since the run began when it became a town (-1 = never / from the start)
+    double flour_bought = 0;     // dollars of flour traders bought here
     double earned_sales = 0, earned_visitors = 0, earned_government = 0, earned_total = 0;   // lifetime, by source
 };
 

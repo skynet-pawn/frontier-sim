@@ -101,6 +101,13 @@ WorldDef load_world(const std::string& dir) {
         n.capacity = jn.value("capacity", n.population);
         n.base_population = jn.value("base_population", 0.0);
         n.garrison = jn.value("garrison", 0.0);
+        n.farmers = jn.value("farmers", 0.0);
+        n.farm_capacity = jn.value("farm_capacity", 0.0);
+        n.farm_yield = jn.value("farm_yield", 1.0);
+        n.farm_open = date_or(jn, "farm_open", LONG_MIN);
+        n.climate = jn.value("climate", "");
+        n.latent = jn.value("latent", false);
+        n.found_pop = jn.value("found_pop", 40.0);
         if (jn.contains("contracts"))
             for (auto it = jn["contracts"].begin(); it != jn["contracts"].end(); ++it) {
                 ContractDef c;
@@ -237,6 +244,9 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
                 sh.fraction = js.at("fraction").get<double>();
                 for (const auto& gid : js.at("goods"))
                     sh.goods.push_back(find_good(world.goods, gid.get<std::string>(), "shock " + sh.name));
+            } else if (sh.kind == "crop_failure") {
+                sh.tag = js.at("zone").get<std::string>();
+                sh.fraction = js.at("fraction").get<double>();
             } else if (sh.kind == "rush") {
                 sh.node = find_node(world.nodes, js.at("node").get<std::string>(), "shock " + sh.name);
                 sh.people = js.at("people").get<double>();
@@ -284,6 +294,10 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(posse_cost_per_man); P_I(posse_min_men); P_I(posse_max_men); P_D(posse_speed);
     P_I(posse_cooldown); P_I(posse_min_men_led); P_D(leader_fee_per_day); P_D(leader_bonus_share);
     P_D(leader_range); P_D(leader_death_prob); P_D(leader_skill_gain); P_D(leader_skill_cap); P_D(leader_emerge_chance); P_D(posse_range); P_D(gang_terrain_advantage);
+    P_D(farm_surplus_per_farmer); P_I(farm_harvest_start); P_I(farm_harvest_days); P_D(farm_release_rate);
+    P_D(farm_forage_ratio); P_D(farm_break_even); P_D(farm_marketing_share); P_D(farm_outlet_units); P_D(farm_weather_sd);
+    P_D(farm_settle_base); P_D(farm_settle_growth); P_D(farm_leave_rate); P_D(farm_core_share); P_D(farm_gate_cap); P_D(farm_gate_alpha); P_D(found_gate_ratio);
+    P_I(found_months); P_D(found_cash_per_person);
 #undef P_D
 #undef P_I
     // Per-mode arrays.

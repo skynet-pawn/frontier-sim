@@ -99,6 +99,7 @@ If work stops after stage 2 or 3, something real still exists.
 - **Information lag.** Traders currently see all prices with small noise. Make price knowledge travel with traders and telegraph lines.
 - **Seasons.** River freight, winter on the trail, drive season.
 - **Banks, credit and panics.** Cash scarcity is modelled; credit is not.
+- **Farms and new towns (first pass built).** Farmers settle where the farm-gate price (best of local market and any outlet worth the freight) beats break-even; weather is drawn per zone per year; grain buyers ship surplus to the East by rail. Latent sites (Spearfish Valley, Garden City, Billings) become towns when settling pays for several months. Gaps: Texas has no outlet for grain (no Gulf market, so its farm districts shrink to local demand); farm numbers, capacities, opening dates and break-even price are rough and must be verified against sources; towns still cannot be founded by traffic alone (stage stops, crossings, mining strikes); farm districts do not yet feed an Indian agency or fort by direct contract with local farmers.
 
 ## Known risks
 

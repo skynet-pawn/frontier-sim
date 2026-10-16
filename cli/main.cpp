@@ -31,8 +31,8 @@ void print_towns(const frontier::Simulation& sim) {
     const World& w = sim.world();
     std::printf("\n%s  traders %zu  gangs %zu  avg trader profit $%.1f/day\n", format_date(w.today).c_str(),
                 sim.traders().size(), sim.gangs().size(), sim.avg_trader_profit());
-    std::printf("%-18s %7s %7s %9s %9s %6s %7s %7s %7s\n", "town", "pop", "peak", "cash", "income/d", "hunger",
-                "flour", "cattle", "gold");
+    std::printf("%-18s %7s %7s %9s %9s %6s %7s %7s %7s %7s %6s\n", "town", "pop", "peak", "cash", "income/d", "hunger",
+                "flour", "cattle", "gold", "farmers", "gate$");
     GoodId flour = -1, cattle = -1, gold = -1;
     for (std::size_t g = 0; g < w.goods.size(); ++g) {
         if (w.goods[g].id == "flour") flour = static_cast<GoodId>(g);
@@ -43,8 +43,8 @@ void print_towns(const frontier::Simulation& sim) {
         const Node& n = w.nodes[i];
         if (n.fixed_market) continue;
         auto price = [&](GoodId g) { return g < 0 ? 0.0 : w.mid_price(static_cast<NodeId>(i), g); };
-        std::printf("%-18s %7.0f %7.0f %9.0f %9.0f %6.2f %7.2f %7.2f %7.2f%s\n", n.name.c_str(), n.population,
-                    n.peak_pop, n.cash, n.income_ema, n.hunger, price(flour), price(cattle), price(gold),
+        std::printf("%-18s %7.0f %7.0f %9.0f %9.0f %6.2f %7.2f %7.2f %7.2f %7.0f %6.2f%s\n", n.name.c_str(), n.population,
+                    n.peak_pop, n.cash, n.income_ema, n.hunger, price(flour), price(cattle), price(gold), n.farmers, n.farm_gate,
                     n.garrison > 0 ? strf("  [garrison %.0f]", n.garrison).c_str() : n.captor >= 0 ? strf("  (ruled by gang #%d, takes %.0f%%)", n.captor, n.toll * 100).c_str()
                     : n.ghost     ? "  (ghost town)"
                                   : "");

@@ -3,6 +3,7 @@ add_library(frontier_sim STATIC
     src/config.cpp
     src/crime.cpp
     src/event_log.cpp
+    src/farms.cpp
     src/law.cpp
     src/rng.cpp
     src/simulation.cpp

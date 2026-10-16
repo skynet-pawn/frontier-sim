@@ -161,6 +161,8 @@ public:
     Gang* gang_by_id(int id) { return find_gang(id); }
     // Dollars of goods bought by each kind of trader, by good (diagnostic): index 0 freelancers, 1 firms.
     const std::vector<double>& bought_by_good(bool firm) const { return bought_value_[firm ? 1 : 0]; }
+    // Dollars of flour traders bought at each node (diagnostic): who the farm hubs and the East really supply.
+    const std::vector<double>& flour_bought_at() const { return flour_bought_at_; }
     int entered_freelancers() const { return entered_freelancers_; }
     int entered_firms() const { return entered_firms_; }
     bool trace = false;          // log individual trades
@@ -189,6 +191,13 @@ private:
     void economy_day();
     void update_population(NodeId n);
     void end_of_day();
+
+    // ---- farms and new towns (farms.cpp) ----
+    void farms_day();
+    void draw_weather();
+    double farm_gate_price(NodeId id, NodeId& outlet);
+    void found_town(NodeId id);
+    void ship_farm_goods(NodeId id, Node& n);
 
     // ---- traders (traders.cpp) ----
     void spawn_trader(NodeId at, bool firm);
@@ -267,6 +276,8 @@ private:
     int entered_freelancers_ = 0, entered_firms_ = 0, entered_window_f_ = 0, entered_window_firm_ = 0;
     std::vector<NodeId> gateways_, markets_;
     std::vector<double> bought_value_[2];
+    std::vector<double> flour_bought_at_;
+    int weather_year_ = -1;
     double profit_today_ = 0;                   // realized trader profit, net of upkeep, for the join rate
 
     std::vector<double> opportunity_[2];        // [freighter, drover]: best standard-load profit at each node

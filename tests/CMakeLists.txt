@@ -8,6 +8,7 @@ endfunction()
 frontier_test(determinism_test)
 frontier_test(money_test)
 frontier_test(action_test)
+frontier_test(farm_test)
 
 # Dev tool for hunting money leaks; not a test.
 add_executable(audit_probe audit_probe.cpp)

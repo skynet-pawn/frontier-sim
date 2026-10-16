@@ -28,6 +28,10 @@ const char* money_flow_name(MoneyFlow f) {
 }
 
 World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.goods), params(p), today(start_day) {
+    for (std::size_t g = 0; g < goods.size(); ++g) {
+        if (goods[g].id == "flour") flour_good = static_cast<GoodId>(g);
+        if (goods[g].id == "forage") forage_good = static_cast<GoodId>(g);
+    }
     for (const NodeDef& d : def.nodes) {
         Node n;
         n.id = d.id; n.name = d.name; n.kind = d.kind;
@@ -37,6 +41,19 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.gov_income = d.gov_income;
         n.capacity = d.capacity;
         n.base_population = d.base_population;
+        n.farmers = d.farmers;
+        n.farm_core = d.farmers * p.farm_core_share;
+        n.farm_capacity = d.farm_capacity;
+        n.farm_yield = d.farm_yield;
+        n.farm_open = d.farm_open;
+        n.latent = d.latent;
+        n.founded = !d.latent;
+        n.found_pop = d.found_pop;
+        if (!d.climate.empty()) {
+            auto it = std::find(zone_names.begin(), zone_names.end(), d.climate);
+            if (it == zone_names.end()) { zone_names.push_back(d.climate); it = zone_names.end() - 1; }
+            n.zone = static_cast<int>(it - zone_names.begin());
+        }
         n.tags = d.tags;
         n.population = d.population;
         n.cash = d.cash;
@@ -53,7 +70,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.production = d.production;
         n.production_started.assign(d.production.size(), 0);
         // Assume the town was in steady state when the scenario begins.
-        n.income_ema = n.fixed_market ? 0 : std::max(0.0, n.population - n.base_population - n.garrison) * p.support_income_per_person;
+        n.income_ema = n.fixed_market ? 0 : std::max(0.0, n.population - n.base_population - n.farmers - n.garrison) * p.support_income_per_person;
         n.income_peak = n.income_ema;
         n.peak_pop = n.population;
         nodes.push_back(std::move(n));
@@ -71,6 +88,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
     }
     east_bought_value.assign(goods.size(), 0.0);
     east_sold_value.assign(goods.size(), 0.0);
+    zone_yield.assign(zone_names.size(), 1.0);
     update_active_edges(nullptr, nullptr);
     rebuild_routes();
     refresh_contract_prices();
@@ -84,10 +102,17 @@ double World::daily_demand(NodeId n, GoodId g) const {
            node.garrison * goods[idx(g)].garrison_need;
 }
 
+double World::farm_output(NodeId n) const {
+    const Node& node = nodes[idx(n)];
+    return node.farmers * params.farm_surplus_per_farmer * node.farm_yield;
+}
+
 double World::daily_output(NodeId n, GoodId g) const {
     double produced = 0;
     for (const ProductionDef& p : nodes[idx(n)].production)
         if (p.good == g) produced += p.rate;
+    if (g == flour_good) produced += farm_output(n);
+    if (g == forage_good) produced += farm_output(n) * params.farm_forage_ratio;
     return produced;
 }
 
@@ -196,6 +221,7 @@ double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
 
 double World::quote_sell(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
+    if (!node.founded) return 0;
     if (node.fixed_market) {
         double total = 0, p = node.pressure[idx(g)];
         const double u = q / kChunks;
@@ -253,6 +279,7 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
     Node& node = nodes[idx(n)];
     revenue = 0;
     double sold = 0;
+    if (!node.founded) return 0;
     if (!node.fixed_market) {
         const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
         if (under_contract > 0) {

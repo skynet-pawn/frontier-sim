@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,21 @@ struct Node {
     std::vector<double> contract_price, contract_backlog;  // per good: fixed price (0 = none) and unfilled quantity
     std::vector<std::string> tags;
 
+    // Farming and settlement (farms.cpp).
+    double farmers = 0, farm_capacity = 0, farm_yield = 1;
+    long farm_open = LONG_MIN;
+    int zone = -1;                          // weather zone (index into World::zone_names)
+    double farm_core = 0;                   // farmers who stay through bad prices (subsistence)
+    double farm_store = 0;                  // grain in the barns, waiting to be sold
+    double farm_gate = 0;                   // what a farmer here can net per cwt, remembered (smoothed)
+    double yield_memory = 1;                // recent yields: bad years discourage new settlers
+    bool latent = false;                    // only a site on the map; not yet a town
+    bool founded = true;
+    double found_pop = 40;
+    int found_streak = 0;                   // months the gate price has justified settling
+    long founded_day = LONG_MIN;
+    NodeId gate_outlet = -1;                // where the best price for this district's grain is
+
     double population = 0, cash = 0;
     std::vector<double> stock, fixed_price, reserve, extra_demand;
     std::vector<double> pressure;           // eastern markets: net units sold into the market, decaying
@@ -63,7 +79,7 @@ struct Node {
     double peak_pop = 0;
     // Residents who buy from the market. Farmers and ranchers around a town (base_population) grow most of
     // their own food, so only a fifth of them draw on the town's shelves.
-    double market_population() const { return std::max(0.0, population - 0.8 * base_population); }
+    double market_population() const { return std::max(0.0, population - 0.8 * (base_population + farmers)); }
     // Rule by a gang (see capture.cpp). The toll is added to every price traders face here.
     int captor = -1;
     double toll = 0;
@@ -106,6 +122,11 @@ public:
     long today = 0;
     double ledger[kMoneyFlowCount] = {};   // signed running total per MoneyFlow
     std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
+    std::vector<std::string> zone_names;     // weather zones
+    std::vector<double> zone_yield;          // this year's yield multiplier per zone (1 = normal)
+    GoodId flour_good = -1, forage_good = -1;
+    // Flour-equivalent a node's farmers bring to market in a normal year, per day.
+    double farm_output(NodeId n) const;
     void record(MoneyFlow f, double amount) { ledger[static_cast<int>(f)] += amount; }
 
     // ---- Prices ----

@@ -502,6 +502,7 @@ Receipt Simulation::act_buy(Trader& t, GoodId g, double qty, double max_spend) {
     if (units <= 0) { r.result = ActionResult::NothingForSale; return r; }
     t.cash -= spent;
     bought_value_[t.firm ? 1 : 0][World::idx(g)] += spent;
+    if (g == world_.flour_good) flour_bought_at_[World::idx(t.at)] += spent;
     t.cargo = g;
     t.qty = units;
     t.unit_cost = spent / units;

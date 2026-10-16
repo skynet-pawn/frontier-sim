@@ -54,6 +54,8 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         r.towns[i].name = n.name;
         r.towns[i].pop_start = n.population;
         r.towns[i].pop_peak = n.population;
+        r.towns[i].farmers_start = r.towns[i].farmers_peak = n.farmers;
+        r.towns[i].latent = n.latent;
         if (!n.fixed_market) r.pop_start_total += n.population;
     }
 
@@ -72,6 +74,8 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
             }
             TownOutcome& o = r.towns[i];
             o.pop_peak = std::max(o.pop_peak, n.population);
+            o.farmers_peak = std::max(o.farmers_peak, n.farmers);
+            if (n.latent && n.founded && o.founded_day < 0) o.founded_day = static_cast<long>(d);
             o.ever_ghost = o.ever_ghost || n.ghost;
             if (n.captor >= 0) ++o.days_ruled_by_gang;
         }
@@ -116,6 +120,7 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         TownOutcome& o = r.towns[i];
         o.pop_end = n.population;
         o.income_end = n.income_ema;
+        o.farmers_end = n.farmers;
         o.earned_sales = n.earned_sales;
         o.earned_visitors = n.earned_visitors;
         o.earned_government = n.earned_government;
@@ -134,6 +139,7 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.east_buys = audit.flows[static_cast<int>(MoneyFlow::EastBuys)];
     r.east_sells = audit.flows[static_cast<int>(MoneyFlow::EastSells)];
     r.emigrated = audit.flows[static_cast<int>(MoneyFlow::Emigration)];
+    for (std::size_t i = 0; i < N; ++i) r.towns[i].flour_bought = sim.flour_bought_at()[i];
     r.east_bought_by_good = sim.world().east_bought_value;
     r.east_sold_by_good = sim.world().east_sold_value;
     r.bought_by_freelancers = sim.bought_by_good(false);

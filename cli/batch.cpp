@@ -188,6 +188,36 @@ int main(int argc, char** argv) {
                         spread(peak).median, spread(end).median, 100 * ghost_end / seeds, 100 * ever / seeds, spread(ruled).mean);
         }
 
+        // Farms: how many farmers each farming district holds, and when the new districts were settled.
+        std::printf("\n  farming districts (median farmers): %-8s %8s %8s   founded\n", "start", "peak", "end");
+        for (std::size_t i = 0; i < world.nodes.size(); ++i) {
+            const frontier::NodeDef& nd = world.nodes[i];
+            if (nd.fixed_market || (nd.farm_capacity <= 0 && !nd.latent)) continue;
+            std::vector<double> st, pk, en, fy;
+            int founded = 0;
+            for (const RunStats& r : runs) {
+                st.push_back(r.towns[i].farmers_start);
+                pk.push_back(r.towns[i].farmers_peak);
+                en.push_back(r.towns[i].farmers_end);
+                if (r.towns[i].founded_day >= 0) { ++founded; fy.push_back(1874.0 + r.towns[i].founded_day / 365.25); }
+            }
+            std::printf("  %-34s %8.0f %8.0f %8.0f", nd.name.c_str(), spread(st).median, spread(pk).median, spread(en).median);
+            if (nd.latent) {
+                if (founded) std::printf("   %3d%% of runs, median year %.1f\n", 100 * founded / seeds, spread(fy).median);
+                else std::printf("   never\n");
+            } else {
+                std::printf("\n");
+            }
+        }
+
+        // Where traders buy their flour: the East, or the farm districts nearest the hungry.
+        std::printf("\n  flour traders bought, by place (mean $k per run):\n");
+        for (std::size_t i = 0; i < world.nodes.size(); ++i) {
+            double sum = 0;
+            for (const RunStats& r : runs) sum += r.towns[i].flour_bought;
+            if (sum / seeds >= 500) std::printf("    %-18s %8.1f\n", world.nodes[i].name.c_str(), sum / seeds / 1000);
+        }
+
         // What each town lives on: share of lifetime earnings, averaged over runs.
         std::printf("\n  what towns live on (share of lifetime earnings):\n");
         std::printf("  %-18s %8s %9s %9s %7s %12s\n", "town", "goods", "visitors", "govt", "other", "$/day (mean)");

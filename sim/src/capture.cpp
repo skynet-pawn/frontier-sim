@@ -20,7 +20,7 @@ void Simulation::capture_progress(Gang& g, double spent) {
     Node& h = world_.nodes[World::idx(g.hideout)];
     if (h.fixed_market || h.captor >= 0) return;
     // The town's whole economy includes the farmers and ranchers around it, not just its trade income.
-    const double economy = h.income_ema + h.base_population * p.support_income_per_person + 50.0;
+    const double economy = h.income_ema + (h.base_population + h.farmers) * p.support_income_per_person + 50.0;
     const double gain = p.capture_gain * spent / economy / (1.0 + h.law_fund / p.capture_law_resist);
     g.influence = g.influence * (1.0 - p.capture_decay) + gain;
     g.last_spend = spent;

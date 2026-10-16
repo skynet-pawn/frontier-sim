@@ -21,6 +21,7 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
     edge_gangs_.resize(world_.edges.size());
     bought_value_[0].assign(world_.goods.size(), 0.0);
     bought_value_[1].assign(world_.goods.size(), 0.0);
+    flour_bought_at_.assign(world_.nodes.size(), 0.0);
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
         Node& n = world_.nodes[i];
         while (n.pop_band < kBandCount && n.population >= kPopBands[n.pop_band]) ++n.pop_band;
@@ -32,7 +33,9 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
     }
     for (int i = 0; i < sc_.traders; ++i) {
         const bool firm = i < world_.params.firms_initial && !markets_.empty();
-        spawn_trader(firm ? markets_[rng_.next_below(markets_.size())] : static_cast<NodeId>(rng_.next_below(world_.nodes.size())), firm);
+        NodeId start = firm ? markets_[rng_.next_below(markets_.size())] : static_cast<NodeId>(rng_.next_below(world_.nodes.size()));
+        while (!world_.nodes[World::idx(start)].founded) start = static_cast<NodeId>(rng_.next_below(world_.nodes.size()));
+        spawn_trader(start, firm);
     }
     for (const LeaderSeed& l : sc_.leaders) {
         Leader ld;
@@ -197,6 +200,16 @@ void Simulation::apply_shocks() {
                              sh.cause);
                 }
             }
+        } else if (sh.kind == "crop_failure") {
+            for (std::size_t z = 0; z < world_.zone_names.size(); ++z) {
+                if (world_.zone_names[z] != sh.tag) continue;
+                world_.zone_yield[z] = std::min(world_.zone_yield[z], 1.0 - sh.fraction);
+                for (Node& nd : world_.nodes)
+                    if (nd.zone == static_cast<int>(z)) nd.yield_memory = std::min(nd.yield_memory, 1.0 - sh.fraction);
+                log_.with({field("zone", sh.tag), field("lost", sh.fraction), field("shock", sh.name)});
+                log_.add(world_.today, EventType::Shock, "crop_failure", -1,
+                         strf("%s: the %s harvest is %.0f%% short", sh.name.c_str(), sh.tag.c_str(), sh.fraction * 100), sh.cause);
+            }
         } else if (sh.kind == "rush") {
             Node& node = world_.nodes[World::idx(sh.node)];
             node.population += sh.people;
@@ -218,10 +231,11 @@ void Simulation::apply_shocks() {
 
 void Simulation::economy_day() {
     const Params& p = world_.params;
+    farms_day();
     for (std::size_t ni = 0; ni < world_.nodes.size(); ++ni) {
         Node& n = world_.nodes[ni];
         const NodeId id = static_cast<NodeId>(ni);
-        if (n.fixed_market) continue;
+        if (n.fixed_market || !n.founded) continue;
 
         // Production, limited by labor and by finite reserves (mines, buffalo herds).
         for (std::size_t i = 0; i < n.production.size(); ++i) {
@@ -317,21 +331,20 @@ void Simulation::economy_day() {
 
         if (n.hunger > 0.25 && !n.starving && n.population >= 100) {
             n.starving = true;
-            double cover = 1e9;
-            std::string who;
+            std::string covers;
             for (std::size_t g = 0; g < world_.goods.size(); ++g) {
                 const GoodDef& gd = world_.goods[g];
                 if (gd.food_share <= 0) continue;
-                const double need = n.population * gd.need_per_person_per_day;
+                const double need = n.market_population() * gd.need_per_person_per_day;
                 const double days = need > 0 ? n.stock[g] / need : 1e9;
-                if (days < cover) { cover = days; who = gd.name; }
+                covers += strf("%s%s %.1f days", covers.empty() ? "" : ", ", gd.name.c_str(), days);
             }
             const bool repeat = world_.today - n.last_famine_log < 90;
             n.last_famine_log = world_.today;
             log_.with({field("node", n.name), field("pop", n.population), field("hunger", n.hunger)});
             log_.add(world_.today, EventType::Famine, "famine", id,
                      strf("%s is short of food (pop %s)", n.name.c_str(), with_commas(n.population).c_str()),
-                     strf("%s stock covers %.1f days; town cash %s limits what traders can be paid", who.c_str(), cover,
+                     strf("stocks cover: %s; town cash %s limits what traders can be paid", covers.c_str(),
                           money(n.cash).c_str()),
                      repeat);
         } else if (n.hunger < 0.08 && n.starving) {
@@ -354,11 +367,11 @@ void Simulation::update_population(NodeId id) {
     const Params& p = world_.params;
     Node& n = world_.nodes[World::idx(id)];
     // Farmers and ranchers around a town live off the land; everyone else lives off trade and government money.
-    const double trade_pop = std::clamp(n.income_ema / p.support_income_per_person, 0.0, std::max(0.0, n.capacity - n.base_population - n.garrison));
+    const double trade_pop = std::clamp(n.income_ema / p.support_income_per_person, 0.0, std::max(0.0, n.capacity - n.base_population - n.farmers - n.garrison));
     // Hunger drives away the people who depend on the market, not the farmers who feed themselves.
     const double hunger_keep = n.hunger > p.hunger_threshold ? 1.0 - n.hunger : 1.0;
     // The garrison is posted by the Army and stays however the town is doing.
-    const double target = std::max(n.garrison + n.base_population + trade_pop * hunger_keep, p.floor_pop);
+    const double target = std::max(n.garrison + n.base_population + n.farmers + trade_pop * hunger_keep, p.floor_pop);
     // A town with almost nobody left has nobody to starve; newcomers arrive fed, so hunger can't lock it at zero.
     if (n.market_population() < p.ghost_pop) n.hunger = 0;
 

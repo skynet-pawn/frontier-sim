@@ -54,6 +54,17 @@ struct NodeDef {
     std::vector<std::string> tags;
     std::vector<double> stock, fixed_price, reserve, extra_demand;
     std::vector<ProductionDef> production;
+
+    // Farming (farms.cpp). Farmers live off their own land and sell the surplus grain to the town and, if the
+    // price justifies the freight, to places further off. Capacity is what the land, rainfall and water allow.
+    double farmers = 0;          // farm population at the start (counted within `population`)
+    double farm_capacity = 0;    // most farmers the surrounding land can carry
+    double farm_yield = 1;       // 0..1.2: soil and rainfall; arid country yields less
+    long farm_open = LONG_MIN;   // date the land opens to settlers (treaty, survey, railroad land grant)
+    std::string climate;         // weather zone: neighbouring farms share droughts and locusts
+    // A latent site is only a place on the map: no town until a reason to settle appears (see farms.cpp).
+    bool latent = false;
+    double found_pop = 40;       // settlers who arrive when the town is founded
 };
 
 struct EdgeDef {
@@ -234,13 +245,33 @@ struct Params {
     double leader_skill_gain = 0.05;
     double leader_skill_cap = 2.5;
     double leader_emerge_chance = 0.2;       // chance a victorious posse produces a new leader
+
+    // Farms and new towns. Yields and prices are rough; verify before calibrating.
+    double farm_surplus_per_farmer = 0.05;   // cwt of flour-equivalent marketed per farmer-day, over a normal year
+    int farm_harvest_start = 190;            // day of year the grain harvest begins (early July)
+    int farm_harvest_days = 100;             // grain comes in over about three months...
+    double farm_release_rate = 0.008;        // ...and goes to market steadily out of the barn (share of the store per day)
+    double farm_forage_ratio = 1.0;          // hay and feed grain cwt per cwt of flour
+    double farm_break_even = 2.0;            // $/cwt a farmer must net at the farm gate to stay on the land
+    double farm_marketing_share = 0.85;      // share of the merchant's price that reaches the farmer
+    double farm_outlet_units = 300;          // size of the sale a farm district prices its outlets by
+    double farm_weather_sd = 0.3;            // year-to-year swings in yield
+    double farm_settle_base = 0.0005;        // new farmers per day, as a share of capacity...
+    double farm_settle_growth = 0.002;       // ...plus a share of the farmers already there (neighbours follow neighbours)
+    double farm_leave_rate = 0.0012;         // share of the surplus farmers who give up each day
+    double farm_core_share = 0.6;            // share of the starting farmers who stay however the price falls: they eat what they grow
+    double farm_gate_cap = 2.5;              // settlers discount price spikes: the gate price counts for at most this many break-evens
+    double farm_gate_alpha = 0.1;            // how fast the remembered farm-gate price follows the market (monthly)
+    double found_gate_ratio = 1.25;          // a site is settled when the remembered gate price is this far above break-even
+    int found_months = 3;                    // ...for this many months running
+    double found_cash_per_person = 40;       // savings settlers bring
 };
 
 struct ShockDef {
     std::string name;
-    std::string kind;            // "stock_loss" or "rush"
+    std::string kind;            // "stock_loss", "rush" or "crop_failure"
     long date = 0;
-    std::string tag;             // stock_loss: nodes carrying this tag
+    std::string tag;             // stock_loss: nodes carrying this tag; crop_failure: the weather zone
     std::vector<GoodId> goods;   // stock_loss: goods affected
     double fraction = 0;         // stock_loss: share destroyed
     NodeId node = -1;            // rush: where

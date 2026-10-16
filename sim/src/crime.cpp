@@ -79,7 +79,7 @@ NodeId Simulation::nearest_node(EdgeId eid, NodeId near_to) const {
     double best_d = 1e18;
     for (NodeId n : {e.a, e.b}) {
         const Node& nd = world_.nodes[World::idx(n)];
-        if (nd.fixed_market) continue;
+        if (nd.fixed_market || !nd.founded) continue;
         const double d = dist(nd.x, nd.y, ref.x, ref.y);
         if (d < best_d) { best_d = d; best = n; }
     }
