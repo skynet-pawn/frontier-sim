@@ -96,6 +96,7 @@ void Simulation::step_trader(Trader& t) {
     } else if (Node& here = world_.nodes[World::idx(t.at)]; !here.fixed_market) {
         here.cash += cost;
         here.inflow_today += cost;
+        here.earned_visitors += cost;
     } else {
         world_.record(MoneyFlow::EastSpending, -cost);
     }
@@ -180,12 +181,16 @@ void Simulation::arrive(Trader& t) {
     if (!n.fixed_market) {
         n.cash += spend + t.pending_spend;
         n.inflow_today += spend + t.pending_spend;
+        n.earned_visitors += spend + t.pending_spend;
     } else {
         world_.record(MoneyFlow::EastSpending, -(spend + t.pending_spend));
     }
     t.pending_spend = 0;
 
-    if (t.leg < t.route.size() && world_.edges[World::idx(t.route[t.leg])].active) {
+    const bool more_road = t.leg < t.route.size() && world_.edges[World::idx(t.route[t.leg])].active;
+    // A teamster passing through a town with a good price for his load sells some of it there.
+    const bool sold_out = more_road && t.cargo >= 0 && !t.controlled && sell_along_the_way(t);
+    if (more_road && !sold_out) {
         t.days_left = world_.edges[World::idx(t.route[t.leg])].travel_days;
         return;
     }
@@ -259,6 +264,63 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         }
     }
     return best;
+}
+
+// A trader bound for a distant town passes through others on the way. Local merchants pay well for what they
+// are short of, and a wagon that unloads part of its freight here saves the rest of the haul (teamsters bill by
+// the mile carried). He sells whatever share beats carrying it on, judged with the same risk and certainty
+// discount he used to pick the destination. This is how a supply line feeds the towns strung along it.
+bool Simulation::sell_along_the_way(Trader& t) {
+    const Params& p = world_.params;
+    double miles[kModeCount] = {0, 0, 0}, days = 0, gang_risk = 0, hazard_risk = 0;
+    for (std::size_t i = t.leg; i < t.route.size(); ++i) {
+        const Edge& e = world_.edges[World::idx(t.route[i])];
+        miles[static_cast<int>(e.mode)] += e.miles;
+        days += e.travel_days;
+        gang_risk += edge_risk(t, t.route[i]) * e.travel_days;
+        hazard_risk += e.hazard * e.travel_days * p.mishap_loss_fraction;
+    }
+    PathInfo rest;
+    rest.gang_risk = gang_risk;
+    rest.hazard_risk = hazard_risk;
+    const double loss = loss_fraction(rest, defense(t.guards) / defense(0));
+    const double freight_unit = world_.freight_unit_cost(t.cargo, miles);
+    const GoodId cargo = t.cargo;
+    const double noise = 1.0 + p.info_noise * rng_.uniform(-1, 1);
+
+    // Value of selling a share here and carrying the remainder on to the destination.
+    auto value = [&](double share) {
+        const double q_here = t.qty * share, q_on = t.qty - q_here;
+        double v = certainty_adjusted(t, t.at, t.cargo, q_here, world_.quote_sell(t.at, t.cargo, q_here)) + freight_unit * q_here;
+        if (q_on > 0) {
+            const double on = certainty_adjusted(t, t.dest, t.cargo, q_on, world_.quote_sell(t.dest, t.cargo, q_on) * noise);
+            v += (1 - loss) * on - (t.risk_aversion - 1) * loss * t.unit_cost * q_on;
+        }
+        return v;
+    };
+    double best_share = 0, best = value(0);
+    for (double share : {0.25, 0.5, 0.75, 1.0}) {
+        const double v = value(share);
+        if (v > best + p.min_profit) { best = v; best_share = share; }
+    }
+    if (best_share <= 0) return false;
+
+    // The unused part of the freight comes back to him: those units now travel no further.
+    const double before_qty = t.qty, before_cost = t.unit_cost;
+    t.unit_cost -= freight_unit;
+    const Receipt r = sell_cargo(t, t.qty * best_share);
+    if (r.units <= 0) { t.unit_cost = before_cost; return false; }
+    const double refund = freight_unit * r.units;
+    t.cash += refund;
+    profit_today_ += refund;
+    world_.record(MoneyFlow::Freight, refund);
+    if (t.cargo >= 0) t.unit_cost = before_cost;
+    log_.with({field("trader", t.id), field("node", nname(t.at)), field("good", good(cargo).id), field("units", r.units), field("share", r.units / before_qty)});
+    log_.add(world_.today, EventType::Trade, "trade_waypoint", t.at,
+             strf("Trader #%d, bound for %s, sells %.0f %s at %s for %s", t.id, nname(t.dest).c_str(), r.units,
+                  good(cargo).unit.c_str(), nname(t.at).c_str(), money(r.money).c_str()),
+             "local price beat what the rest of the road would earn after freight and risk", r.money < 1500);
+    return t.cargo < 0;
 }
 
 // How uncertain the price is that a seller will actually get. A federal contract and the eastern markets are
@@ -454,8 +516,12 @@ Receipt Simulation::act_buy(Trader& t, GoodId g, double qty, double max_spend) {
 }
 
 Receipt Simulation::act_sell(Trader& t, double qty) {
+    if (t.travelling) { Receipt r; r.result = ActionResult::Busy; return r; }
+    return sell_cargo(t, qty);
+}
+
+Receipt Simulation::sell_cargo(Trader& t, double qty) {
     Receipt r;
-    if (t.travelling) { r.result = ActionResult::Busy; return r; }
     if (t.cargo < 0) { r.result = ActionResult::NoCargo; return r; }
     if (qty < 0 || qty > t.qty) qty = t.qty;
     double revenue = 0;

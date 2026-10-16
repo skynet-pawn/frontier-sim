@@ -239,6 +239,7 @@ double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent)
             node.stock[idx(g)] -= u;
             node.cash += cost;
             node.inflow_today += cost;
+            node.earned_sales += cost;
         } else {
             node.pressure[idx(g)] -= u;  // the East is drawn down: its price rises
             east_sold_value[idx(g)] += cost;

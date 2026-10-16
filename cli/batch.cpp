@@ -137,6 +137,7 @@ int main(int argc, char** argv) {
         row("town takeovers by gangs", runs, [](const RunStats& r) { return double(r.takeovers); });
         row("  towns freed", runs, [](const RunStats& r) { return double(r.towns_freed); });
         row("  vigilance committees", runs, [](const RunStats& r) { return double(r.vigilance); });
+        row("sales made along the way", runs, [](const RunStats& r) { return double(r.waypoint_sales); });
         row("famine episodes", runs, [](const RunStats& r) { return double(r.famines); });
         row("ghost towns (events)", runs, [](const RunStats& r) { return double(r.ghost_towns); });
         row("total population, start", runs, [](const RunStats& r) { return r.pop_start_total; });
@@ -185,6 +186,21 @@ int main(int argc, char** argv) {
             }
             std::printf("  %-18s %8.0f %8.0f %8.0f %7d%% %9d%% %7.0f d\n", world.nodes[i].name.c_str(), world.nodes[i].population,
                         spread(peak).median, spread(end).median, 100 * ghost_end / seeds, 100 * ever / seeds, spread(ruled).mean);
+        }
+
+        // What each town lives on: share of lifetime earnings, averaged over runs.
+        std::printf("\n  what towns live on (share of lifetime earnings):\n");
+        std::printf("  %-18s %8s %9s %9s %7s %12s\n", "town", "goods", "visitors", "govt", "other", "$/day (mean)");
+        for (std::size_t i = 0; i < world.nodes.size(); ++i) {
+            if (world.nodes[i].fixed_market) continue;
+            double s = 0, v = 0, g = 0, t = 0;
+            for (const RunStats& r : runs) {
+                s += r.towns[i].earned_sales; v += r.towns[i].earned_visitors;
+                g += r.towns[i].earned_government; t += r.towns[i].earned_total;
+            }
+            if (t <= 0) continue;
+            std::printf("  %-18s %7.0f%% %8.0f%% %8.0f%% %6.0f%% %12.0f\n", world.nodes[i].name.c_str(), 100 * s / t, 100 * v / t,
+                        100 * g / t, 100 * (t - s - v - g) / t, t / seeds / scenario.days);
         }
 
         // Problems.

@@ -258,6 +258,7 @@ void Simulation::economy_day() {
         const double pay = n.gov_income + n.garrison * p.garrison_pay_per_soldier;
         n.cash += pay;
         n.inflow_today += pay;
+        n.earned_government += pay;
         world_.record(MoneyFlow::Government, pay);
 
         // Standing contracts: the quantity wanted each day accumulates until a contractor delivers it.
@@ -442,6 +443,7 @@ void Simulation::end_of_day() {
         else n.law_fund += tax;
         n.income_ema += p.income_ema_alpha * (n.inflow_today - n.income_ema);
         n.income_peak = std::max(n.income_peak, n.income_ema);
+        n.earned_total += n.inflow_today;
         n.outrage *= 1.0 - p.outrage_decay;
         n.inflow_today = 0;
     }

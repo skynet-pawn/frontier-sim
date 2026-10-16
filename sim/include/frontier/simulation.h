@@ -208,6 +208,8 @@ private:
     Plan plan_buy(const Trader& t, const std::vector<PathInfo>& paths);
     bool plan_deadhead(const Trader& t, NodeId& dest);
     void arrive(Trader& t);
+    Receipt sell_cargo(Trader& t, double qty);   // the sale itself, with no check that the outfit is idle
+    bool sell_along_the_way(Trader& t);          // true if the whole load went here and the trip is over
     void ensure_opportunities();
     void retire(Trader& t, const char* why, bool ruined = false);
 

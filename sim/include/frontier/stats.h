@@ -15,6 +15,7 @@ struct TownOutcome {
     bool ghost_end = false;
     bool ever_ghost = false;
     int days_ruled_by_gang = 0;
+    double earned_sales = 0, earned_visitors = 0, earned_government = 0, earned_total = 0;   // lifetime, by source
 };
 
 // Everything the batch runner wants to know about one complete run. Collected by stepping the simulation
@@ -33,7 +34,7 @@ struct RunStats {
     int robberies = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
     int posses = 0, posse_victories = 0, posse_routs = 0, leaders_killed = 0, leaders_emerged = 0;
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
-    int famines = 0, ghost_towns = 0;
+    int famines = 0, ghost_towns = 0, waypoint_sales = 0;
 
     // Towns
     std::vector<TownOutcome> towns;

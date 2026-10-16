@@ -106,6 +106,7 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.towns_freed = static_cast<int>(log.count_kind("town_freed"));
     r.infighting = static_cast<int>(log.count_kind("gang_infighting"));
     r.vigilance = static_cast<int>(log.count_kind("vigilance_formed"));
+    r.waypoint_sales = static_cast<int>(log.count_kind("trade_waypoint"));
     r.famines = static_cast<int>(log.count_kind("famine"));
     r.ghost_towns = static_cast<int>(log.count_kind("ghost_town"));
 
@@ -115,6 +116,10 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         TownOutcome& o = r.towns[i];
         o.pop_end = n.population;
         o.income_end = n.income_ema;
+        o.earned_sales = n.earned_sales;
+        o.earned_visitors = n.earned_visitors;
+        o.earned_government = n.earned_government;
+        o.earned_total = n.earned_total;
         o.ghost_end = n.ghost;
         r.pop_end_total += n.population;
         if (n.cash > r.richest_cash) {

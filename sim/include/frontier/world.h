@@ -53,6 +53,9 @@ struct Node {
     double inflow_today = 0;     // cash received today from trade, visitors and government
     double income_ema = 0;       // smoothed daily inflow: this is what a town lives on
     double income_peak = 0;
+    // Lifetime earnings by source, for asking what a town lives on: goods sold to traders, money traders and
+    // their crews spend there, government pay, and everything else (gangs, posses, detectives).
+    double earned_sales = 0, earned_visitors = 0, earned_government = 0, earned_total = 0;
     double hunger = 0;           // smoothed share of food need left unmet
     double law_fund = 0;         // taxes set aside for sheriffs and posses
     double outrage = 0;          // local anger over robberies; triggers posses
