@@ -168,7 +168,8 @@ public:
     double quote_buy(NodeId n, GoodId g, double q) const;
     double quote_sell(NodeId n, GoodId g, double q) const;  // limited by the node's cash and dust
     double dust_on_hand(NodeId n) const;                    // value of the gold a camp could pay out in place of cash
-    double quote_sell_contract(NodeId n, GoodId g, double q) const;  // the part of a sale that a federal contract pays (certain)
+    double quote_sell_contract(NodeId n, GoodId g, double q) const;  // the part of a sale that a contract or open order pays (certain)
+    double order_unit_price(NodeId n, GoodId g, double extra_stock) const;  // per unit for an open order: its offer or the shelf price, whichever is higher
 
     // Execution. Both move stock and cash and count the node's inflow.
     double buy(NodeId n, GoodId g, double q, double max_spend, double& spent);

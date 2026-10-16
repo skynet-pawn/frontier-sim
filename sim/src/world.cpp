@@ -235,13 +235,22 @@ double World::dust_on_hand(NodeId n) const {
     return node.fixed_market ? 0.0 : std::max(0.0, node.stock[idx(money_good)]) * goods[idx(money_good)].base_cost;
 }
 
+// What the town pays a unit that fills its open order: its offer, or its own shelf price if that is higher. A camp
+// whose beef sells for the price ceiling does not pay a stranger a quarter of that because it wrote a modest offer
+// when the shelves were full. The order guarantees the quantity at no less than the offer; it never caps the price.
+double World::order_unit_price(NodeId n, GoodId g, double extra_stock) const {
+    const Node& node = nodes[idx(n)];
+    if (node.order_qty[idx(g)] <= 0 || node.order_price[idx(g)] <= 0) return 0;
+    return std::max(node.order_price[idx(g)], sell_price_at(n, g, node.stock[idx(g)] + extra_stock));
+}
+
 // Revenue a seller can count on at a node: government contract first, then the town's open order, which the
 // town can pay only as far as its cash goes.
 double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
     if (node.fixed_market) return 0;
     const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
-    const double price = node.order_price[idx(g)];
+    const double price = order_unit_price(n, g, under_contract);
     const double order_units = price > 0 ? std::min({q - under_contract, node.order_qty[idx(g)], std::max(0.0, node.cash) / price}) : 0.0;
     return under_contract * node.contract_price[idx(g)] + order_units * price;
 }
@@ -263,7 +272,7 @@ double World::quote_sell(NodeId n, GoodId g, double q) const {
     const double contract_pay = under_contract * node.contract_price[idx(g)];
     q -= under_contract;
     // The town's own open order takes the next units at the offered price, as far as its cash goes.
-    const double oprice = node.order_price[idx(g)];
+    const double oprice = order_unit_price(n, g, under_contract);
     const double order_units = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
     const double order_pay = order_units * oprice;
     q -= order_units;
@@ -327,7 +336,7 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
             q -= under_contract;
         }
         // The town's open order, paid from its own cash.
-        const double oprice = node.order_price[idx(g)];
+        const double oprice = order_unit_price(n, g, 0);
         const double ou = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
         if (ou > 0) {
             const double pay = ou * oprice;
