@@ -8,8 +8,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # The simulation core: no rendering, no engine dependencies.
 add_subdirectory(sim)
 
-# Headless runner. A viewer, when it exists, is another consumer of `frontier_sim`.
+# Headless runner.
 add_subdirectory(cli)
+
+# Overworld viewer (needs raylib, fetched at configure time): another consumer of `frontier_sim`. Off by default so the
+# simulation and its tools build with no dependencies.
+option(FRONTIER_BUILD_VIEWER "Build the raylib overworld viewer" OFF)
+if(FRONTIER_BUILD_VIEWER)
+    add_subdirectory(viewer)
+endif()
 
 enable_testing()
 add_subdirectory(tests)

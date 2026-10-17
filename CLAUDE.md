@@ -118,6 +118,7 @@ If work stops after stage 2 or 3, something real still exists.
 ## Decisions made
 
 - **Language:** C++20 with CMake. `sim/` is a dependency-free static library; `cli/` is the headless runner; a future viewer (likely raylib) links only against `sim`. Config in JSON (nlohmann/json, header-only). Own seeded PRNG (xoshiro256**), not `<random>` distributions, for cross-compiler determinism.
+- **Viewer:** raylib (zlib licence), an optional CMake target (`-DFRONTIER_BUILD_VIEWER=ON`, off by default so `sim/` and the CLI build with no dependencies), fetched at configure time. `viewer/main.cpp` reads the sim only through its const accessors and event log. First pass: top-down map in the sim's own coordinates, towns sized by population, roads tinted by recent robberies, wagon trains moving along their roads (colored by freelancer, house outfit, eastern firm, freight job), gangs on their roads, food shortages ringed, a town panel (shelf, price, open orders), overlays (kind, hunger, flour price), a non-routine event feed with causes, speed and pause controls, and `--shot FILE --days N` to render one frame headless. No terrain yet: that needs the world generator, which is a separate piece of work.
 - **License:** Apache 2.0 (art and authored content may be licensed separately later).
 
 ## Open decisions to settle at the start of the repo
