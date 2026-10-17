@@ -206,6 +206,7 @@ public:
     // Activates or deactivates edges by date; returns true if the network changed.
     bool update_active_edges(std::vector<EdgeId>* opened, std::vector<EdgeId>* closed);
     void rebuild_routes();
+    long route_version = 0;      // bumped whenever the routes are rebuilt, so caches built from them know to refresh
     bool reachable(NodeId s, NodeId d) const { return dist_[idx(s) * nodes.size() + idx(d)] < 1e17; }
     double route_days(NodeId s, NodeId d) const { return dist_[idx(s) * nodes.size() + idx(d)]; }
     // Fills `out` with the edge ids from s to d. Returns false if unreachable.

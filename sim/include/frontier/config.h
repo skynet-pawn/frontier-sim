@@ -186,6 +186,15 @@ struct Params {
     double merchant_safety_days = 40;        // a town reorders when its cover falls below the lead time of its supply plus this:
                                              // the review interval, the wait for a freighter, and a cushion for bad weather and robbery
     double merchant_cycle_days = 45;         // ...and orders enough to cover this many days beyond that point
+    // The winter store: a northern storekeeper laid in goods in the autumn for the months the roads closed, because a camp
+    // cut off by snow could not send for more. From the lay-in month to the end of February his reorder point and order-up-to
+    // target both rise by this many days of cover (0 = off).
+    double winter_cover_days = 0;
+    double winter_min_y = 1000;              // towns this far north (map miles) lay in a winter store
+    int winter_lay_in_month = 9;             // the store is built from this month (September) through February
+    // A trader does not weigh every town on the map: news and acquaintance reach so far. He considers the nearest towns by
+    // travel time and the eastern markets (which everyone knows of). Also what keeps the cost of a day linear in the map's size.
+    int trade_horizon = 64;
     double merchant_cash_share = 0.5;        // most of a town's cash one round of orders may commit
     double merchant_margin = 0.15;           // landed cost must leave this much under the shelf price
     int merchant_order_raise_days = 7;       // an unfilled order's offer rises this often...

@@ -301,6 +301,7 @@ private:
     double daily_cost(int guards) const;
     Plan plan_sell(const Trader& t, const std::vector<PathInfo>& paths, bool allow_here);
     Plan plan_buy(const Trader& t, const std::vector<PathInfo>& paths);
+    const std::vector<NodeId>& horizon(NodeId n);
     Plan plan_job(const Trader& t, const std::vector<PathInfo>& paths);
     bool act_take_job(Trader& t, const Plan& j);
     void deliver_job(Trader& t);
@@ -414,6 +415,10 @@ private:
 
     std::vector<double> opportunity_[2];        // [freighter, drover]: best standard-load profit at each node
     long opportunity_day_ = -1;
+    struct HorizonPath { double miles[kModeCount] = {0, 0, 0}, days = 0; };
+    std::vector<std::vector<HorizonPath>> horizon_path_;   // per node, parallel to horizon_: miles by mode and days to each town in it
+    std::vector<std::vector<NodeId>> horizon_;   // per node: the towns a trader there will consider (see Params::trade_horizon)
+    long horizon_version_ = -1;
     std::vector<std::size_t> shock_done_;       // indices of shocks already applied
     std::vector<EdgeId> scratch_route_;
     std::vector<PathInfo> scratch_paths_;

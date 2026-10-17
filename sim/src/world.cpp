@@ -435,6 +435,7 @@ bool World::update_active_edges(std::vector<EdgeId>* opened, std::vector<EdgeId>
 // Dijkstra from every node by travel time. Fine for tens of nodes; at ~2,000
 // nodes this should become lazy or hierarchical (noted for stage 1's scale test).
 void World::rebuild_routes() {
+    ++route_version;
     const std::size_t N = nodes.size();
     dist_.assign(N * N, 1e18);
     prev_edge_.assign(N * N, -1);

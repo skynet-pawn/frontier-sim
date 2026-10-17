@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "frontier/date.h"
 #include "frontier/format.h"
 #include "frontier/simulation.h"
 
@@ -51,7 +52,15 @@ void Simulation::order_for_town(NodeId id) {
     for (std::size_t s = 0; s < world_.nodes.size(); ++s)
         if (world_.nodes[s].fixed_market && world_.reachable(static_cast<NodeId>(s), id)) lead = std::min(lead, world_.route_days(static_cast<NodeId>(s), id));
     if (lead > 1e8) lead = 0;
-    const double reorder_days = lead + p.merchant_safety_days;
+    // The winter store: from autumn the northern towns hold a month more, so a closed road finds the shelves full.
+    double winter = 0;
+    if (p.winter_cover_days > 0 && n.y >= p.winter_min_y) {
+        int yr;
+        unsigned month, day;
+        civil_from_days(world_.today, yr, month, day);
+        if (static_cast<int>(month) >= p.winter_lay_in_month || month <= 2) winter = p.winter_cover_days;
+    }
+    const double reorder_days = lead + p.merchant_safety_days + winter;
     const double target_days = reorder_days + p.merchant_cycle_days;
 
     // Most pressing shortage first, so scarce cash goes to food before whiskey.
@@ -118,9 +127,8 @@ bool Simulation::cheapest_source(NodeId town, GoodId g, double load_units, NodeI
     const Params& p = world_.params;
     src = -1;
     best = 1e18;
-    for (std::size_t s = 0; s < world_.nodes.size(); ++s) {
-        const Node& sn = world_.nodes[s];
-        const NodeId sid = static_cast<NodeId>(s);
+    for (NodeId sid : horizon(town)) {  // the nearest sources and the eastern markets: a storekeeper writes to wholesalers he knows
+        const Node& sn = world_.nodes[World::idx(sid)];
         if (sid == town || !sn.founded || !world_.route(sid, town, scratch_route_)) continue;
         double spare = 1e12;
         if (!sn.fixed_market) {

@@ -250,14 +250,51 @@ double Simulation::edge_risk(const Trader& t, EdgeId eid) const {
     return std::min(risk, 0.5);
 }
 
+// The towns a trader at `n` will consider: the nearest `trade_horizon` by travel time, plus every reachable eastern market.
+const std::vector<NodeId>& Simulation::horizon(NodeId n) {
+    const std::size_t N = world_.nodes.size();
+    if (horizon_version_ != world_.route_version || horizon_.size() != N) {
+        horizon_version_ = world_.route_version;
+        horizon_.assign(N, {});
+        horizon_path_.assign(N, {});
+        const std::size_t keep = static_cast<std::size_t>(std::max(1, world_.params.trade_horizon));
+        for (std::size_t s = 0; s < N; ++s) {
+            std::vector<NodeId> reach;
+            for (std::size_t d = 0; d < N; ++d)
+                if (d != s && world_.reachable(static_cast<NodeId>(s), static_cast<NodeId>(d))) reach.push_back(static_cast<NodeId>(d));
+            if (reach.size() > keep) {
+                auto nearer = [&](NodeId a, NodeId b) {
+                    const double da = world_.route_days(static_cast<NodeId>(s), a), db = world_.route_days(static_cast<NodeId>(s), b);
+                    return da != db ? da < db : a < b;
+                };
+                std::sort(reach.begin(), reach.end(), nearer);
+                std::vector<NodeId> far(reach.begin() + static_cast<std::ptrdiff_t>(keep), reach.end());
+                reach.resize(keep);
+                for (NodeId d : far)
+                    if (world_.nodes[World::idx(d)].fixed_market) reach.push_back(d);
+                std::sort(reach.begin(), reach.end());
+            }
+            horizon_path_[s].resize(reach.size());
+            for (std::size_t i = 0; i < reach.size(); ++i) {
+                world_.route(static_cast<NodeId>(s), reach[i], scratch_route_);
+                for (EdgeId eid : scratch_route_) {
+                    const Edge& e = world_.edges[World::idx(eid)];
+                    horizon_path_[s][i].miles[static_cast<int>(e.mode)] += e.miles;
+                    horizon_path_[s][i].days += e.travel_days;
+                }
+            }
+            horizon_[s] = std::move(reach);
+        }
+    }
+    return horizon_[World::idx(n)];
+}
+
 void Simulation::plan_paths(const Trader& t, NodeId from, std::vector<PathInfo>& out) {
     out.assign(world_.nodes.size(), PathInfo{});
-    for (std::size_t d = 0; d < world_.nodes.size(); ++d) {
+    out[World::idx(from)].ok = true;
+    for (NodeId dn : horizon(from)) {
+        const std::size_t d = World::idx(dn);
         PathInfo& pi = out[d];
-        if (static_cast<NodeId>(d) == from) {
-            pi.ok = true;
-            continue;
-        }
         if (!world_.route(from, static_cast<NodeId>(d), scratch_route_)) continue;
         pi.ok = true;
         for (EdgeId eid : scratch_route_) {
@@ -499,28 +536,33 @@ void Simulation::ensure_opportunities() {
     opportunity_[0].assign(N, 0.0);
     opportunity_[1].assign(N, 0.0);
     const double standard_cash = 3000;
+    struct Load { double q, buy_cost; int kind; };
+    std::vector<Load> loads;
     for (std::size_t n = 0; n < N; ++n) {
         const Node& hn = world_.nodes[n];
-        for (std::size_t d = 0; d < N; ++d) {
-            if (d == n || !world_.route(static_cast<NodeId>(n), static_cast<NodeId>(d), scratch_route_)) continue;
-            double miles[kModeCount] = {0, 0, 0}, days = 0;
-            for (EdgeId eid : scratch_route_) {
-                const Edge& e = world_.edges[World::idx(eid)];
-                miles[static_cast<int>(e.mode)] += e.miles;
-                days += e.travel_days;
-            }
-            for (std::size_t g = 0; g < world_.goods.size(); ++g) {
-                const GoodId gid = static_cast<GoodId>(g);
-                const double avail = hn.fixed_market ? 1e12 : tradable_stock(static_cast<NodeId>(n), gid);
-                if (avail < 1) continue;
-                const double price = world_.buy_price(static_cast<NodeId>(n), gid);
-                const double q = std::floor(std::min({p.trader_capacity_lb / world_.goods[g].load_lb, avail, standard_cash / price}));
-                if (q < 1) continue;
-                const double profit = world_.quote_sell(static_cast<NodeId>(d), gid, q) -
-                                      world_.quote_buy(static_cast<NodeId>(n), gid, q) -
-                                      world_.freight_unit_cost(gid, miles) * q;
-                double& slot = opportunity_[world_.goods[g].self_propelled ? 1 : 0][n];
-                slot = std::max(slot, profit - daily_cost(0) * days);
+        horizon(static_cast<NodeId>(n));  // (refreshes the cache if the roads changed)
+        // What he would load here does not depend on where he is bound, so it is priced once per good.
+        loads.clear();
+        std::vector<GoodId> goods_here;
+        for (std::size_t g = 0; g < world_.goods.size(); ++g) {
+            const GoodId gid = static_cast<GoodId>(g);
+            const double avail = hn.fixed_market ? 1e12 : tradable_stock(static_cast<NodeId>(n), gid);
+            if (avail < 1) continue;
+            const double price = world_.buy_price(static_cast<NodeId>(n), gid);
+            const double q = std::floor(std::min({p.trader_capacity_lb / world_.goods[g].load_lb, avail, standard_cash / price}));
+            if (q < 1) continue;
+            loads.push_back({q, world_.quote_buy(static_cast<NodeId>(n), gid, q), world_.goods[g].self_propelled ? 1 : 0});
+            goods_here.push_back(gid);
+        }
+        const std::vector<NodeId>& dests = horizon_[n];
+        for (std::size_t i = 0; i < dests.size(); ++i) {
+            const HorizonPath& hp = horizon_path_[n][i];
+            for (std::size_t k = 0; k < loads.size(); ++k) {
+                const GoodId gid = goods_here[k];
+                const double profit = world_.quote_sell(dests[i], gid, loads[k].q) - loads[k].buy_cost -
+                                      world_.freight_unit_cost(gid, hp.miles) * loads[k].q;
+                double& slot = opportunity_[loads[k].kind][n];
+                slot = std::max(slot, profit - daily_cost(0) * hp.days);
             }
         }
     }
