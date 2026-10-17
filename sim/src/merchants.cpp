@@ -38,9 +38,21 @@ void Simulation::order_for_town(NodeId id) {
     std::vector<double> inbound(world_.goods.size(), 0.0);
     for (const Trader& c : convoys_)
         if (c.alive && c.agent_for == id && c.cargo >= 0) inbound[World::idx(c.cargo)] += c.qty;
-    for (std::size_t g = 0; g < world_.goods.size(); ++g) inbound[g] += n.order_qty[g];  // already on the board
+    // (An offer nobody has taken is not stock. Counting it made a town believe it was covered while its shelf was bare,
+    // and the bigger the order the bigger the illusion.)
     double committed = 0;  // what the town's open orders would cost it
     for (std::size_t g = 0; g < world_.goods.size(); ++g) committed += n.order_qty[g] * n.order_price[g];
+
+    // A town far from its supply must keep more on the shelf: what it orders today arrives after the whole journey,
+    // and a storekeeper who reorders at forty days of stock with a fifty-day haul will run dry every time. So the
+    // reorder point is the lead time (days from the nearest eastern market), plus a safety margin, and the order
+    // brings the shelf up to that point plus a cycle's worth. Deadwood lays in a season's stock; a railhead does not.
+    double lead = 1e9;
+    for (std::size_t s = 0; s < world_.nodes.size(); ++s)
+        if (world_.nodes[s].fixed_market && world_.reachable(static_cast<NodeId>(s), id)) lead = std::min(lead, world_.route_days(static_cast<NodeId>(s), id));
+    if (lead > 1e8) lead = 0;
+    const double reorder_days = lead + p.merchant_safety_days;
+    const double target_days = reorder_days + p.merchant_cycle_days;
 
     // Most pressing shortage first, so scarce cash goes to food before whiskey.
     struct Want { GoodId g; double cover; double demand; };
@@ -51,7 +63,7 @@ void Simulation::order_for_town(NodeId id) {
         const double demand = world_.daily_demand(id, static_cast<GoodId>(g));
         if (demand <= 0) continue;
         const double cover = (n.stock[g] + inbound[g]) / demand;
-        if (cover < p.merchant_reorder_days) wants.push_back({static_cast<GoodId>(g), cover, demand});
+        if (cover < reorder_days) wants.push_back({static_cast<GoodId>(g), cover, demand});
     }
     std::sort(wants.begin(), wants.end(), [](const Want& a, const Want& b) { return a.cover < b.cover; });
 
@@ -59,7 +71,7 @@ void Simulation::order_for_town(NodeId id) {
     for (const Want& w : wants) {
         if (budget <= 0) break;
         const GoodDef& gd = world_.goods[World::idx(w.g)];
-        const double need = w.demand * p.merchant_target_days - n.stock[World::idx(w.g)] - inbound[World::idx(w.g)];
+        const double need = w.demand * target_days - n.stock[World::idx(w.g)] - inbound[World::idx(w.g)];
         if (need <= 0) continue;
         const double load_units = p.trader_capacity_lb / gd.load_lb;
         const double local_price = world_.mid_price(id, w.g);
@@ -74,15 +86,22 @@ void Simulation::order_for_town(NodeId id) {
         // Post the order at what the goods would cost landed, plus a margin for slippage and the road.
         // An order already on the board keeps its (possibly raised) price; the new quantity joins it.
         const std::size_t gi = World::idx(w.g);
-        const double offer = n.order_qty[gi] > 0 ? n.order_price[gi] : best * 1.15;
-        const double units = std::min({need, p.merchant_max_loads * load_units, budget / offer});
-        if (units < 1.0) continue;
-        if (n.order_qty[gi] <= 0) {
+        const bool had_order = n.order_qty[gi] > 0;
+        const double offer = had_order ? n.order_price[gi] : best * 1.15;
+        budget += n.order_qty[gi] * n.order_price[gi];  // the standing order is re-set below, so its cost is free to commit again
+        const double units = std::min(need, budget / offer);  // what the town needs, as far as its cash goes
+        if (units < 1.0) {
+            n.order_qty[gi] = n.order_price[gi] = 0;  // nothing left to ask for
+            continue;
+        }
+        if (!had_order) {
             n.order_price[gi] = n.order_first_price[gi] = offer;
             n.order_posted[gi] = n.order_raised[gi] = n.order_hired[gi] = world_.today;
         }
-        n.order_qty[gi] += units;
+        const double before = n.order_qty[gi];
+        n.order_qty[gi] = units;
         budget -= units * offer;
+        if (had_order && units < before * 1.5) continue;  // the same standing order, trimmed or topped up a little: not news
         ++orders_placed_;
         log_.with({field("town", n.name), field("good", gd.id), field("units", units), field("offer", offer), field("landed_cost", best), field("local_price", local_price), field("cover_days", w.cover)});
         log_.add(world_.today, EventType::Trade, "merchant_order", id,
@@ -166,11 +185,11 @@ void Simulation::hire_for_order(NodeId id, GoodId g) {
     NodeId src = -1;
     double best = 0;
     if (!cheapest_source(id, g, load_units, src, best)) return;
-    double remaining = std::min(n.order_qty[gi], p.merchant_max_loads * load_units);
+    double remaining = n.order_qty[gi];
     double budget = std::max(0.0, n.cash) * p.merchant_cash_share;
     int loads = 0;
     double hauled = 0;
-    while (remaining > 1.0 && loads < p.merchant_max_loads && budget > 0) {
+    while (remaining > 1.0 && budget > 0) {
         const double units = std::min(remaining, load_units);
         const double cost = units * best * 1.15 + 30;  // a margin for price slippage and wages on the road
         if (cost > budget) break;

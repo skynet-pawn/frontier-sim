@@ -42,6 +42,9 @@ struct Node {
     double garrison = 0;                    // soldiers currently posted
     std::vector<ContractDef> contracts;
     std::vector<double> contract_price, contract_backlog;  // per good: fixed price (0 = none) and unfilled quantity
+    // The post's government store, per good: what contractors and the Quartermaster have delivered. The garrison and the
+    // agency are fed from it, not from the town's shelf, and traders cannot buy it (it is not for sale).
+    std::vector<double> depot;
     // Open orders the town's merchants have posted (merchants.cpp), per good: units wanted and the delivered price offered.
     // Unlike a government contract these are paid out of the town's own cash, and the offer rises while nobody fills it.
     std::vector<double> order_qty, order_price, order_first_price;
@@ -81,7 +84,8 @@ struct Node {
     // Lifetime earnings by source, for asking what a town lives on: goods sold to traders, money traders and
     // their crews spend there, government pay, and everything else (gangs, posses, detectives).
     double earned_sales = 0, earned_visitors = 0, earned_government = 0, earned_total = 0;
-    double hunger = 0;           // smoothed share of food need left unmet
+    double hunger = 0;           // smoothed share of food need left unmet (the civilians', where a garrison is fed from the depot)
+    double garrison_hunger = 0;  // the same for the soldiers: how far the depot and the shelf together fell short
     double law_fund = 0;         // taxes set aside for sheriffs and posses
     double outrage = 0;          // local anger over robberies; triggers posses
     double drifters = 0;         // idle armed men: the raw material of gangs
@@ -99,6 +103,7 @@ struct Node {
     int last_pop_dir = 0;
     bool ghost = false;
     bool starving = false;
+    bool garrison_short = false; // the soldiers are going short (logged once per spell)
     int pop_band = 0;
 };
 

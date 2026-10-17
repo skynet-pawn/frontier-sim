@@ -307,9 +307,13 @@ void Simulation::economy_day() {
                 double units = 0;
                 for (const ContractDef& c : n.contracts) {
                     const std::size_t g = World::idx(c.good);
-                    const double load = std::min(n.contract_backlog[g], world_.contract_rate(id, c) * p.quartermaster_interval_days * p.quartermaster_share);
+                    // The usual share of a month's needs, or more if the store has fallen below the floor: a post's
+                    // commander kept months of stores because a winter or a washed-out road could cut him off.
+                    const double rate = world_.contract_rate(id, c);
+                    const double topup = std::max(0.0, rate * p.depot_floor_days - n.depot[g]);
+                    const double load = std::min(n.contract_backlog[g], std::max(rate * p.quartermaster_interval_days * p.quartermaster_share, topup));
                     n.contract_backlog[g] -= load;
-                    n.stock[g] += load;
+                    n.depot[g] += load;
                     units += load;
                 }
                 log_.with({field("node", n.name), field("units", units)});
@@ -320,17 +324,29 @@ void Simulation::economy_day() {
         }
 
         // Consumption. Food shortfall is what drives hunger.
-        double fed = 0;
+        // The soldiers, the agency and the Army's own needs (forage, remounts, repairs) are fed from the government
+        // store first, as the Subsistence Department's contracts intended; only what the store cannot cover is bought
+        // off the town's shelf, after the civilians have eaten. So the civilians' hunger is measured on the shelf alone.
+        const double soldiers = std::min(n.garrison, n.market_population());
+        const double civilians = n.market_population() - soldiers;
+        double fed = 0, soldiers_fed = 0;
         for (std::size_t g = 0; g < world_.goods.size(); ++g) {
             const GoodDef& gd = world_.goods[g];
-            const double want = n.market_population() * gd.need_per_person_per_day;
-            const double take = std::min(n.stock[g], want);
-            n.stock[g] -= take;
-            if (want > 0 && gd.food_share > 0) fed += gd.food_share * (take / want);
-            const double extra = std::min(n.stock[g], n.extra_demand[g]);  // agency rations
-            n.stock[g] -= extra;
-            const double military = std::min(n.stock[g], n.garrison * gd.garrison_need);  // forage, remounts, repairs
-            n.stock[g] -= military;
+            const double civ_want = civilians * gd.need_per_person_per_day;
+            const double civ_take = std::min(n.stock[g], civ_want);
+            n.stock[g] -= civ_take;
+            if (civ_want > 0 && gd.food_share > 0) fed += gd.food_share * (civ_take / civ_want);
+            const double sol_want = soldiers * gd.need_per_person_per_day;
+            const double sol_store = std::min(n.depot[g], sol_want);
+            n.depot[g] -= sol_store;
+            const double sol_shelf = std::min(n.stock[g], sol_want - sol_store);
+            n.stock[g] -= sol_shelf;
+            if (sol_want > 0 && gd.food_share > 0) soldiers_fed += gd.food_share * ((sol_store + sol_shelf) / sol_want);
+            for (const double need : {n.extra_demand[g], n.garrison * gd.garrison_need}) {  // agency rations; forage, remounts, repairs
+                const double from_store = std::min(n.depot[g], need);
+                n.depot[g] -= from_store;
+                n.stock[g] -= std::min(n.stock[g], need - from_store);
+            }
         }
         // Substitution: people short of beef eat more flour (and vice versa) before they go hungry.
         for (std::size_t g = 0; g < world_.goods.size() && fed < 1.0; ++g) {
@@ -341,10 +357,34 @@ void Simulation::economy_day() {
             n.stock[g] -= more;
             if (full_diet > 0) fed += more / full_diet;
         }
-        for (std::size_t g = 0; g < world_.goods.size(); ++g) n.stock[g] *= 1.0 - world_.goods[g].spoilage_per_day;
-        if (n.market_population() > 0) n.hunger += p.hunger_alpha * ((1.0 - std::min(1.0, fed)) - n.hunger);
+        for (std::size_t g = 0; g < world_.goods.size(); ++g) {
+            n.stock[g] *= 1.0 - world_.goods[g].spoilage_per_day;
+            n.depot[g] *= 1.0 - world_.goods[g].spoilage_per_day;
+        }
+        if (civilians > 0) n.hunger += p.hunger_alpha * ((1.0 - std::min(1.0, fed)) - n.hunger);
+        if (soldiers > 0) {
+            n.garrison_hunger += p.hunger_alpha * ((1.0 - std::min(1.0, soldiers_fed)) - n.garrison_hunger);
+            if (n.garrison_hunger > 0.25 && !n.garrison_short) {
+                n.garrison_short = true;
+                std::string covers;
+                for (std::size_t g = 0; g < world_.goods.size(); ++g) {
+                    const GoodDef& gd = world_.goods[g];
+                    if (gd.food_share <= 0) continue;
+                    const double need = soldiers * gd.need_per_person_per_day;
+                    covers += strf("%s%s %.1f days", covers.empty() ? "" : ", ", gd.name.c_str(), need > 0 ? n.depot[g] / need : 0.0);
+                }
+                log_.with({field("node", n.name), field("garrison", n.garrison), field("hunger", n.garrison_hunger)});
+                log_.add(world_.today, EventType::Famine, "garrison_short", id,
+                         strf("The garrison at %s is on short rations (%.0f men)", n.name.c_str(), n.garrison),
+                         strf("government store covers: %s; the contractors and the Quartermaster's trains have not kept up", covers.c_str()),
+                         false);
+            } else if (n.garrison_hunger < 0.08) {
+                n.garrison_short = false;
+            }
+        }
 
-        if (n.hunger > 0.25 && !n.starving && n.population >= 100) {
+        // (A fort with a few dozen civilians beside it is not a town; the settlement grows when supply can carry it.)
+        if (n.hunger > 0.25 && !n.starving && civilians >= 100) {
             n.starving = true;
             std::string covers;
             for (std::size_t g = 0; g < world_.goods.size(); ++g) {
@@ -392,7 +432,20 @@ void Simulation::update_population(NodeId id) {
 
     if (n.population < target) {
         if (n.hunger <= p.hunger_threshold) {
-            const double arrivals = std::min(target - n.population, n.population * p.pop_growth_rate + 0.1);
+            // Word travels faster than freight: a camp with bare shelves stops drawing people before anyone goes hungry.
+            // Cover is days of a full diet on hand, counting every food (beef and flour substitute for each other).
+            double gate = 1.0;
+            const double residents = n.market_population() - std::min(n.garrison, n.market_population());  // the soldiers eat from the depot
+            if (p.growth_cover_days > 0 && residents >= 100) {
+                double cover = 0;
+                for (std::size_t g = 0; g < world_.goods.size(); ++g) {
+                    const GoodDef& gd = world_.goods[g];
+                    const double full_diet = residents * gd.need_per_person_per_day / std::max(gd.food_share, 1e-9);
+                    if (gd.food_share > 0 && full_diet > 0) cover += n.stock[g] / full_diet;
+                }
+                gate = std::clamp(cover / p.growth_cover_days, 0.0, 1.0);
+            }
+            const double arrivals = std::min(target - n.population, n.population * p.pop_growth_rate * gate + 0.1 * gate);
             n.population += arrivals;
             // Newcomers bring a grubstake, so a camp can start from nothing before the first freight wagon arrives.
             for (std::size_t g = 0; g < world_.goods.size(); ++g)

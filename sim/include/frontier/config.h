@@ -120,6 +120,7 @@ struct Params {
     double support_income_per_person = 0.4;  // $/day of trade inflow that supports one non-farming resident
     double income_ema_alpha = 0.03;
     double pop_growth_rate = 0.002;          // per day
+    double growth_cover_days = 30;           // newcomers hear of empty shelves: arrivals slow as days of food on hand fall below this (0 = ignore food)
     double pop_decline_rate = 0.03;          // fraction of the gap closed per day
     double hunger_alpha = 0.1;
     double hunger_threshold = 0.15;
@@ -135,6 +136,7 @@ struct Params {
     double garrison_pay_per_soldier = 0.45;  // $/day a soldier spends in the post town (sutlers, saloons, laundresses)
     double quartermaster_share = 0.7;        // share of a post's contract needs the Army's own trains deliver
     int quartermaster_interval_days = 30;    // how often a supply train reaches a post
+    double depot_floor_days = 45;            // a post never let its stores fall below this: a train that finds the store lower tops it up
     double contract_backlog_days = 60;       // unfilled contract quantity stops accumulating beyond this
     double visit_spend = 3.0;                // what a trader party spends per town visit
     double guard_visit_spend = 1.0;
@@ -166,8 +168,10 @@ struct Params {
     // Merchant imports: a town short of a staple orders it ahead from the cheapest source and pays from its own cash.
     int merchant_interval_days = 7;          // each town reviews its shelves weekly
     double merchant_min_pop = 150;           // below this there is no merchant class to order anything
-    double merchant_reorder_days = 40;       // order when stock (and goods on the way) covers fewer days than this
-    double merchant_target_days = 75;         // ...and order enough to cover this many (a season's stock before winter)
+    double merchant_reorder_days = 40;       // a supplying town keeps this many days of its own cover before it will sell on
+    double merchant_safety_days = 40;        // a town reorders when its cover falls below the lead time of its supply plus this:
+                                             // the review interval, the wait for a freighter, and a cushion for bad weather and robbery
+    double merchant_cycle_days = 45;         // ...and orders enough to cover this many days beyond that point
     double merchant_cash_share = 0.5;        // most of a town's cash one round of orders may commit
     double merchant_margin = 0.15;           // landed cost must leave this much under the shelf price
     int merchant_order_raise_days = 7;       // an unfilled order's offer rises this often...
@@ -175,7 +179,6 @@ struct Params {
     double merchant_order_cap_mult = 3.0;    // ...up to this multiple of the opening offer
     int merchant_hire_after_days = 14;       // an order still open after this long: the town hires freighters itself (0 = never)
     int merchant_order_expire_days = 90;     // and is withdrawn after this long unfilled
-    int merchant_max_loads = 6;              // wagon trains per good per review
     double lookahead_weight = 0.5;           // share of the best next load at a destination that counts toward a trip's worth (freighters ran round trips)
 
     // Who comes west. Agents never see the sim's true profit: freelancers hear rumors (only the winners talk),

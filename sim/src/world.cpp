@@ -70,6 +70,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.contracts = d.contracts;
         n.contract_price.assign(d.stock.size(), 0.0);
         n.contract_backlog.assign(d.stock.size(), 0.0);
+        n.depot.assign(d.stock.size(), 0.0);
         n.order_qty.assign(d.stock.size(), 0.0);
         n.order_price.assign(d.stock.size(), 0.0);
         n.order_first_price.assign(d.stock.size(), 0.0);
@@ -108,8 +109,13 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
 
 double World::daily_demand(NodeId n, GoodId g) const {
     const Node& node = nodes[idx(n)];
-    return node.market_population() * goods[idx(g)].need_per_person_per_day + node.extra_demand[idx(g)] +
-           node.garrison * goods[idx(g)].garrison_need;
+    const GoodDef& gd = goods[idx(g)];
+    // A good the Army contracts for reaches the garrison and the agency through the government store, so the town's
+    // merchants do not stock it for them. Anything uncontracted (whiskey, say) is still bought off the shelf.
+    const bool government = node.contract_price[idx(g)] > 0;
+    const double soldiers = std::min(node.garrison, node.market_population());
+    const double civilians = node.market_population() - (government ? soldiers : 0.0);
+    return civilians * gd.need_per_person_per_day + (government ? 0.0 : node.extra_demand[idx(g)] + node.garrison * gd.garrison_need);
 }
 
 double World::farm_output(NodeId n) const {
@@ -250,7 +256,7 @@ double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
     const Node& node = nodes[idx(n)];
     if (node.fixed_market) return 0;
     const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
-    const double price = order_unit_price(n, g, under_contract);
+    const double price = order_unit_price(n, g, 0);
     const double order_units = price > 0 ? std::min({q - under_contract, node.order_qty[idx(g)], std::max(0.0, node.cash) / price}) : 0.0;
     return under_contract * node.contract_price[idx(g)] + order_units * price;
 }
@@ -272,11 +278,11 @@ double World::quote_sell(NodeId n, GoodId g, double q) const {
     const double contract_pay = under_contract * node.contract_price[idx(g)];
     q -= under_contract;
     // The town's own open order takes the next units at the offered price, as far as its cash goes.
-    const double oprice = order_unit_price(n, g, under_contract);
+    const double oprice = order_unit_price(n, g, 0);
     const double order_units = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
     const double order_pay = order_units * oprice;
     q -= order_units;
-    double total = 0, stock = node.stock[idx(g)] + under_contract + order_units;
+    double total = 0, stock = node.stock[idx(g)] + order_units;  // (contract units go to the government store, not the shelf)
     const double u = q / kChunks;
     for (int i = 0; i < kChunks; ++i) {
         total += u * sell_price_at(n, g, stock + u / 2);
@@ -329,7 +335,7 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
         if (under_contract > 0) {
             const double pay = under_contract * node.contract_price[idx(g)];
             node.contract_backlog[idx(g)] -= under_contract;
-            node.stock[idx(g)] += under_contract;
+            node.depot[idx(g)] += under_contract;
             record(MoneyFlow::Government, pay);  // the Treasury pays the contractor directly
             revenue += pay;
             sold += under_contract;
