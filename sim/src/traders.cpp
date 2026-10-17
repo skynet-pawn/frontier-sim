@@ -30,7 +30,31 @@ void Simulation::spawn_trader(NodeId at, bool firm) {
     traders_.push_back(std::move(t));
 }
 
+void Simulation::refresh_inbound() {
+    const std::size_t goods = world_.goods.size();
+    inbound_.assign(world_.nodes.size() * goods, 0.0);
+    for (const auto* fleet : {&traders_, &convoys_})
+        for (const Trader& t : *fleet)
+            if (t.alive && t.travelling && t.cargo >= 0 && t.qty > 0 && t.dest >= 0)
+                inbound_[World::idx(t.dest) * goods + World::idx(t.cargo)] += t.qty;
+}
+
+double Simulation::known_inbound(const Trader& t, NodeId d, GoodId g) const {
+    const std::size_t goods = world_.goods.size();
+    const std::size_t i = World::idx(d) * goods + World::idx(g);
+    if (i >= inbound_.size()) return 0.0;
+    double v = inbound_[i];
+    if (t.travelling && t.dest == d && t.cargo == g) v -= t.qty;  // his own load is not a rival
+    return std::max(0.0, v) * world_.params.inbound_awareness;
+}
+
+double Simulation::expected_drain(NodeId d, GoodId g, double days) const {
+    if (world_.nodes[World::idx(d)].fixed_market) return 0.0;
+    return world_.daily_demand(d, g) * days * world_.params.inbound_awareness;
+}
+
 void Simulation::traders_day() {
+    refresh_inbound();
     std::vector<std::size_t> order(traders_.size());
     std::iota(order.begin(), order.end(), std::size_t{0});
     rng_.shuffle(order);  // so no trader always gets first pick of a market
@@ -267,7 +291,8 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         if (here && !allow_here) continue;
         const double noise = 1.0 + p.info_noise * rng_.uniform(-1, 1);
         const double revenue = certainty_adjusted(t, static_cast<NodeId>(d), t.cargo, t.qty,
-                                                  world_.quote_sell(static_cast<NodeId>(d), t.cargo, t.qty) * noise);
+                                                  world_.quote_sell(static_cast<NodeId>(d), t.cargo, t.qty, known_inbound(t, static_cast<NodeId>(d), t.cargo),
+                                                                    here ? 0.0 : expected_drain(static_cast<NodeId>(d), t.cargo, pi.days)) * noise);
         if (here) {
             if (!best.valid || revenue + look(d) > best.utility) best = {revenue + look(d), t.at, t.cargo, t.qty, 0, true};
             continue;
@@ -314,9 +339,9 @@ bool Simulation::sell_along_the_way(Trader& t) {
     // Value of selling a share here and carrying the remainder on to the destination.
     auto value = [&](double share) {
         const double q_here = t.qty * share, q_on = t.qty - q_here;
-        double v = certainty_adjusted(t, t.at, t.cargo, q_here, world_.quote_sell(t.at, t.cargo, q_here)) + freight_unit * q_here;
+        double v = certainty_adjusted(t, t.at, t.cargo, q_here, world_.quote_sell(t.at, t.cargo, q_here, known_inbound(t, t.at, t.cargo))) + freight_unit * q_here;
         if (q_on > 0) {
-            const double on = certainty_adjusted(t, t.dest, t.cargo, q_on, world_.quote_sell(t.dest, t.cargo, q_on) * noise);
+            const double on = certainty_adjusted(t, t.dest, t.cargo, q_on, world_.quote_sell(t.dest, t.cargo, q_on, known_inbound(t, t.dest, t.cargo), expected_drain(t.dest, t.cargo, world_.route_days(t.at, t.dest))) * noise);
             v += (1 - loss) * on - (effective_risk(t) - 1) * loss * t.unit_cost * q_on + (1 - loss) * look_dest;
         } else {
             v += look_here;  // unloaded here, he is free to take the best load going out of this town
@@ -358,7 +383,7 @@ double Simulation::spot_uncertainty(NodeId d, GoodId g, double q) const {
 
 // A risk-averse outfit marks down uncertain revenue; a gambler marks it up slightly. Contract revenue is certain.
 double Simulation::certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const {
-    const double contract = std::min(revenue, world_.quote_sell_contract(d, g, q));
+    const double contract = std::min(revenue, world_.quote_sell_contract(d, g, q, known_inbound(t, d, g)));
     const double spot = revenue - contract;
     return revenue - (effective_risk(t) - 1.0) * world_.params.price_uncertainty_weight * spot_uncertainty(d, g, q) * spot;
 }
@@ -386,10 +411,15 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
             if (!pi.ok || static_cast<NodeId>(d) == t.at) continue;
             const Node& dn = world_.nodes[d];
             const double freight_unit = world_.freight_unit_cost(gid, pi.miles);
+            // Wagons already on the road to the town are counted: they fill its order first and then crowd its shelf, so a
+            // camp with four months of whiskey on the way is no longer the best market for more whiskey.
+            const double inb = dn.fixed_market ? 0.0 : known_inbound(t, static_cast<NodeId>(d), gid);
+            const double drain = expected_drain(static_cast<NodeId>(d), gid, pi.days);
             const double est = (dn.fixed_market ? world_.sell_price_at(static_cast<NodeId>(d), gid, 0)
-                                                : world_.sell_price(static_cast<NodeId>(d), gid)) * noise[d];
+                                                : world_.sell_price(static_cast<NodeId>(d), gid, inb - drain)) * noise[d];
             // A town's open order pays its offered price whatever the shelf says, so it counts as the going price here.
-            const double order_here_price = !dn.fixed_market && dn.order_qty[g] >= 1 ? dn.order_price[g] : 0.0;
+            const double order_open = std::max(0.0, dn.order_qty[g] - inb);
+            const double order_here_price = !dn.fixed_market && order_open >= 1 ? dn.order_price[g] : 0.0;
             if (std::max(est, order_here_price) <= unit_price + freight_unit && look(d) <= 0) continue;  // no gap worth a trip, and nothing to load for the way back
 
             // A town that eats a few head a day cannot take a thousand: the price collapses once its shelves fill.
@@ -409,12 +439,12 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
                 lots[n_lots++] = q;
             };
             for (double share : {1.0, 0.5, 0.25, 0.1}) add_lot(q_full * share);
-            if (!dn.fixed_market && dn.order_qty[g] >= 1) add_lot(std::min(q_full, dn.order_qty[g]));
+            if (!dn.fixed_market && order_open >= 1) add_lot(std::min(q_full, order_open));
             for (int li = 0; li < n_lots; ++li) {
                 const double q = lots[li];
                 const double cost = world_.quote_buy(t.at, gid, q);
                 const double revenue = certainty_adjusted(t, static_cast<NodeId>(d), gid, q,
-                                                          world_.quote_sell(static_cast<NodeId>(d), gid, q) * noise[d]);
+                                                          world_.quote_sell(static_cast<NodeId>(d), gid, q, inb, drain) * noise[d]);
                 const double freight = freight_unit * q;
                 for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
                     const double reserve = daily_cost(t, k) * pi.days;
@@ -538,6 +568,7 @@ ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
     t.guards = std::max(0, guards);
     t.days_left = world_.edges[World::idx(t.route[0])].travel_days;
     t.travelling = true;
+    if (t.cargo >= 0 && t.qty > 0 && !inbound_.empty()) inbound_[World::idx(dest) * world_.goods.size() + World::idx(t.cargo)] += t.qty;
     return ActionResult::Ok;
 }
 

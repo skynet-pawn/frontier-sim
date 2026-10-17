@@ -161,6 +161,8 @@ struct Params {
     double firm_risk_aversion_min = 1.6, firm_risk_aversion_max = 2.6;  // eastern firms: they want certainty
     double risk_aversion_bump = 0.3, risk_aversion_cap = 4, risk_aversion_decay = 0.002;
     double info_noise = 0.08;                // stale or imperfect price information
+    double inbound_awareness = 0.0;          // share of the freight already on the road to a town that traders count against its price
+                                             // (wagons pass each other and word travels; 0 = each trader prices the shelf as it stands today)
     double min_profit = 40;
     double local_reserve_days = 12;          // a town's merchants keep this many days of their own people's needs off the market
     double avail_fraction = 0.6;             // share of a node's stock a trader will try to buy
@@ -179,6 +181,13 @@ struct Params {
     double merchant_order_cap_mult = 3.0;    // ...up to this multiple of the opening offer
     int merchant_hire_after_days = 14;       // an order still open after this long: the town hires freighters itself (0 = never)
     int merchant_order_expire_days = 90;     // and is withdrawn after this long unfilled
+
+    // Standing supply contracts (contracts.cpp): a town that has been short buys reliability from a freight house.
+    double contract_share = 1.0;             // share of the town's daily need the contract promises (0 = no contracts)
+    double contract_premium = 0.6;           // price paid over the landed cost: the insurance the house is paid for holding capacity
+    int contract_memory_days = 730;          // a town signs only if it went short within this long
+    int contract_term_days = 365;
+    int contract_max_behind_days = 90;       // the town drops a house that is this many days of deliveries behind
     double lookahead_weight = 0.5;           // share of the best next load at a destination that counts toward a trip's worth (freighters ran round trips)
 
     // Who comes west. Agents never see the sim's true profit: freelancers hear rumors (only the winners talk),

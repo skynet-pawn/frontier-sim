@@ -148,6 +148,10 @@ int main(int argc, char** argv) {
         row("merchant orders posted", runs, [](const RunStats& r) { return double(r.merchant_orders); });
         row("  town hired its own freighters", runs, [](const RunStats& r) { return double(r.convoys_hired); });
         row("  withdrawn unfilled", runs, [](const RunStats& r) { return double(r.orders_expired); });
+        row("standing contracts signed", runs, [](const RunStats& r) { return double(r.contracts_signed); });
+        row("  dropped by the town", runs, [](const RunStats& r) { return double(r.contracts_cancelled); });
+        row("  delivered under contract ($M at contract price)", runs, [](const RunStats& r) { return r.contract_revenue / 1e6; });
+        row("  houses' margin on contracts ($M)", runs, [](const RunStats& r) { return (r.contract_revenue - r.contract_outlay) / 1e6; });
         row("  goods delivered ($M)", runs, [](const RunStats& r) { return r.merchant_delivered / 1e6; });
         row("  goods robbed on the way ($M)", runs, [](const RunStats& r) { return r.merchant_lost / 1e6; });
         row("famine episodes (merged)", runs, [](const RunStats& r) { return double(r.famines); });
@@ -270,12 +274,12 @@ int main(int argc, char** argv) {
 
         if (!csv.empty()) {
             std::ofstream f(csv);
-            f << "seed,hash,traders_min,traders_end,robberies,gangs_formed,posses,posse_victories,posse_routs,detectives,takeovers,freed,vigilance,famines,ghost_towns,pop_start,pop_end,money_end,east_buys,east_sells,emigrated,richest_cash,famine_towns,famine_events\n";
+            f << "seed,hash,traders_min,traders_end,robberies,gangs_formed,posses,posse_victories,posse_routs,detectives,takeovers,freed,vigilance,famines,ghost_towns,pop_start,pop_end,money_end,east_buys,east_sells,emigrated,richest_cash,famine_towns,famine_events,contracts_signed,contracts_cancelled,contract_revenue,contract_outlay\n";
             for (const RunStats& r : runs)
                 f << r.seed << ',' << r.hash << ',' << r.traders_min << ',' << r.traders_end << ',' << r.robberies << ',' << r.gangs_formed << ',' << r.posses << ','
                   << r.posse_victories << ',' << r.posse_routs << ',' << r.detective_parties << ',' << r.takeovers << ',' << r.towns_freed << ',' << r.vigilance << ','
                   << r.famines << ',' << r.ghost_towns << ',' << r.pop_start_total << ',' << r.pop_end_total << ',' << r.money_end << ',' << r.east_buys << ','
-                  << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << '\n';
+                  << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << '\n';
         }
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());

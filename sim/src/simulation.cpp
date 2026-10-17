@@ -96,6 +96,7 @@ void Simulation::step() {
     apply_campaigns();
     economy_day();
     merchants_day();
+    contracts_day();
     houses_day();
     traders_day();
     crime_day();
@@ -360,6 +361,7 @@ void Simulation::economy_day() {
         for (std::size_t g = 0; g < world_.goods.size(); ++g) {
             n.stock[g] *= 1.0 - world_.goods[g].spoilage_per_day;
             n.depot[g] *= 1.0 - world_.goods[g].spoilage_per_day;
+            n.bought_out[g] *= 1.0 - 1.0 / 30;
         }
         if (civilians > 0) n.hunger += p.hunger_alpha * ((1.0 - std::min(1.0, fed)) - n.hunger);
         if (soldiers > 0) {
@@ -386,21 +388,43 @@ void Simulation::economy_day() {
         // (A fort with a few dozen civilians beside it is not a town; the settlement grows when supply can carry it.)
         if (n.hunger > 0.25 && !n.starving && civilians >= 100) {
             n.starving = true;
-            std::string covers;
+            // The cause chain, per food: what is on the shelf, what the town has asked for and for how long, what is on
+            // the road to it, what traders took off the shelf this month, and how long since anything arrived.
+            // Each famine can then be told apart: nothing ordered, ordered but nobody came, freight late, or drained.
+            std::string chain;
+            Fields f = {field("node", n.name), field("pop", n.population), field("civilians", civilians), field("hunger", n.hunger),
+                        field("cash", n.cash)};
             for (std::size_t g = 0; g < world_.goods.size(); ++g) {
                 const GoodDef& gd = world_.goods[g];
                 if (gd.food_share <= 0) continue;
-                const double need = n.market_population() * gd.need_per_person_per_day;
+                const double need = civilians * gd.need_per_person_per_day;
                 const double days = need > 0 ? n.stock[g] / need : 1e9;
-                covers += strf("%s%s %.1f days", covers.empty() ? "" : ", ", gd.name.c_str(), days);
+                double road = 0;
+                for (const auto* fleet : {&traders_, &convoys_})
+                    for (const Trader& t : *fleet)
+                        if (t.alive && t.travelling && t.cargo == static_cast<GoodId>(g) && t.qty > 0 && (t.dest == id || t.agent_for == id)) road += t.qty;
+                const double order_days = n.order_qty[g] > 0 ? static_cast<double>(world_.today - n.order_posted[g]) : -1.0;
+                const double since = n.last_delivery[g] > -1000000L ? static_cast<double>(world_.today - n.last_delivery[g]) : -1.0;
+                const double taken = n.bought_out[g];
+                chain += strf("%s%s: %.1f days on the shelf, %s, %.0f %s on the road, traders took %.0f this month, %s", chain.empty() ? "" : "; ",
+                              gd.name.c_str(), days,
+                              order_days >= 0 ? strf("order for %.0f open %.0f days", n.order_qty[g], order_days).c_str() : "no order open", road,
+                              gd.unit.c_str(), taken,
+                              since >= 0 ? strf("last delivery %.0f days ago", since).c_str() : "nothing delivered yet");
+                f.push_back(field(gd.id + "_cover", days > 1e8 ? -1.0 : days));
+                f.push_back(field(gd.id + "_order_qty", n.order_qty[g]));
+                f.push_back(field(gd.id + "_order_days", order_days));
+                f.push_back(field(gd.id + "_road", road));
+                f.push_back(field(gd.id + "_taken", taken));
+                f.push_back(field(gd.id + "_since", since));
+                f.push_back(field(gd.id + "_need", need));
             }
             const bool repeat = world_.today - n.last_famine_log < 90;
             n.last_famine_log = world_.today;
-            log_.with({field("node", n.name), field("pop", n.population), field("hunger", n.hunger)});
+            log_.with(std::move(f));
             log_.add(world_.today, EventType::Famine, "famine", id,
                      strf("%s is short of food (pop %s)", n.name.c_str(), with_commas(n.population).c_str()),
-                     strf("stocks cover: %s; town cash %s limits what traders can be paid", covers.c_str(),
-                          money(n.cash).c_str()),
+                     strf("%s; town cash %s limits what traders can be paid", chain.c_str(), money(n.cash).c_str()),
                      repeat);
         } else if (n.hunger < 0.08 && n.starving) {
             n.starving = false;

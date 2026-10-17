@@ -71,6 +71,8 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.contract_price.assign(d.stock.size(), 0.0);
         n.contract_backlog.assign(d.stock.size(), 0.0);
         n.depot.assign(d.stock.size(), 0.0);
+        n.bought_out.assign(d.stock.size(), 0.0);
+        n.last_delivery.assign(d.stock.size(), -1000000000L);
         n.order_qty.assign(d.stock.size(), 0.0);
         n.order_price.assign(d.stock.size(), 0.0);
         n.order_first_price.assign(d.stock.size(), 0.0);
@@ -252,16 +254,20 @@ double World::order_unit_price(NodeId n, GoodId g, double extra_stock) const {
 
 // Revenue a seller can count on at a node: government contract first, then the town's open order, which the
 // town can pay only as far as its cash goes.
-double World::quote_sell_contract(NodeId n, GoodId g, double q) const {
+double World::quote_sell_contract(NodeId n, GoodId g, double q, double inbound) const {
     const Node& node = nodes[idx(n)];
     if (node.fixed_market) return 0;
-    const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
-    const double price = order_unit_price(n, g, 0);
-    const double order_units = price > 0 ? std::min({q - under_contract, node.order_qty[idx(g)], std::max(0.0, node.cash) / price}) : 0.0;
+    const double contract_left = std::max(0.0, node.contract_backlog[idx(g)] - inbound);
+    const double after_contract = std::max(0.0, inbound - node.contract_backlog[idx(g)]);
+    const double order_left = std::max(0.0, node.order_qty[idx(g)] - after_contract);
+    const double shelf_extra = std::max(0.0, after_contract - node.order_qty[idx(g)]);
+    const double under_contract = std::min(q, contract_left);
+    const double price = order_unit_price(n, g, shelf_extra);
+    const double order_units = price > 0 ? std::min({q - under_contract, order_left, std::max(0.0, node.cash) / price}) : 0.0;
     return under_contract * node.contract_price[idx(g)] + order_units * price;
 }
 
-double World::quote_sell(NodeId n, GoodId g, double q) const {
+double World::quote_sell(NodeId n, GoodId g, double q, double inbound, double drain) const {
     const Node& node = nodes[idx(n)];
     if (!node.founded) return 0;
     if (node.fixed_market) {
@@ -274,15 +280,19 @@ double World::quote_sell(NodeId n, GoodId g, double q) const {
         return total;
     }
     // The federal contract takes the first units at its fixed price, paid by the Treasury.
-    const double under_contract = std::min(q, node.contract_backlog[idx(g)]);
+    const double contract_left = std::max(0.0, node.contract_backlog[idx(g)] - inbound);
+    const double after_contract = std::max(0.0, inbound - node.contract_backlog[idx(g)]);
+    const double order_left = std::max(0.0, node.order_qty[idx(g)] - after_contract);
+    const double shelf_extra = std::max(0.0, after_contract - node.order_qty[idx(g)]);
+    const double under_contract = std::min(q, contract_left);
     const double contract_pay = under_contract * node.contract_price[idx(g)];
     q -= under_contract;
     // The town's own open order takes the next units at the offered price, as far as its cash goes.
-    const double oprice = order_unit_price(n, g, 0);
-    const double order_units = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
+    const double oprice = order_unit_price(n, g, shelf_extra - drain);
+    const double order_units = oprice > 0 ? std::min({q, order_left, std::max(0.0, node.cash) / oprice}) : 0.0;
     const double order_pay = order_units * oprice;
     q -= order_units;
-    double total = 0, stock = node.stock[idx(g)] + order_units;  // (contract units go to the government store, not the shelf)
+    double total = 0, stock = node.stock[idx(g)] + shelf_extra - drain + order_units;  // (contract units go to the government store, not the shelf)
     const double u = q / kChunks;
     for (int i = 0; i < kChunks; ++i) {
         total += u * sell_price_at(n, g, stock + u / 2);
@@ -311,6 +321,7 @@ double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent)
         bought += u;
         if (!node.fixed_market) {
             node.stock[idx(g)] -= u;
+            node.bought_out[idx(g)] += u;
             node.cash += cost;
             if (!goods[idx(g)].money) {
                 node.inflow_today += cost;
@@ -348,6 +359,7 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
             const double pay = ou * oprice;
             node.cash -= pay;
             node.stock[idx(g)] += ou;
+            node.last_delivery[idx(g)] = today;
             node.order_qty[idx(g)] -= ou;
             if (node.order_qty[idx(g)] < 1e-6) node.order_qty[idx(g)] = node.order_price[idx(g)] = 0;
             order_filled_value += pay;
@@ -380,6 +392,7 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
             }
             node.cash -= cash_pay;
             node.stock[idx(g)] += u;
+            node.last_delivery[idx(g)] = today;
         } else {
             node.pressure[idx(g)] += u;  // the East takes the goods: its price falls
             east_bought_value[idx(g)] += pay;

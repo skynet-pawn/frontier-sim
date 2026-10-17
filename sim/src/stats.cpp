@@ -168,6 +168,11 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.merchant_delivered = sim.merchant_delivered() + sim.world().order_filled_value;
     r.orders_expired = sim.orders_expired();
     r.convoys_hired = sim.convoys_hired();
+    r.contracts_signed = sim.contracts_signed();
+    r.contracts_cancelled = sim.contracts_cancelled();
+    r.contract_units = sim.contract_units();
+    r.contract_revenue = sim.contract_revenue();
+    r.contract_outlay = sim.contract_outlay();
     r.merchant_lost = sim.merchant_lost();
     r.east_bought_by_good = sim.world().east_bought_value;
     r.east_sold_by_good = sim.world().east_sold_value;

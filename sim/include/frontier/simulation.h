@@ -24,6 +24,8 @@ struct Trader {
     bool drover = false;         // drovers move cattle only; freighters move everything else
     bool controlled = false;     // driven by an outside controller (a player or a script), not the AI
     NodeId agent_for = -1;       // >= 0: a convoy hired by this town's merchants; it delivers there and disbands
+    int contract = -1;           // >= 0: a load for this standing contract, funded by its house (see SupplyContract)
+    double contract_units = 0;   // what the load was meant to deliver, to be made good if it is robbed
     bool firm = false;           // an eastern firm's freight line or cattle syndicate, not a freelancer
     double capacity_lb = 12000;  // what the outfit can haul in one trip
     double upkeep = 1.5;         // $/day running costs, before guards
@@ -65,6 +67,24 @@ struct House {
     long founded = 0, last_hire = -100000;
     double base_risk_aversion = 1, risk_aversion = 1;   // the owner's temperament, and what experience has made of it
     std::vector<std::pair<EdgeId, double>> fear;        // the owner's memory of dangerous roads, shared by every outfit
+};
+
+// A standing arrangement between a town and a freight house: a fixed quantity a day at a price above landed cost,
+// delivered on a schedule from the house's own cash. The town pays per delivery, as far as its cash goes.
+struct SupplyContract {
+    int id = 0;
+    bool alive = true;
+    NodeId town = -1;
+    int house = -1;
+    GoodId good = -1;
+    double rate = 0;             // units a day promised (follows the town's need)
+    double price = 0;            // paid per unit delivered
+    double capital = 0;          // what the house ties up in it
+    long signed_day = 0, ends = 0;
+    double owed = 0;             // units fallen due and not yet delivered or on the road
+    double arrears = 0;          // money the town could not pay at the last delivery
+    double delivered = 0;
+    int missed = 0;              // loads robbed on the way
 };
 
 // A band of outlaws, treated as one object with a headcount.
@@ -197,6 +217,12 @@ public:
     const std::vector<House>& houses() const { return houses_; }
     int houses_founded() const { return houses_founded_; }
     int house_recaps() const { return house_recaps_; }
+    // Standing contracts (diagnostics): signed, dropped, units delivered, and what the houses took in and laid out.
+    int contracts_signed() const { return contracts_signed_; }
+    int contracts_cancelled() const { return contracts_cancelled_; }
+    double contract_units() const { return contract_units_; }
+    double contract_revenue() const { return contract_revenue_; }
+    double contract_outlay() const { return contract_outlay_; }
     int house_exits(bool ruined) const { return house_exits_[ruined ? 1 : 0]; }
     int entered_freelancers() const { return entered_freelancers_; }
     int entered_firms() const { return entered_firms_; }
@@ -243,6 +269,13 @@ private:
     double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;
     double daily_cost(const Trader& t, int guards) const;
     void traders_day();
+    // Freight already on the road to each town, per good (nodes x goods), as traders know it: wagons passing each other
+    // and word from the towns. Refreshed each morning and bumped as each outfit sets out, so a dozen wagons deciding
+    // on the same morning do not all chase the same price.
+    void refresh_inbound();
+    double known_inbound(const Trader& t, NodeId d, GoodId g) const;
+    // What the town will consume while a load is on the road to it (as far as traders foresee it).
+    double expected_drain(NodeId d, GoodId g, double days) const;
     void step_trader(Trader& t);
     void decide(Trader& t);
     void plan_paths(const Trader& t, NodeId from, std::vector<PathInfo>& out);
@@ -267,6 +300,13 @@ private:
     void hire_for_order(NodeId id, GoodId g);
     double dispatch_convoy(NodeId town, NodeId src, GoodId g, double units, double advance, double landed);
     void finish_convoy(Trader& c);
+
+    // ---- standing supply contracts (contracts.cpp) ----
+    void contracts_day();
+    void seek_contracts(NodeId id);
+    void run_contract(SupplyContract& k);
+    bool dispatch_contract(SupplyContract& k, double units);
+    void finish_contract_convoy(Trader& c);
 
     // ---- freight houses (houses.cpp) ----
     void houses_day();
@@ -322,6 +362,9 @@ private:
     std::vector<Trader> traders_;
     std::vector<Trader> convoys_;               // freight hired by towns' merchants (not counted among the traders)
     std::vector<House> houses_;
+    std::vector<SupplyContract> contracts_;
+    int contracts_signed_ = 0, contracts_cancelled_ = 0;
+    double contract_units_ = 0, contract_revenue_ = 0, contract_outlay_ = 0;
     int houses_founded_ = 0, house_recaps_ = 0;
     int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover
     int orders_placed_ = 0, orders_expired_ = 0, convoys_hired_ = 0;
@@ -350,6 +393,7 @@ private:
     std::vector<std::size_t> shock_done_;       // indices of shocks already applied
     std::vector<EdgeId> scratch_route_;
     std::vector<PathInfo> scratch_paths_;
+    std::vector<double> inbound_;
 };
 
 }  // namespace frontier

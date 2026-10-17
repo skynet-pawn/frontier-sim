@@ -259,6 +259,7 @@ double Simulation::dispatch_convoy(NodeId town, NodeId src, GoodId g, double uni
 // whatever cash is left goes back to the town that sent it.
 void Simulation::finish_convoy(Trader& c) {
     if (!c.alive) return;
+    if (c.contract >= 0) { finish_contract_convoy(c); return; }
     Node& home = world_.nodes[World::idx(c.agent_for)];
     Node& here = world_.nodes[World::idx(c.at)];
     // Wages accrued on the road are spent where the outfit stops.
@@ -273,6 +274,7 @@ void Simulation::finish_convoy(Trader& c) {
     if (c.cargo >= 0 && c.at == c.agent_for) {
         const double value = c.qty * world_.mid_price(c.at, c.cargo);
         home.stock[World::idx(c.cargo)] += c.qty;
+        home.last_delivery[World::idx(c.cargo)] = world_.today;
         delivered_value_ += value;
         log_.with({field("town", home.name), field("good", good(c.cargo).id), field("units", c.qty), field("landed_cost", c.unit_cost)});
         log_.add(world_.today, EventType::Trade, "merchant_delivery", c.at,

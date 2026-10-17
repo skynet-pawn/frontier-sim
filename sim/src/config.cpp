@@ -279,8 +279,8 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_I(max_guards); P_D(trader_base_defenders); P_D(guard_strength); P_D(assumed_gang_men);
     P_D(risk_prior); P_D(risk_prior_weight); P_D(risk_ema_alpha); P_D(fear_bump);
     P_D(fear_decay); P_D(risk_aversion_min); P_D(risk_aversion_max); P_D(firm_risk_aversion_min); P_D(firm_risk_aversion_max); P_D(risk_aversion_bump);
-    P_D(risk_aversion_cap); P_D(risk_aversion_decay); P_D(info_noise); P_D(min_profit);
-    P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_safety_days); P_D(merchant_cycle_days); P_D(merchant_cash_share); P_D(merchant_margin); 
+    P_D(risk_aversion_cap); P_D(risk_aversion_decay); P_D(info_noise); P_D(inbound_awareness); P_D(min_profit);
+    P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_safety_days); P_D(merchant_cycle_days); P_D(merchant_cash_share); P_D(merchant_margin); P_D(contract_share); P_D(contract_premium); P_I(contract_memory_days); P_I(contract_term_days); P_I(contract_max_behind_days); 
     P_I(merchant_order_raise_days); P_D(merchant_order_raise); P_D(merchant_order_cap_mult); P_I(merchant_order_expire_days); P_I(merchant_hire_after_days); P_D(trader_kill_prob);
     P_I(firms_initial); P_D(firm_capital_min); P_D(firm_capital_max); P_D(firm_capacity_lb); P_D(firm_upkeep);
     P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_danger_floor);

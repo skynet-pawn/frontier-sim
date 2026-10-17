@@ -45,6 +45,10 @@ struct Node {
     // The post's government store, per good: what contractors and the Quartermaster have delivered. The garrison and the
     // agency are fed from it, not from the town's shelf, and traders cannot buy it (it is not for sale).
     std::vector<double> depot;
+    // For the cause chain of a shortage (see the famine event): units traders have bought off the shelf lately (fades over
+    // about a month), and the day goods last reached the shelf from outside.
+    std::vector<double> bought_out;
+    std::vector<long> last_delivery;
     // Open orders the town's merchants have posted (merchants.cpp), per good: units wanted and the delivered price offered.
     // Unlike a government contract these are paid out of the town's own cash, and the offer rises while nobody fills it.
     std::vector<double> order_qty, order_price, order_first_price;
@@ -165,15 +169,17 @@ public:
     double buy_price_at(NodeId n, GoodId g, double stock) const;
     double sell_price_at(NodeId n, GoodId g, double stock) const;
     double buy_price(NodeId n, GoodId g) const { return buy_price_at(n, g, nodes[idx(n)].stock[idx(g)]); }
-    double sell_price(NodeId n, GoodId g) const { return sell_price_at(n, g, nodes[idx(n)].stock[idx(g)]); }
+    double sell_price(NodeId n, GoodId g, double inbound = 0) const { return sell_price_at(n, g, nodes[idx(n)].stock[idx(g)] + inbound); }
     // The node's own mid price, used for display and for the "price" other code reasons about.
     double mid_price(NodeId n, GoodId g) const;
 
     // Planning quotes: total cost / revenue for q units, averaging price slippage.
     double quote_buy(NodeId n, GoodId g, double q) const;
-    double quote_sell(NodeId n, GoodId g, double q) const;  // limited by the node's cash and dust
+    // `inbound` is freight already on the road to the node: it fills the contract and the open order first, then crowds the shelf.
+    // `drain` is what the town will eat before this load arrives, which thins the shelf the load is sold into.
+    double quote_sell(NodeId n, GoodId g, double q, double inbound = 0, double drain = 0) const;  // limited by the node's cash and dust
     double dust_on_hand(NodeId n) const;                    // value of the gold a camp could pay out in place of cash
-    double quote_sell_contract(NodeId n, GoodId g, double q) const;  // the part of a sale that a contract or open order pays (certain)
+    double quote_sell_contract(NodeId n, GoodId g, double q, double inbound = 0) const;  // the part of a sale that a contract or open order pays (certain)
     double order_unit_price(NodeId n, GoodId g, double extra_stock) const;  // per unit for an open order: its offer or the shelf price, whichever is higher
 
     // Execution. Both move stock and cash and count the node's inflow.
