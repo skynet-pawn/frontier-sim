@@ -26,6 +26,7 @@ enum class MoneyFlow {
     GangExit,          // - a dissolved gang's remaining cash
     LeaderExit,        // - a dead leader's cash
     DustPaid,          // + gold dust a camp pays for supplies becomes money in the trader's hands (coined at the assay office)
+    SupplierLoss,      // + an eastern supplier (or a town too poor to cover it) absorbs a consignment the road took
     Count
 };
 inline constexpr int kMoneyFlowCount = static_cast<int>(MoneyFlow::Count);
@@ -127,6 +128,8 @@ struct Edge {
     double miles = 0, hazard = 0, travel_days = 1;
     long from = 0, until = 0;
     std::string note;
+    long blocked_until = LONG_MIN;      // a storm, flood or washout shuts the road until this day (a "road_closure" shock)
+    std::string block_cause;
     bool active = false;
 
     // Public knowledge of how dangerous the route is (rumor): robberies per trader-day.

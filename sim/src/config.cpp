@@ -254,6 +254,22 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
             } else if (sh.kind == "crop_failure") {
                 sh.tag = js.at("zone").get<std::string>();
                 sh.fraction = js.at("fraction").get<double>();
+            } else if (sh.kind == "firm_withdrawal") {
+                sh.fraction = js.value("fraction", 1.0);  // share of the eastern outfits that quit the road
+            } else if (sh.kind == "house_collapse") {
+                sh.fraction = js.value("fraction", 0.3);  // the largest freight house on the day loses its leadership; most of its drivers go independent
+            } else if (sh.kind == "road_closure") {
+                sh.days = js.at("days").get<int>();
+                for (const auto& nid : js.at("nodes")) sh.nodes.push_back(find_node(world.nodes, nid.get<std::string>(), "shock " + sh.name));
+                if (js.contains("modes")) {
+                    for (bool& m : sh.modes) m = false;
+                    for (const auto& m : js["modes"]) {
+                        const std::string name = m.get<std::string>();
+                        const int mi = name == "trail" ? 0 : name == "river" ? 1 : name == "rail" ? 2 : -1;
+                        if (mi < 0) throw std::runtime_error("shock " + sh.name + ": unknown mode '" + name + "'");
+                        sh.modes[mi] = true;
+                    }
+                }
             } else if (sh.kind == "rush") {
                 sh.node = find_node(world.nodes, js.at("node").get<std::string>(), "shock " + sh.name);
                 sh.people = js.at("people").get<double>();
@@ -282,10 +298,10 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(risk_prior); P_D(risk_prior_weight); P_D(risk_ema_alpha); P_D(fear_bump);
     P_D(fear_decay); P_D(risk_aversion_min); P_D(risk_aversion_max); P_D(firm_risk_aversion_min); P_D(firm_risk_aversion_max); P_D(risk_aversion_bump);
     P_D(risk_aversion_cap); P_D(risk_aversion_decay); P_D(info_noise); P_D(inbound_awareness); P_D(min_profit);
-    P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_safety_days); P_D(merchant_cycle_days); P_D(merchant_cash_share); P_D(merchant_margin); P_D(contract_share); P_D(contract_premium); P_I(contract_memory_days); P_I(contract_term_days); P_I(contract_max_behind_days); 
+    P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_safety_days); P_D(merchant_cycle_days); P_D(merchant_cash_share); P_D(merchant_margin); P_D(contract_share); P_D(contract_premium); P_I(contract_memory_days); P_I(contract_term_days); P_I(contract_max_behind_days); P_I(carrier_jobs); P_D(job_preference); P_D(job_rate_share); 
     P_I(merchant_order_raise_days); P_D(merchant_order_raise); P_D(merchant_order_cap_mult); P_I(merchant_order_expire_days); P_I(merchant_hire_after_days); P_D(trader_kill_prob);
     P_I(firms_initial); P_D(firm_capital_min); P_D(firm_capital_max); P_D(firm_capacity_lb); P_D(firm_upkeep);
-    P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_danger_floor);
+    P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_scarcity_weight); P_D(scarcity_ref); P_D(scarcity_alpha); P_D(scarcity_memory); P_D(entry_danger_floor);
     P_D(firm_entry_rate); P_D(firm_hurdle); P_D(return_alpha); P_D(danger_ref); P_D(danger_alpha); P_D(settle_cash);
     P_D(settle_chance);
     P_D(house_float); P_D(house_found_cash); P_D(house_found_chance); P_D(house_nerve); P_I(house_max_outfits); P_I(house_hire_days); P_D(settle_invest_share); P_D(firm_withdraw_rate); P_D(price_uncertainty_weight);

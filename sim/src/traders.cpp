@@ -117,6 +117,7 @@ void Simulation::retire(Trader& t, const char* why, bool ruined) {
 void Simulation::step_trader(Trader& t) {
     const Params& p = world_.params;
     if (!t.alive) return;
+    if (t.job_town >= 0) settle_consignment(t);  // before the broke check: a robbed carrier owes nothing for the goods
 
     // Wages, feed and supplies are money spent in the economy: on the road it is spent at the next stop,
     // and an idle trader spends it where he waits.
@@ -225,7 +226,7 @@ void Simulation::arrive(Trader& t) {
     const bool more_road = t.leg < t.route.size() && world_.edges[World::idx(t.route[t.leg])].active;
     // A teamster passing through a town with a good price for his load sells some of it there.
     // (A town's convoy is carrying an order and does not peddle it on the way.)
-    const bool sold_out = more_road && t.cargo >= 0 && !t.controlled && t.agent_for < 0 && sell_along_the_way(t);
+    const bool sold_out = more_road && t.cargo >= 0 && !t.controlled && t.agent_for < 0 && t.job_town < 0 && sell_along_the_way(t);
     if (more_road && !sold_out) {
         t.days_left = world_.edges[World::idx(t.route[t.leg])].travel_days;
         return;
@@ -550,7 +551,7 @@ ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
     if (t.travelling) return ActionResult::Busy;
     if (dest < 0 || dest >= static_cast<NodeId>(world_.nodes.size()) || dest == t.at) return ActionResult::WrongPlace;
     if (!world_.route(t.at, dest, scratch_route_) || scratch_route_.empty()) return ActionResult::NoRoute;
-    if (t.cargo >= 0) {
+    if (t.cargo >= 0 && t.job_town < 0) {  // (a carrier hauling a supplier's goods is the freight, not its customer)
         // Freight is paid on departure. Teamsters bill on delivery, so a trader may go into debt for it.
         double miles[kModeCount] = {0, 0, 0};
         for (EdgeId eid : scratch_route_) {
@@ -677,6 +678,17 @@ ActionResult Simulation::act_gang_relocate(Gang& g, EdgeId e) {
 
 void Simulation::decide(Trader& t) {
     const Params& p = world_.params;
+    if (t.job_town >= 0 && t.cargo >= 0) {
+        if (t.at != t.job_town) {  // stopped short of the town (a road closed): carry on to the consignee
+            if (act_travel(t, t.job_town, t.job_guards) != ActionResult::Ok) { t.cargo = -1; t.qty = 0; }  // no road left: the load is lost, settled tomorrow
+            return;
+        }
+        deliver_job(t);
+    }
+    if (t.leaving && t.cargo < 0) {  // the load is down; the outfit goes home with what it holds
+        retire(t, "its eastern backers pulled out", false);
+        return;
+    }
     plan_paths(t, t.at, scratch_paths_);
 
     if (t.cargo >= 0) {
@@ -693,7 +705,11 @@ void Simulation::decide(Trader& t) {
         }
     }
 
+    // An open order is work for a carrier: the supplier's goods, paid for the haul. Taken when it beats buying a load.
+    const Plan job = (p.carrier_jobs >= 2 || (p.carrier_jobs == 1 && !t.firm)) ? plan_job(t, scratch_paths_) : Plan{};
     const Plan buy = plan_buy(t, scratch_paths_);
+    const double job_value = job.utility * p.job_preference;
+    if (job.valid && job_value >= p.min_profit && (!buy.valid || buy.utility < p.min_profit || job_value >= buy.utility) && act_take_job(t, job)) return;
     if (buy.valid && buy.utility >= p.min_profit) {
         const PathInfo& pi = scratch_paths_[World::idx(buy.dest)];
         const double freight_unit = world_.freight_unit_cost(buy.good, pi.miles);

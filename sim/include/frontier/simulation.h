@@ -26,6 +26,11 @@ struct Trader {
     NodeId agent_for = -1;       // >= 0: a convoy hired by this town's merchants; it delivers there and disbands
     int contract = -1;           // >= 0: a load for this standing contract, funded by its house (see SupplyContract)
     double contract_units = 0;   // what the load was meant to deliver, to be made good if it is robbed
+    int job_town = -1;           // >= 0: hauling the supplier's goods to this town's open order (see jobs.cpp)
+    NodeId job_src = -1;         // where the goods were loaded
+    double job_debt = 0, job_unit = 0, job_price = 0;  // goods owed to the supplier, their cost a unit, and what the town pays a unit
+    int job_guards = 0;
+    bool leaving = false;        // its backers have pulled out: it finishes the load it carries and then quits the road
     bool firm = false;           // an eastern firm's freight line or cattle syndicate, not a freelancer
     double capacity_lb = 12000;  // what the outfit can haul in one trip
     double upkeep = 1.5;         // $/day running costs, before guards
@@ -221,6 +226,12 @@ public:
     long log_from() const { return sc_.log_from; }  // events before this date are warm-up (towns settling) and not counted
     double starved_logged() const { return starved_logged_; }  // people who starved to death since the log began
     double hunted_logged() const { return hunted_logged_; }    // game taken by hunters since the log began (head of beef-equivalent)
+    // Freight jobs (diagnostics): loads taken, loads delivered, what carriers earned, and what the road took from suppliers.
+    int jobs_taken() const { return jobs_taken_; }
+    double scarcity_talk() const { return scarcity_ema_; }
+    int jobs_delivered() const { return jobs_delivered_; }
+    double job_pay() const { return job_pay_; }
+    double job_lost() const { return job_lost_; }
     int contracts_signed() const { return contracts_signed_; }
     int contracts_cancelled() const { return contracts_cancelled_; }
     double contract_units() const { return contract_units_; }
@@ -245,6 +256,7 @@ public:
         double qty = 0;
         int guards = 0;
         bool valid = false;
+        double pay_unit = 0;       // a freight job: what the carrier is paid a unit
     };
 
 private:
@@ -289,6 +301,10 @@ private:
     double daily_cost(int guards) const;
     Plan plan_sell(const Trader& t, const std::vector<PathInfo>& paths, bool allow_here);
     Plan plan_buy(const Trader& t, const std::vector<PathInfo>& paths);
+    Plan plan_job(const Trader& t, const std::vector<PathInfo>& paths);
+    bool act_take_job(Trader& t, const Plan& j);
+    void deliver_job(Trader& t);
+    void settle_consignment(Trader& t);
     bool plan_deadhead(const Trader& t, NodeId& dest);
     void arrive(Trader& t);
     Receipt sell_cargo(Trader& t, double qty);   // the sale itself, with no check that the outfit is idle
@@ -374,6 +390,8 @@ private:
     int houses_founded_ = 0, house_recaps_ = 0;
     int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover
     int orders_placed_ = 0, orders_expired_ = 0, convoys_hired_ = 0;
+    int jobs_taken_ = 0, jobs_delivered_ = 0;
+    double job_pay_ = 0, job_lost_ = 0;
     double delivered_value_ = 0, lost_orders_value_ = 0;
     std::vector<double> imported_value_;
     std::vector<Gang> gangs_;
@@ -385,7 +403,7 @@ private:
     double avg_profit_ema_ = 0;
     double baseline_money_ = 0;
     // What entrants can see (never the true profit): rumor of success stories and the reported return on capital.
-    double story_ema_ = 0, return_ema_ = 0, danger_ema_ = 0;
+    double story_ema_ = 0, return_ema_ = 0, danger_ema_ = 0, scarcity_ema_ = 0, scarcity_norm_ = -1;
     int stories_today_ = 0, robbed_today_ = 0;
     int entered_freelancers_ = 0, entered_firms_ = 0, entered_window_f_ = 0, entered_window_firm_ = 0;
     std::vector<NodeId> gateways_, markets_;

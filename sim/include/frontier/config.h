@@ -194,6 +194,11 @@ struct Params {
     int merchant_hire_after_days = 14;       // an order still open after this long: the town hires freighters itself (0 = never)
     int merchant_order_expire_days = 90;     // and is withdrawn after this long unfilled
 
+    // Freight jobs (jobs.cpp): a town's open order is work for a carrier, who hauls the supplier's goods for what the order pays beyond them.
+    int carrier_jobs = 2;                    // 1: freelancers and house outfits may carry an open order on the supplier's goods instead of buying a load; 2: eastern firms too
+    double job_rate_share = 0.25;             // share of the going freight rate a carrier is paid; scarcity (an order's escalated offer) scales it up
+    double job_preference = 1.0;             // how a carrier weighs a job's pay against a speculative load of the same expected profit
+
     // Standing supply contracts (contracts.cpp): a town that has been short buys reliability from a freight house.
     double contract_share = 1.0;             // share of the town's daily need the contract promises (0 = no contracts)
     double contract_premium = 0.6;           // price paid over the landed cost: the insurance the house is paid for holding capacity
@@ -213,6 +218,13 @@ struct Params {
     double story_profit_threshold = 2000;    // a trip this profitable becomes a story worth telling
     double story_ref = 2.0;                  // stories per day at which arrivals run at the base rate
     double story_alpha = 0.05;               // rumor memory: about 20 days
+    // Word of hunger also draws freelancers: a camp short of food is news, and it travels by letter and telegraph to the
+    // railheads. It is rumor, not knowledge: no one is told what the gap is worth. (Escalated orders were tried as the signal
+    // and are no use: some town is always waiting on something, and the talk did not move when a third of the freight left.)
+    double entry_scarcity_weight = 1.0;        // arrivals from scarcity talk, as a multiple of the base rate (0 = off)
+    double scarcity_ref = 0.1;               // a rise of this share of towns in shortage above their usual level counts as "the camps are crying out"
+    double scarcity_memory = 0.003;          // what is usual: the talk averaged over about a year (some town is always waiting on something)
+    double scarcity_alpha = 0.05;            // how long the talk lasts: about 20 days
     double story_fade = 0.03;                // a trader's recent winnings fade by this share a day (about a month)
     double entry_danger_floor = 0.2;         // danger never shuts the frontier completely: some always come
     double firm_entry_rate = 0.03;           // firms outfitted per day at one hurdle above the hurdle return
@@ -328,14 +340,17 @@ struct Params {
 
 struct ShockDef {
     std::string name;
-    std::string kind;            // "stock_loss", "rush" or "crop_failure"
+    std::string kind;            // "stock_loss", "rush", "crop_failure", "road_closure", "house_collapse" or "firm_withdrawal"
     long date = 0;
     std::string tag;             // stock_loss: nodes carrying this tag; crop_failure: the weather zone
     std::vector<GoodId> goods;   // stock_loss: goods affected
-    double fraction = 0;         // stock_loss: share destroyed
+    double fraction = 0;         // stock_loss: share destroyed; house_collapse: share of its outfits lost (the rest go independent)
     NodeId node = -1;            // rush: where
     double people = 0;           // rush: how many arrive
     double cash_per_person = 0;  // rush: savings they bring
+    int days = 0;                        // road_closure: how long the roads stay shut
+    std::vector<NodeId> nodes;           // road_closure: roads touching any of these towns
+    bool modes[kModeCount] = {true, true, false};  // road_closure: which kinds of road (trail, river, rail)
     std::string cause;
 };
 

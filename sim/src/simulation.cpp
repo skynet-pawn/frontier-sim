@@ -113,7 +113,7 @@ void Simulation::update_network() {
     world_.refresh_contract_prices();
     auto describe = [&](EdgeId id, const char* verb) {
         const Edge& e = world_.edges[World::idx(id)];
-        const std::string cause = e.note.empty() ? "scheduled in world.json" : e.note;
+        const std::string cause = !e.block_cause.empty() ? e.block_cause : e.note.empty() ? "scheduled in world.json" : e.note;
         log_.with({field("mode", mode_name(e.mode)), field("a", nname(e.a)), field("b", nname(e.b)), field("miles", e.miles), field("change", verb)});
         log_.add(world_.today, EventType::Network, "route_changed", e.a,
                  strf("%s between %s and %s %s (%.0f miles)", mode_name(e.mode), nname(e.a).c_str(),
@@ -122,6 +122,7 @@ void Simulation::update_network() {
     };
     for (EdgeId id : opened) describe(id, "opens");
     for (EdgeId id : closed) describe(id, "closes");
+    for (EdgeId id : opened) world_.edges[World::idx(id)].block_cause.clear();
 }
 
 // Troop strength follows threats from outside the model (campaigns, new posts, withdrawals), not local
@@ -139,7 +140,7 @@ int draw_count(Rng& rng, double expected) {
 void Simulation::trader_entry() {
     const Params& p = world_.params;
     const double danger = std::min(1.0, danger_ema_ / p.danger_ref);
-    const double rumor = std::clamp(story_ema_ / p.story_ref, 0.0, 3.0);
+    const double rumor = std::clamp(story_ema_ / p.story_ref, 0.0, 3.0) + p.entry_scarcity_weight * std::clamp((scarcity_ema_ - std::max(0.0, scarcity_norm_)) / p.scarcity_ref, 0.0, 3.0);
     const double mean_free = (p.risk_aversion_min + p.risk_aversion_max) / 2;
     const double mean_firm = (p.firm_risk_aversion_min + p.firm_risk_aversion_max) / 2;
     const double report = std::clamp((return_ema_ - p.firm_hurdle) / p.firm_hurdle, 0.0, 3.0);
@@ -216,6 +217,86 @@ void Simulation::apply_shocks() {
                 log_.add(world_.today, EventType::Shock, "crop_failure", -1,
                          strf("%s: the %s harvest is %.0f%% short", sh.name.c_str(), sh.tag.c_str(), sh.fraction * 100), sh.cause);
             }
+        } else if (sh.kind == "firm_withdrawal") {
+            // Eastern backers pull their capital out (a credit crunch back East, a panic, a change of strategy). Outfits
+            // finish the load they carry and quit; convoys working on a house's account are lost with it. Entry stays
+            // open, so the freelancers and any new firms it draws are the market's response.
+            int leaving = 0, lost = 0, closed = 0;
+            for (House& h : houses_) {
+                if (!h.alive || !h.eastern) continue;
+                world_.record(MoneyFlow::TraderExit, -h.cash);
+                h.cash = 0;
+                h.alive = false;  // its contracts lapse on their own
+                ++closed;
+            }
+            for (Trader& t : traders_) {
+                if (!t.alive || !t.firm || (sh.fraction < 1.0 && !rng_.chance(sh.fraction))) continue;
+                if (t.agent_for >= 0) {
+                    t.cargo = -1;
+                    t.qty = 0;
+                    if (t.job_town >= 0) settle_consignment(t);
+                    retire(t, "its freight house's eastern backers pulled out", false);
+                    ++lost;
+                } else {
+                    t.leaving = true;
+                    ++leaving;
+                }
+            }
+            log_.with({field("shock", sh.name), field("outfits_leaving", leaving), field("convoys_lost", lost), field("houses_closed", closed)});
+            log_.add(world_.today, EventType::Shock, "firm_withdrawal", -1,
+                     strf("%s: %d eastern outfits quit the road after their loads, %d convoys lost, %d eastern houses close", sh.name.c_str(), leaving, lost, closed),
+                     sh.cause);
+        } else if (sh.kind == "house_collapse") {
+            // The biggest freight house loses its head (a raid on its wagon train, a death, a failure back East). Its contracts
+            // lapse on their own (a contract needs a living house), its loaded wagons are lost, and its outfits are gone from
+            // the road or, for the share that escapes, carry on as independents. What is left is the market's to take up.
+            int best = -1, best_n = 0;
+            for (const House& h : houses_) {
+                if (!h.alive) continue;
+                int n = 0;
+                for (const Trader& t : traders_) n += t.alive && t.house == h.id;
+                if (n > best_n) { best_n = n; best = h.id; }
+            }
+            if (best < 0) continue;
+            House& h = houses_[static_cast<std::size_t>(best)];
+            int lost = 0, freed = 0;
+            const int keep = static_cast<int>(std::floor((1.0 - sh.fraction) * best_n + 1e-9));
+            for (Trader& t : traders_) {
+                if (!t.alive || t.house != best) continue;
+                if (t.agent_for >= 0 || freed >= keep) {  // a convoy on the house's account, or an outfit that does not escape
+                    t.cargo = -1;
+                    t.qty = 0;
+                    if (t.job_town >= 0) settle_consignment(t);
+                    retire(t, "its freight house collapsed", false);
+                    ++lost;
+                } else {
+                    t.house = -1;  // keeps its float and its wagons and works for itself
+                    ++freed;
+                }
+            }
+            world_.record(MoneyFlow::TraderExit, -h.cash);
+            log_.with({field("house", h.id), field("outfits_lost", lost), field("outfits_freed", freed), field("cash_lost", h.cash), field("shock", sh.name)});
+            log_.add(world_.today, EventType::Shock, "house_collapse", h.seat,
+                     strf("%s: freight house #%d (%d outfits) collapses; %d outfits lost, %d go independent", sh.name.c_str(), h.id, best_n, lost, freed),
+                     sh.cause);
+            h.cash = 0;
+            h.alive = false;
+        } else if (sh.kind == "road_closure") {
+            // A blizzard, flood or washout shuts the roads for a spell. Wagons already moving finish their leg and wait at
+            // the last stop; nothing new sets out until the road is passable, so supply lines run dry while it lasts.
+            int shut = 0;
+            for (Edge& e : world_.edges) {
+                if (!e.active || !sh.modes[static_cast<int>(e.mode)]) continue;
+                if (std::find(sh.nodes.begin(), sh.nodes.end(), e.a) == sh.nodes.end() &&
+                    std::find(sh.nodes.begin(), sh.nodes.end(), e.b) == sh.nodes.end()) continue;
+                e.blocked_until = std::max(e.blocked_until, world_.today + sh.days);
+                e.block_cause = sh.name + (sh.cause.empty() ? "" : ": " + sh.cause);
+                ++shut;
+            }
+            log_.with({field("shock", sh.name), field("days", sh.days), field("roads", shut)});
+            log_.add(world_.today, EventType::Shock, "road_closure", sh.nodes.empty() ? -1 : sh.nodes.front(),
+                     strf("%s: %d roads shut for %d days", sh.name.c_str(), shut, sh.days), sh.cause);
+            update_network();
         } else if (sh.kind == "rush") {
             Node& node = world_.nodes[World::idx(sh.node)];
             node.population += sh.people;
@@ -612,6 +693,20 @@ void Simulation::end_of_day() {
     const double trader_count = std::max<double>(1.0, static_cast<double>(traders_.size() + convoys_.size()));
     danger_ema_ += p.danger_alpha * (robbed_today_ / trader_count - danger_ema_);
     story_ema_ += p.story_alpha * (stories_today_ - story_ema_);
+    {
+        int towns = 0, crying = 0;
+        for (const Node& n : world_.nodes) {
+            if (n.fixed_market || !n.founded || n.ghost) continue;
+            ++towns;
+            crying += n.starving;
+        }
+        if (towns > 0) {
+            const double share = static_cast<double>(crying) / towns;
+            if (scarcity_norm_ < 0) scarcity_norm_ = scarcity_ema_ = share;
+            scarcity_ema_ += p.scarcity_alpha * (share - scarcity_ema_);
+            scarcity_norm_ += p.scarcity_memory * (share - scarcity_norm_);
+        }
+    }
     profit_today_ = 0;
     robbed_today_ = 0;
     stories_today_ = 0;

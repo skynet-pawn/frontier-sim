@@ -23,6 +23,7 @@ const char* money_flow_name(MoneyFlow f) {
         case MoneyFlow::GangExit:         return "dissolved gangs";
         case MoneyFlow::LeaderExit:       return "dead leaders";
         case MoneyFlow::DustPaid:         return "gold dust paid as money";
+        case MoneyFlow::SupplierLoss:     return "suppliers' robbed consignments";
         case MoneyFlow::Count:            break;
     }
     return "?";
@@ -420,7 +421,7 @@ bool World::update_active_edges(std::vector<EdgeId>* opened, std::vector<EdgeId>
     bool changed = false;
     for (std::size_t i = 0; i < edges.size(); ++i) {
         Edge& e = edges[i];
-        const bool should = today >= e.from && today < e.until;
+        const bool should = today >= e.from && today < e.until && today >= e.blocked_until;
         if (should != e.active) {
             e.active = should;
             changed = true;

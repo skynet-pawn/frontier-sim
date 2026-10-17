@@ -41,6 +41,8 @@ struct RunStats {
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
     int merchant_orders = 0, orders_expired = 0, convoys_hired = 0;
     int contracts_signed = 0, contracts_cancelled = 0;
+    int jobs_taken = 0, jobs_delivered = 0;
+    double job_pay = 0, job_lost = 0;   // what carriers earned hauling suppliers' goods, and what the road took from suppliers
     double contract_units = 0, contract_revenue = 0, contract_outlay = 0;   // what the houses delivered, took in and laid out
     double merchant_delivered = 0, merchant_lost = 0;   // dollars of ordered goods that arrived / were robbed
     int famines = 0, ghost_towns = 0, waypoint_sales = 0;
