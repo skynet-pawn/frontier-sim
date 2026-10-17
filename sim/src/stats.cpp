@@ -122,19 +122,27 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     // spell, not many. Famine events at one town fewer than kFamineMergeDays apart (counting from the last
     // famine or recovery) are one episode, and distinct towns say whether it was regional or chronic.
     constexpr long kFamineMergeDays = 90;
-    r.famine_events = static_cast<int>(log.count_kind("famine"));
-    std::vector<long> last_famine_event(N, -1000000);
-    std::vector<bool> famine_seen(N, false);
-    for (const Event& e : log.events()) {
-        if (e.kind != "famine" && e.kind != "famine_over") continue;
-        const std::size_t i = World::idx(e.node);
-        if (e.kind == "famine") {
-            if (e.day - last_famine_event[i] >= kFamineMergeDays) ++r.famines;
-            if (!famine_seen[i]) ++r.famine_towns;
-            famine_seen[i] = true;
+    // Shortages (food stores empty, the hunger average high) and famines (a spell of starvation that killed a real share of
+    // the town) are counted the same way: merged into episodes, with the distinct towns they touched.
+    auto count_episodes = [&](const char* start, const char* end, int& episodes, int& towns, int& events) {
+        events = 0;
+        std::vector<long> last_event(N, -1000000);
+        std::vector<bool> seen(N, false);
+        for (const Event& e : log.events()) {
+            if ((e.kind != start && e.kind != end) || e.day < sim.log_from()) continue;  // the first year is warm-up
+            const std::size_t i = World::idx(e.node);
+            if (e.kind == start) {
+                ++events;
+                if (e.day - last_event[i] >= kFamineMergeDays) ++episodes;
+                if (!seen[i]) ++towns;
+                seen[i] = true;
+            }
+            last_event[i] = e.day;
         }
-        last_famine_event[i] = e.day;
-    }
+    };
+    count_episodes("shortage", "shortage_over", r.shortages, r.shortage_towns, r.shortage_events);
+    count_episodes("famine", "famine_over", r.famines, r.famine_towns, r.famine_events);
+    r.starved = sim.starved_logged();
     r.ghost_towns = static_cast<int>(log.count_kind("ghost_town"));
 
     for (std::size_t i = 0; i < N; ++i) {

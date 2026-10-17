@@ -386,51 +386,66 @@ void Simulation::economy_day() {
         }
 
         // (A fort with a few dozen civilians beside it is not a town; the settlement grows when supply can carry it.)
+        // A shortage: the hunger average is high. People tighten their belts and some leave; nobody need have died.
         if (n.hunger > 0.25 && !n.starving && civilians >= 100) {
             n.starving = true;
-            // The cause chain, per food: what is on the shelf, what the town has asked for and for how long, what is on
-            // the road to it, what traders took off the shelf this month, and how long since anything arrived.
-            // Each famine can then be told apart: nothing ordered, ordered but nobody came, freight late, or drained.
-            std::string chain;
-            Fields f = {field("node", n.name), field("pop", n.population), field("civilians", civilians), field("hunger", n.hunger),
-                        field("cash", n.cash)};
-            for (std::size_t g = 0; g < world_.goods.size(); ++g) {
-                const GoodDef& gd = world_.goods[g];
-                if (gd.food_share <= 0) continue;
-                const double need = civilians * gd.need_per_person_per_day;
-                const double days = need > 0 ? n.stock[g] / need : 1e9;
-                double road = 0;
-                for (const auto* fleet : {&traders_, &convoys_})
-                    for (const Trader& t : *fleet)
-                        if (t.alive && t.travelling && t.cargo == static_cast<GoodId>(g) && t.qty > 0 && (t.dest == id || t.agent_for == id)) road += t.qty;
-                const double order_days = n.order_qty[g] > 0 ? static_cast<double>(world_.today - n.order_posted[g]) : -1.0;
-                const double since = n.last_delivery[g] > -1000000L ? static_cast<double>(world_.today - n.last_delivery[g]) : -1.0;
-                const double taken = n.bought_out[g];
-                chain += strf("%s%s: %.1f days on the shelf, %s, %.0f %s on the road, traders took %.0f this month, %s", chain.empty() ? "" : "; ",
-                              gd.name.c_str(), days,
-                              order_days >= 0 ? strf("order for %.0f open %.0f days", n.order_qty[g], order_days).c_str() : "no order open", road,
-                              gd.unit.c_str(), taken,
-                              since >= 0 ? strf("last delivery %.0f days ago", since).c_str() : "nothing delivered yet");
-                f.push_back(field(gd.id + "_cover", days > 1e8 ? -1.0 : days));
-                f.push_back(field(gd.id + "_order_qty", n.order_qty[g]));
-                f.push_back(field(gd.id + "_order_days", order_days));
-                f.push_back(field(gd.id + "_road", road));
-                f.push_back(field(gd.id + "_taken", taken));
-                f.push_back(field(gd.id + "_since", since));
-                f.push_back(field(gd.id + "_need", need));
-            }
-            const bool repeat = world_.today - n.last_famine_log < 90;
-            n.last_famine_log = world_.today;
+            Fields f = {field("node", n.name), field("pop", n.population), field("civilians", civilians), field("hunger", n.hunger), field("cash", n.cash)};
+            const std::string chain = supply_chain(id, civilians, f);
+            const bool repeat = world_.today - n.last_shortage_log < 90;
+            n.last_shortage_log = world_.today;
             log_.with(std::move(f));
-            log_.add(world_.today, EventType::Famine, "famine", id,
+            log_.add(world_.today, EventType::Famine, "shortage", id,
                      strf("%s is short of food (pop %s)", n.name.c_str(), with_commas(n.population).c_str()),
                      strf("%s; town cash %s limits what traders can be paid", chain.c_str(), money(n.cash).c_str()),
                      repeat);
         } else if (n.hunger < 0.08 && n.starving) {
             n.starving = false;
             log_.with({field("node", n.name)});
-            log_.add(world_.today, EventType::Famine, "famine_over", id, strf("%s has food again", n.name.c_str()),
+            log_.add(world_.today, EventType::Famine, "shortage_over", id, strf("%s has food again", n.name.c_str()),
                      "supply caught up with demand", true);
+        }
+
+        // Starvation. Deprivation is a slow average of the share of food need unmet, so a bad week hurts and a bad season kills.
+        // Below the threshold people forage, eat their seed corn and leave; above it they die, faster the longer and deeper it goes.
+        if (civilians > 0) {
+            n.deprivation += p.deprivation_alpha * ((1.0 - std::min(1.0, fed)) - n.deprivation);
+            const double deaths = n.deprivation > p.starvation_threshold
+                                      ? std::min(civilians * 0.5, civilians * p.starvation_max_rate * (n.deprivation - p.starvation_threshold) / (1.0 - p.starvation_threshold))
+                                      : 0.0;
+            if (deaths > 0) {
+                if (!n.spell_active) {
+                    n.spell_active = true;
+                    n.spell_pop = civilians;
+                    n.spell_deaths = 0;
+                    log_.with({field("node", n.name), field("civilians", civilians), field("deprivation", n.deprivation)});
+                    log_.add(world_.today, EventType::Famine, "starvation_began", id, strf("People begin to starve at %s (%.0f civilians)", n.name.c_str(), civilians),
+                             strf("a month of short rations has worn the town down (deprivation %.2f)", n.deprivation), true);
+                }
+                n.population = std::max(0.0, n.population - deaths);
+                n.starved_total += deaths;
+                if (world_.today >= sc_.log_from) starved_logged_ += deaths;
+                n.spell_deaths += deaths;
+                n.spell_quiet = 0;
+                if (!n.in_famine && n.spell_pop >= 100 && n.spell_deaths >= p.famine_death_share * n.spell_pop) {
+                    n.in_famine = true;
+                    Fields f = {field("node", n.name), field("pop", n.population), field("civilians", civilians), field("hunger", n.hunger), field("cash", n.cash),
+                                field("deaths", n.spell_deaths), field("spell_pop", n.spell_pop)};
+                    const std::string chain = supply_chain(id, civilians, f);
+                    log_.with(std::move(f));
+                    log_.add(world_.today, EventType::Famine, "famine", id,
+                             strf("Famine at %s: %.0f of %.0f people have starved (%.0f%%)", n.name.c_str(), n.spell_deaths, n.spell_pop, 100 * n.spell_deaths / n.spell_pop),
+                             strf("%s; town cash %s", chain.c_str(), money(n.cash).c_str()));
+                }
+            } else if (n.spell_active && ++n.spell_quiet >= p.famine_end_days) {
+                if (n.in_famine) {
+                    log_.with({field("node", n.name), field("deaths", n.spell_deaths), field("spell_pop", n.spell_pop)});
+                    log_.add(world_.today, EventType::Famine, "famine_over", id,
+                             strf("The famine at %s is over: %.0f people starved in all", n.name.c_str(), n.spell_deaths),
+                             "food reached the town again and nobody has starved for a month", true);
+                }
+                n.spell_active = false;
+                n.in_famine = false;
+            }
         }
 
         if (n.transient_inflow) n.drifters += n.population * p.transient_inflow_rate;
@@ -452,7 +467,7 @@ void Simulation::update_population(NodeId id) {
     // The garrison is posted by the Army and stays however the town is doing.
     const double target = std::max(n.garrison + n.base_population + n.farmers + trade_pop * hunger_keep, p.floor_pop);
     // A town with almost nobody left has nobody to starve; newcomers arrive fed, so hunger can't lock it at zero.
-    if (n.market_population() < p.ghost_pop) n.hunger = 0;
+    if (n.market_population() < p.ghost_pop) n.hunger = n.deprivation = 0;
 
     if (n.population < target) {
         if (n.hunger <= p.hunger_threshold) {
@@ -602,6 +617,40 @@ Gang* Simulation::find_gang(int id) {
     for (Gang& g : gangs_)
         if (g.id == id) return &g;
     return nullptr;
+}
+
+// The cause chain, per food: what is on the shelf, what the town has asked for and for how long, what is on the road to
+// it, what traders took off the shelf this month, and how long since anything arrived. A shortage can then be told apart:
+// nothing ordered, ordered but nobody came, freight late, or drained by traders.
+std::string Simulation::supply_chain(NodeId id, double civilians, Fields& f) const {
+    const Node& n = world_.nodes[World::idx(id)];
+    std::string chain;
+    for (std::size_t g = 0; g < world_.goods.size(); ++g) {
+        const GoodDef& gd = world_.goods[g];
+        if (gd.food_share <= 0) continue;
+        const double need = civilians * gd.need_per_person_per_day;
+        const double days = need > 0 ? n.stock[g] / need : 1e9;
+        double road = 0;
+        for (const auto* fleet : {&traders_, &convoys_})
+            for (const Trader& t : *fleet)
+                if (t.alive && t.travelling && t.cargo == static_cast<GoodId>(g) && t.qty > 0 && (t.dest == id || t.agent_for == id)) road += t.qty;
+        const double order_days = n.order_qty[g] > 0 ? static_cast<double>(world_.today - n.order_posted[g]) : -1.0;
+        const double since = n.last_delivery[g] > -1000000L ? static_cast<double>(world_.today - n.last_delivery[g]) : -1.0;
+        const double taken = n.bought_out[g];
+        chain += strf("%s%s: %.1f days on the shelf, %s, %.0f %s on the road, traders took %.0f this month, %s", chain.empty() ? "" : "; ",
+                      gd.name.c_str(), days,
+                      order_days >= 0 ? strf("order for %.0f open %.0f days", n.order_qty[g], order_days).c_str() : "no order open", road,
+                      gd.unit.c_str(), taken,
+                      since >= 0 ? strf("last delivery %.0f days ago", since).c_str() : "nothing delivered yet");
+        f.push_back(field(gd.id + "_cover", days > 1e8 ? -1.0 : days));
+        f.push_back(field(gd.id + "_order_qty", n.order_qty[g]));
+        f.push_back(field(gd.id + "_order_days", order_days));
+        f.push_back(field(gd.id + "_road", road));
+        f.push_back(field(gd.id + "_taken", taken));
+        f.push_back(field(gd.id + "_since", since));
+        f.push_back(field(gd.id + "_need", need));
+    }
+    return chain;
 }
 
 }  // namespace frontier

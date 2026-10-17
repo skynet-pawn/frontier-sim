@@ -44,7 +44,7 @@ void Simulation::seek_contracts(NodeId id) {
     const Params& p = world_.params;
     Node& n = world_.nodes[World::idx(id)];
     // No scar, no contract: a town that has never gone short does not pay a premium against it.
-    if (world_.today - n.last_famine_log >= p.contract_memory_days) return;
+    if (world_.today - n.last_shortage_log >= p.contract_memory_days) return;
 
     for (std::size_t g = 0; g < world_.goods.size(); ++g) {
         const GoodDef& gd = world_.goods[g];
@@ -96,7 +96,7 @@ void Simulation::seek_contracts(NodeId id) {
                  strf("%s signs a standing contract with freight house #%d for %.0f %s of %s a day at $%.2f", n.name.c_str(), best_house, rate, gd.unit.c_str(),
                       gd.name.c_str(), price),
                  strf("the town went short %d days ago and will pay %.0f%% over the landed cost of $%.2f for deliveries it can count on",
-                      static_cast<int>(world_.today - n.last_famine_log), p.contract_premium * 100, landed));
+                      static_cast<int>(world_.today - n.last_shortage_log), p.contract_premium * 100, landed));
     }
 }
 

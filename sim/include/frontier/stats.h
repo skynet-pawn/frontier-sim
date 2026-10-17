@@ -46,7 +46,9 @@ struct RunStats {
     int famines = 0, ghost_towns = 0, waypoint_sales = 0;
     int houses_founded = 0, houses_end = 0, house_outfits_end = 0, house_recaps = 0, house_killed = 0, house_broke = 0;
     int famine_events = 0;   // raw famine log entries, before merging flicker into episodes
-    int famine_towns = 0;    // distinct towns that went hungry at least once
+    int famine_towns = 0;    // distinct towns that had a famine (a spell of starvation that killed a real share of the town)
+    int shortages = 0, shortage_events = 0, shortage_towns = 0;   // food stores empty and hunger high, whether or not anyone died
+    double starved = 0;      // people who starved to death, all towns
 
     // Towns
     std::vector<TownOutcome> towns;

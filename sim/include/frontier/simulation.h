@@ -218,6 +218,8 @@ public:
     int houses_founded() const { return houses_founded_; }
     int house_recaps() const { return house_recaps_; }
     // Standing contracts (diagnostics): signed, dropped, units delivered, and what the houses took in and laid out.
+    long log_from() const { return sc_.log_from; }  // events before this date are warm-up (towns settling) and not counted
+    double starved_logged() const { return starved_logged_; }  // people who starved to death since the log began
     int contracts_signed() const { return contracts_signed_; }
     int contracts_cancelled() const { return contracts_cancelled_; }
     double contract_units() const { return contract_units_; }
@@ -269,6 +271,8 @@ private:
     double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;
     double daily_cost(const Trader& t, int guards) const;
     void traders_day();
+    // The cause chain of a food shortage, per food (shelf cover, open order, freight on the road, trader drain, last delivery).
+    std::string supply_chain(NodeId id, double civilians, Fields& fields) const;
     // Freight already on the road to each town, per good (nodes x goods), as traders know it: wagons passing each other
     // and word from the towns. Refreshed each morning and bumped as each outfit sets out, so a dozen wagons deciding
     // on the same morning do not all chase the same price.
@@ -364,6 +368,7 @@ private:
     std::vector<House> houses_;
     std::vector<SupplyContract> contracts_;
     int contracts_signed_ = 0, contracts_cancelled_ = 0;
+    double starved_logged_ = 0;
     double contract_units_ = 0, contract_revenue_ = 0, contract_outlay_ = 0;
     int houses_founded_ = 0, house_recaps_ = 0;
     int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover

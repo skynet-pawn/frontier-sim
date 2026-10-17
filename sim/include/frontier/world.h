@@ -103,10 +103,17 @@ struct Node {
     long captured_day = 0;
     double captured_income = 1;
     long last_posse_day = -100000;
-    long last_famine_log = -100000, last_pop_log = -100000;  // keep the log readable when a town hovers at a threshold
+    long last_shortage_log = -100000, last_pop_log = -100000;  // keep the log readable when a town hovers at a threshold
     int last_pop_dir = 0;
     bool ghost = false;
-    bool starving = false;
+    bool starving = false;       // in a food shortage: the hunger average is high (nobody need have died yet)
+    // Starvation (simulation.cpp). Deaths follow sustained deprivation, not a bad week: a slow average of unmet food need.
+    // A famine is a spell of starvation that kills a real share of the town (famine_death_share).
+    double deprivation = 0;
+    double starved_total = 0;
+    double spell_deaths = 0, spell_pop = 0;
+    int spell_quiet = 0;         // days since anyone starved in this spell
+    bool spell_active = false, in_famine = false;
     bool garrison_short = false; // the soldiers are going short (logged once per spell)
     int pop_band = 0;
 };

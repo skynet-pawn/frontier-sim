@@ -124,6 +124,11 @@ struct Params {
     double pop_decline_rate = 0.03;          // fraction of the gap closed per day
     double hunger_alpha = 0.1;
     double hunger_threshold = 0.15;
+    double deprivation_alpha = 0.03;         // how slowly the deprivation average follows unmet food need (about a month)
+    double starvation_threshold = 0.30;      // deprivation above this starts killing people (below it they forage, tighten belts, leave)
+    double starvation_max_rate = 0.005;      // daily death rate among the market-fed at total deprivation (about 30% in ten weeks)
+    double famine_death_share = 0.10;        // a famine is a spell of starvation that kills this share of the town
+    int famine_end_days = 30;                // ...and it ends after this many days with nobody starving
     double floor_pop = 5;
     double ghost_pop = 25;
     double newcomer_provision_days = 20;     // days of food new arrivals carry with them
