@@ -220,6 +220,7 @@ public:
     // Standing contracts (diagnostics): signed, dropped, units delivered, and what the houses took in and laid out.
     long log_from() const { return sc_.log_from; }  // events before this date are warm-up (towns settling) and not counted
     double starved_logged() const { return starved_logged_; }  // people who starved to death since the log began
+    double hunted_logged() const { return hunted_logged_; }    // game taken by hunters since the log began (head of beef-equivalent)
     int contracts_signed() const { return contracts_signed_; }
     int contracts_cancelled() const { return contracts_cancelled_; }
     double contract_units() const { return contract_units_; }
@@ -368,7 +369,7 @@ private:
     std::vector<House> houses_;
     std::vector<SupplyContract> contracts_;
     int contracts_signed_ = 0, contracts_cancelled_ = 0;
-    double starved_logged_ = 0;
+    double starved_logged_ = 0, hunted_logged_ = 0;
     double contract_units_ = 0, contract_revenue_ = 0, contract_outlay_ = 0;
     int houses_founded_ = 0, house_recaps_ = 0;
     int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover

@@ -49,6 +49,7 @@ struct RunStats {
     int famine_towns = 0;    // distinct towns that had a famine (a spell of starvation that killed a real share of the town)
     int shortages = 0, shortage_events = 0, shortage_towns = 0;   // food stores empty and hunger high, whether or not anyone died
     double starved = 0;      // people who starved to death, all towns
+    double game_taken = 0, game_left = 0;   // head of beef-equivalent hunted since the log began; share of the herds left at the end
 
     // Towns
     std::vector<TownOutcome> towns;

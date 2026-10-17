@@ -46,6 +46,8 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.farmers = d.farmers;
         n.farm_core = d.farmers * p.farm_core_share;
         n.farm_capacity = d.farm_capacity;
+        n.game_capacity = d.game_capacity;
+        n.game = d.game_capacity;  // untouched country starts full
         n.farm_yield = d.farm_yield;
         n.cash_good = d.cash_good;
         n.cash_rate = d.cash_rate;

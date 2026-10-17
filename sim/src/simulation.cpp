@@ -331,12 +331,23 @@ void Simulation::economy_day() {
         const double soldiers = std::min(n.garrison, n.market_population());
         const double civilians = n.market_population() - soldiers;
         double fed = 0, soldiers_fed = 0;
+        // Some of the civilians hunt. Game stands in for beef before anyone buys it: what the hunters bring in comes off the
+        // town's need, so the shelf is spared. The catch follows how much game is left, so a growing camp hunts out its hills.
+        const double hunters = civilians * p.hunter_share;
         for (std::size_t g = 0; g < world_.goods.size(); ++g) {
             const GoodDef& gd = world_.goods[g];
             const double civ_want = civilians * gd.need_per_person_per_day;
-            const double civ_take = std::min(n.stock[g], civ_want);
+            double game_take = 0;
+            if (gd.game_substitute && n.game_capacity > 0 && n.game > 0 && civ_want > 0) {
+                const double density = n.game / n.game_capacity;
+                game_take = std::min({hunters * p.hunter_catch * density, civ_want, n.game});
+                n.game -= game_take;
+                n.hunted_total += game_take;
+                if (world_.today >= sc_.log_from) hunted_logged_ += game_take;
+            }
+            const double civ_take = std::min(n.stock[g], civ_want - game_take);
             n.stock[g] -= civ_take;
-            if (civ_want > 0 && gd.food_share > 0) fed += gd.food_share * (civ_take / civ_want);
+            if (civ_want > 0 && gd.food_share > 0) fed += gd.food_share * ((civ_take + game_take) / civ_want);
             const double sol_want = soldiers * gd.need_per_person_per_day;
             const double sol_store = std::min(n.depot[g], sol_want);
             n.depot[g] -= sol_store;
@@ -357,6 +368,20 @@ void Simulation::economy_day() {
             const double more = std::min(n.stock[g], (1.0 - fed) * full_diet);
             n.stock[g] -= more;
             if (full_diet > 0) fed += more / full_diet;
+        }
+        if (n.game_capacity > 0) {
+            // The herd regrows toward what the country holds, and strays in from beyond the hunters' range.
+            const double room = 1.0 - n.game / n.game_capacity;
+            n.game = std::min(n.game_capacity, n.game + (p.game_regrowth * n.game + p.game_inflow * n.game_capacity) * room);
+            const double density = n.game / n.game_capacity;
+            if (density < 0.2 && !n.game_thin && n.hunted_total > 0.3 * n.game_capacity) {
+                n.game_thin = true;
+                log_.with({field("node", n.name), field("hunted", n.hunted_total), field("capacity", n.game_capacity)});
+                log_.add(world_.today, EventType::Famine, "game_thinned", id, strf("The game around %s is hunted out", n.name.c_str()),
+                         strf("hunters have taken %.0f head of beef-equivalent meat from country that held %.0f; the catch falls with it", n.hunted_total, n.game_capacity));
+            } else if (density > 0.5) {
+                n.game_thin = false;
+            }
         }
         for (std::size_t g = 0; g < world_.goods.size(); ++g) {
             n.stock[g] *= 1.0 - world_.goods[g].spoilage_per_day;

@@ -19,6 +19,7 @@ struct GoodDef {
     double food_share = 0;      // share of a person's diet (essential foods sum to 1)
     double spoilage_per_day = 0;
     bool self_propelled = false;  // walks to market (cattle): moved by drovers, not by freight wagons
+    bool game_substitute = false; // wild game stands in for this food where hunters can take it (beef)
     double min_target = 10;     // floor on a node's "normal stock", for goods nobody consumes
     double garrison_need = 0;   // extra daily need per soldier (horses, forage, repairs), beyond the per-person need
     bool money = false;         // dust and bullion pass as currency in the camps that mine it
@@ -60,6 +61,7 @@ struct NodeDef {
     // price justifies the freight, to places further off. Capacity is what the land, rainfall and water allow.
     double farmers = 0;          // farm population at the start (counted within `population`)
     double farm_capacity = 0;    // most farmers the surrounding land can carry
+    double game_capacity = 0;    // wild game within hunting range, in head of beef-equivalent meat (0 = none to speak of)
     double farm_yield = 1;       // 0..1.2: soil and rainfall; arid country yields less
     long farm_open = LONG_MIN;   // date the land opens to settlers (treaty, survey, railroad land grant)
     std::string climate;         // weather zone: neighbouring farms share droughts and locusts
@@ -124,6 +126,11 @@ struct Params {
     double pop_decline_rate = 0.03;          // fraction of the gap closed per day
     double hunger_alpha = 0.1;
     double hunger_threshold = 0.15;
+    // Hunting (simulation.cpp): some of a town's people live partly off game. It thins as the town grows and returns slowly.
+    double hunter_share = 0.03;              // share of the civilians who hunt for the table or the market
+    double hunter_catch = 0.04;              // meat a hunter brings in a day at full game density, in head of beef-equivalent (about 20 lb)
+    double game_regrowth = 0.0008;           // daily growth of the herd toward its capacity (about 30% a year when thinned)
+    double game_inflow = 0.00004;            // game drifting in from the surrounding country, as a share of capacity a day
     double deprivation_alpha = 0.03;         // how slowly the deprivation average follows unmet food need (about a month)
     double starvation_threshold = 0.30;      // deprivation above this starts killing people (below it they forage, tighten belts, leave)
     double starvation_max_rate = 0.005;      // daily death rate among the market-fed at total deprivation (about 30% in ten weeks)

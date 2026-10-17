@@ -106,6 +106,9 @@ struct Node {
     long last_shortage_log = -100000, last_pop_log = -100000;  // keep the log readable when a town hovers at a threshold
     int last_pop_dir = 0;
     bool ghost = false;
+    double game = 0, game_capacity = 0;   // wild game in hunting range (head of beef-equivalent), and what the country holds untouched
+    double hunted_total = 0;
+    bool game_thin = false;               // the herd has been hunted down (logged once per spell)
     bool starving = false;       // in a food shortage: the hunger average is high (nobody need have died yet)
     // Starvation (simulation.cpp). Deaths follow sustained deprivation, not a bad week: a slow average of unmet food need.
     // A famine is a spell of starvation that kills a real share of the town (famine_death_share).

@@ -73,6 +73,7 @@ WorldDef load_world(const std::string& dir) {
         g.food_share = jg.value("food_share", 0.0);
         g.spoilage_per_day = jg.value("spoilage_per_day", 0.0);
         g.self_propelled = jg.value("self_propelled", false);
+        g.game_substitute = jg.value("game_substitute", false);
         g.min_target = jg.value("min_target", 10.0);
         g.market_depth = jg.value("market_depth", 0.0);
         g.garrison_need = jg.value("garrison_need", 0.0);
@@ -104,6 +105,7 @@ WorldDef load_world(const std::string& dir) {
         n.garrison = jn.value("garrison", 0.0);
         n.farmers = jn.value("farmers", 0.0);
         n.farm_capacity = jn.value("farm_capacity", 0.0);
+        n.game_capacity = jn.value("game_capacity", 0.0);
         n.farm_yield = jn.value("farm_yield", 1.0);
         n.farm_open = date_or(jn, "farm_open", LONG_MIN);
         n.climate = jn.value("climate", "");
@@ -272,7 +274,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(price_elasticity); P_D(price_min_mult); P_D(price_max_mult); P_D(price_max_mult_producer); P_D(cover_days);
     P_D(stock_cap_days); P_D(spread); P_D(market_recovery); P_D(mishap_loss_fraction);
     P_D(support_income_per_person); P_D(income_ema_alpha); P_D(pop_growth_rate);
-    P_D(growth_cover_days); P_D(pop_decline_rate); P_D(hunger_alpha); P_D(deprivation_alpha); P_D(starvation_threshold); P_D(starvation_max_rate); P_D(famine_death_share); P_I(famine_end_days); P_D(hunger_threshold); P_D(floor_pop);
+    P_D(growth_cover_days); P_D(pop_decline_rate); P_D(hunger_alpha); P_D(hunter_share); P_D(hunter_catch); P_D(game_regrowth); P_D(game_inflow); P_D(deprivation_alpha); P_D(starvation_threshold); P_D(starvation_max_rate); P_D(famine_death_share); P_I(famine_end_days); P_D(hunger_threshold); P_D(floor_pop);
     P_D(ghost_pop); P_D(leaver_drifter_fraction); P_D(emigrant_cash_share); P_D(newcomer_provision_days); P_D(rush_provision_days); P_D(transient_inflow_rate);
     P_D(drifter_decay); P_D(law_tax_rate); P_D(visit_spend); P_D(garrison_pay_per_soldier); P_D(contract_backlog_days); P_D(quartermaster_share); P_I(quartermaster_interval_days); P_D(depot_floor_days); P_D(guard_visit_spend); P_D(visit_spend_value_rate);
     P_D(trader_capacity_lb); P_D(drover_fraction); P_D(trader_upkeep); P_D(guard_wage); P_I(guard_step);

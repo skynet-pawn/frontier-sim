@@ -143,6 +143,10 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     count_episodes("shortage", "shortage_over", r.shortages, r.shortage_towns, r.shortage_events);
     count_episodes("famine", "famine_over", r.famines, r.famine_towns, r.famine_events);
     r.starved = sim.starved_logged();
+    r.game_taken = sim.hunted_logged();
+    double game_now = 0, game_cap = 0;
+    for (std::size_t i = 0; i < N; ++i) { game_now += sim.world().nodes[i].game; game_cap += sim.world().nodes[i].game_capacity; }
+    r.game_left = game_cap > 0 ? game_now / game_cap : 1.0;
     r.ghost_towns = static_cast<int>(log.count_kind("ghost_town"));
 
     for (std::size_t i = 0; i < N; ++i) {
