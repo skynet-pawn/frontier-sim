@@ -45,7 +45,7 @@ Leader* Simulation::pick_leader(const Node& at, double travel_days, double budge
 void Simulation::try_form_posse(NodeId n) {
     const Params& p = world_.params;
     Node& nd = world_.nodes[World::idx(n)];
-    if (nd.fixed_market || nd.captor >= 0 || nd.outrage < p.posse_outrage_threshold) return;
+    if (nd.fixed_market || nd.captor >= 0 || nd.outrage < p.posse_outrage_threshold || world_.today < nd.posse_pause_until) return;
     // The angrier the town, the sooner it tries again: a town bled by robbers cannot wait out a long cooldown.
     const double cooldown = p.posse_cooldown / std::max(1.0, nd.outrage / p.posse_outrage_threshold);
     if (world_.today - nd.last_posse_day < cooldown) return;
@@ -55,6 +55,7 @@ void Simulation::try_form_posse(NodeId n) {
     double best = 0, target_dist = 0;
     for (const Gang& g : gangs_) {
         if (!g.active || g.hideout == n || g.robberies == 0) continue;
+        if (p.fame_stages && nd.region >= 0 && gang_known(g, nd.region) < p.fame_posse_min) continue;   // nobody here has heard of it
         const Edge& e = world_.edges[World::idx(g.edge)];
         const Node& a = world_.nodes[World::idx(e.a)];
         const Node& b = world_.nodes[World::idx(e.b)];
@@ -64,15 +65,43 @@ void Simulation::try_form_posse(NodeId n) {
     }
     if (!target) return;
 
+    // A town with no law has no fund and no officer. Its citizens may still turn out, paid from the town's cash, once
+    // their own people have been hurt; that is a vigilance committee, not a posse.
+    if (p.law_stages && nd.law == 0) {
+        const double civ = nd.market_population();
+        int committee = static_cast<int>(std::min<double>(p.posse_max_men_marshal, std::floor(civ / p.vigilance_pop_per_man)));
+        committee = std::min(committee, static_cast<int>(std::floor(nd.cash * 0.2 / p.vigilance_cost_per_man)));
+        if (p.gang_tiers) committee = std::min(committee, std::max(p.posse_min_men, static_cast<int>(std::ceil(p.law_overmatch * target->men))));
+        if (committee < p.posse_min_men) return;
+        const double days = std::ceil(target_dist / p.posse_speed) + 1;
+        nd.last_posse_day = world_.today;
+        Posse v;
+        v.id = next_posse_id_++;
+        v.kind = PosseKind::Vigilance;
+        v.origin = n;
+        v.men = committee;
+        v.gang_id = target->id;
+        v.days_left = days;
+        log_.with({field("node", nd.name), field("men", committee), field("gang", target->id)});
+        log_.add(world_.today, EventType::Law, "vigilance_formed", n,
+                 strf("Citizens of %s, which has no law, organize a vigilance committee of %d men against gang #%d (%d men) near the %s",
+                      nd.name.c_str(), committee, target->id, target->men, ename(target->edge).c_str()),
+                 strf("outrage %.1f over robberies on nearby trails and no marshal or sheriff to answer; the committee is paid from the town's cash", nd.outrage));
+        posses_.push_back(v);
+        return;
+    }
+    const int cap_men = (p.law_stages && nd.law == 1) ? p.posse_max_men_marshal : p.posse_max_men;
+
     // Staffing. Without a leader the town fields as many untrained men as its fund buys. A leader costs a
     // fee but multiplies their strength and lets the town field a smaller, trained force.
     const double travel_days = std::ceil(target_dist / p.posse_speed) + 1;
-    const int untrained = static_cast<int>(std::min<double>(p.posse_max_men, std::floor(nd.law_fund / p.posse_cost_per_man)));
+    const int untrained = static_cast<int>(std::min<double>(cap_men, std::floor(nd.law_fund / p.posse_cost_per_man)));
     double lead_days = 0, fee = 0;
     Leader* hire = pick_leader(nd, travel_days, nd.law_fund, p.posse_min_men_led * p.posse_cost_per_man, lead_days, fee);
     int men = untrained;
-    if (hire) men = static_cast<int>(std::min<double>(p.posse_max_men, std::floor((nd.law_fund - fee) / p.posse_cost_per_man)));
+    if (hire) men = static_cast<int>(std::min<double>(cap_men, std::floor((nd.law_fund - fee) / p.posse_cost_per_man)));
     else if (men < p.posse_min_men) return;
+    if (p.gang_tiers) men = std::min(men, std::max(p.posse_min_men, static_cast<int>(std::ceil(p.law_overmatch * target->men))));
 
     nd.last_posse_day = world_.today;
     nd.law_fund -= men * p.posse_cost_per_man + fee;
@@ -125,6 +154,7 @@ void Simulation::posse_day(Posse& q) {
         case PosseKind::Town:      who = "The posse from " + origin.name + led; break;
         case PosseKind::Vigilance: who = "The vigilance committee of " + origin.name + led; break;
         case PosseKind::Agency:    who = "The detectives hired by the " + (interest ? interest->name : std::string("owners")); break;
+        case PosseKind::Army:      who = "The cavalry detachment from " + origin.name; break;
     }
 
     Gang* g = find_gang(q.gang_id);
@@ -136,10 +166,14 @@ void Simulation::posse_day(Posse& q) {
         return;
     }
 
-    const double skill = leader ? leader->skill : (q.kind == PosseKind::Agency ? p.agency_skill : 1.0);
+    // Citizens are not fighters: a posse of shopkeepers and cowhands is worth a fraction of a hardened gang man, and how much
+    // varies from one posse to the next (some have a few ex-soldiers, some run at the first shot). A hired leader or
+    // professional detectives lift that; detectives are not citizens.
+    const double citizens = q.kind == PosseKind::Agency || q.kind == PosseKind::Army || !p.law_stages ? 1.0 : p.posse_base_skill * (0.5 + rng_.next_double());
+    const double skill = citizens * (leader ? leader->skill : (q.kind == PosseKind::Agency ? p.agency_skill : q.kind == PosseKind::Army ? p.army_skill : 1.0));
     const double terrain = q.kind == PosseKind::Vigilance ? 1.0 : p.gang_terrain_advantage;  // a town is home ground
     const double P = q.men * skill;
-    const double G = g->men * terrain;
+    const double G = (world_.params.gang_wars ? gang_strength(*g) * p.gang_hardness : g->men) * terrain;
     const bool wins = rng_.chance(P * P / (P * P + G * G));
     const std::string skill_note = skill != 1.0 ? strf(" x%.1f skill", skill) : std::string();
     const std::string odds =
@@ -155,21 +189,24 @@ void Simulation::posse_day(Posse& q) {
             origin.outrage = 0;
         }
         const char* verb = q.kind == PosseKind::Vigilance ? "destroy gang #%d and hang its boss, seizing %s"
-                           : q.kind == PosseKind::Agency  ? "run down gang #%d, recovering %s"
+                           : q.kind == PosseKind::Agency || q.kind == PosseKind::Army ? "run down gang #%d, recovering %s"
                                                           : "destroy gang #%d, seizing %s";
-        log_.with({field("origin", origin.name), field("gang", g->id), field("men", q.men), field("seized", seized), field("party", q.kind == PosseKind::Vigilance ? "vigilance" : q.kind == PosseKind::Agency ? "agency" : "posse")});
+        log_.with({field("origin", origin.name), field("gang", g->id), field("men", q.men), field("seized", seized), field("party", q.kind == PosseKind::Vigilance ? "vigilance" : q.kind == PosseKind::Agency ? "agency" : q.kind == PosseKind::Army ? "army" : "posse")});
         log_.add(world_.today, EventType::Law, "posse_victory", q.origin,
                  who + " " + strf(verb, g->id, money(seized).c_str()), odds);
         g->cash = 0;
+        if (q.kind == PosseKind::Vigilance && p.law_stages && origin.law == 0 && origin.captor < 0 && origin.market_population() >= p.law_marshal_min_pop)
+            set_law(q.origin, 1, "the committee that ran down the gang made its leader marshal");
         gang_dissolve(*g, q.kind == PosseKind::Vigilance ? "hanged by a vigilance committee"
                           : q.kind == PosseKind::Agency  ? "run down by hired detectives"
+                          : q.kind == PosseKind::Army    ? "ridden down by cavalry"
                                                          : "destroyed by a posse");
         if (leader) {
             pay_leader(*leader, bonus);
             ++leader->wins;
             leader->skill = std::min(p.leader_skill_cap, leader->skill + p.leader_skill_gain);  // experience
             release_leader(*leader, q.origin);
-        } else if (q.kind != PosseKind::Agency && rng_.chance(p.leader_emerge_chance)) {
+        } else if (q.kind != PosseKind::Agency && q.kind != PosseKind::Army && rng_.chance(p.leader_emerge_chance)) {
             // A man who carried himself well in the fight becomes someone other towns will hire.
             Leader ld;
             ld.id = next_leader_id_++;
@@ -185,19 +222,23 @@ void Simulation::posse_day(Posse& q) {
         return;
     }
 
+    gang_deed_region(*g, origin.region, p.fame_fight);
     const int losses = std::max(1, static_cast<int>(std::lround(g->men * 0.25)));
-    g->men -= losses;
+    gang_lose_men(*g, losses);
+    gang_fought(*g);
     bool found = false;
     for (auto& gr : g->grudge)
         if (gr.first == q.origin) { gr.second += 2; found = true; }
     if (!found) g->grudge.push_back({q.origin, 2.0});
+    origin.posse_pause_until = world_.today + p.posse_rout_pause;   // the dead are buried before the next muster
     std::string aftermath = strf("the gang lost %d but now avoids %s's trails", losses, origin.name.c_str());
-    if (q.kind == PosseKind::Vigilance) {
+    if (q.kind == PosseKind::Vigilance && origin.captor == g->id) {
         // Reprisal: the boss squeezes harder and the townspeople who backed the committee flee.
         g->tribute = std::min(p.tribute_cap, g->tribute + 0.1);
         const double fled = origin.population * 0.15;
         origin.population -= fled;
         origin.drifters += fled * 0.1;
+        note_drifters(DrifterFlow::Reprisal, fled * 0.1);
         aftermath = strf("the boss raised his take to %.0f%% and %.0f townspeople fled the reprisals", g->tribute * 100, fled);
     } else {
         origin.outrage *= 0.5;
@@ -233,11 +274,13 @@ bool Simulation::has_backup(NodeId n) const {
     if (std::find(nd.tags.begin(), nd.tags.end(), "state_capital") != nd.tags.end()) return true;
     for (const Node& post : world_.nodes)
         if (post.garrison >= 100 && dist(nd.x, nd.y, post.x, post.y) <= world_.params.backup_range * 0.4) return true;
+    // A town with no law of its own has no local officer to call the company in, so an interest must be close to count.
+    const double reach = (world_.params.law_stages && nd.law == 0) ? world_.params.backup_range * 0.4 : world_.params.backup_range;
     for (const Interest& in : interests_) {
         if (!interest_active(in)) continue;
         for (NodeId m : in.nodes) {
             const Node& o = world_.nodes[World::idx(m)];
-            if (dist(nd.x, nd.y, o.x, o.y) <= world_.params.backup_range) return true;
+            if (dist(nd.x, nd.y, o.x, o.y) <= reach) return true;
         }
     }
     return false;
@@ -300,8 +343,9 @@ void Simulation::interests_day() {
         const Edge& e = world_.edges[World::idx(target->edge)];
         const NodeId end = world_.route_days(in.hq, e.a) <= world_.route_days(in.hq, e.b) ? e.a : e.b;
         if (!world_.reachable(in.hq, end)) continue;
-        const int men = static_cast<int>(std::min<double>(p.agency_max_men, std::floor(in.fund * 0.7 / p.agency_cost_per_man)));
+        int men = static_cast<int>(std::min<double>(p.agency_max_men, std::floor(in.fund * 0.7 / p.agency_cost_per_man)));
         if (men < p.agency_min_men) continue;
+        if (p.gang_tiers) men = std::min(men, std::max(p.agency_min_men, static_cast<int>(std::ceil(p.law_overmatch * target->men))));
 
         in.fund -= men * p.agency_cost_per_man;
         Node& hq = world_.nodes[World::idx(in.hq)];  // the operatives' pay is spent where they are hired
@@ -330,6 +374,58 @@ void Simulation::interests_day() {
                       money(worst).c_str(), money(in.losses_total).c_str(), money(in.fund + men * p.agency_cost_per_man).c_str(),
                       world_.route_days(in.hq, end)));
         posses_.push_back(q);
+    }
+}
+
+// ---------------------------------------------------------------- law by stages
+
+void Simulation::set_law(NodeId id, int level, const std::string& cause) {
+    Node& n = world_.nodes[World::idx(id)];
+    if (level == n.law) return;
+    static const char* const names[] = {"no law", "a town marshal", "a county sheriff and deputies"};
+    const bool up = level > n.law;
+    n.law = level;
+    n.law_ready = n.law_lapse = 0;
+    log_.with({field("node", n.name), field("law", level), field("pop", n.market_population())});
+    log_.add(world_.today, EventType::Law, up ? "law_established" : "law_lapsed", id,
+             up ? strf("%s now has %s", n.name.c_str(), names[level]) : strf("%s is down to %s", n.name.c_str(), names[level]), cause);
+}
+
+// A camp gets law when it is big enough to need it for long enough, or has been hurt badly enough; a sheriff needs the
+// territory to be organized. Law lapses when the people leave. Money pays for law once it exists (the tax in end_of_day).
+void Simulation::law_day() {
+    const Params& p = world_.params;
+    for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
+        Node& n = world_.nodes[i];
+        if (n.fixed_market || !n.founded) continue;
+        const NodeId id = static_cast<NodeId>(i);
+        if (n.ghost) { if (n.law > 0) set_law(id, 0, "the town is empty"); continue; }
+        if (n.captor >= 0) continue;   // under a gang the officer is bought or gone: his office stays, but nothing changes
+        const double civ = n.market_population();
+        int want = 0;
+        if (civ >= p.law_marshal_pop || n.garrison > 0) want = 1;
+        if (civ >= p.law_sheriff_pop && world_.organized(n)) want = 2;
+        const bool hurt = civ >= p.law_marshal_min_pop && n.outrage >= p.law_marshal_outrage;
+        if (hurt && want < 1) want = 1;
+        if (want > n.law) {
+            n.law_lapse = 0;
+            const int need = hurt ? 0 : (n.law == 0 ? p.law_marshal_days : p.law_sheriff_days);
+            if (++n.law_ready > need) {
+                if (n.law + 1 == 1)
+                    set_law(id, 1, hurt ? strf("outrage %.1f over robberies and killings, and the citizens hire a marshal", n.outrage)
+                                        : strf("%.0f townspeople have outgrown a miners' meeting", civ));
+                else
+                    set_law(id, 2, strf("%.0f townspeople and the territory has organized a county; the sheriff opens an office", civ));
+            }
+        } else {
+            n.law_ready = 0;
+            const double hold = n.law == 2 ? p.law_sheriff_pop : p.law_marshal_pop;
+            if (n.law > 0 && n.garrison <= 0 && civ < 0.5 * hold) {
+                if (++n.law_lapse > p.law_lapse_days) set_law(id, n.law - 1, strf("only %.0f townspeople are left to pay him", civ));
+            } else {
+                n.law_lapse = 0;
+            }
+        }
     }
 }
 

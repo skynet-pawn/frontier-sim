@@ -103,6 +103,9 @@ WorldDef load_world(const std::string& dir) {
         n.capacity = jn.value("capacity", n.population);
         n.base_population = jn.value("base_population", 0.0);
         n.garrison = jn.value("garrison", 0.0);
+        n.region = jn.value("region", "");
+        n.law = jn.value("law", -1);
+        n.paper = jn.value("paper", -1);
         n.farmers = jn.value("farmers", 0.0);
         n.farm_capacity = jn.value("farm_capacity", 0.0);
         n.game_capacity = jn.value("game_capacity", 0.0);
@@ -157,6 +160,14 @@ WorldDef load_world(const std::string& dir) {
         w.nodes.push_back(std::move(n));
     }
 
+    if (wj.contains("regions"))
+        for (auto it = wj["regions"].begin(); it != wj["regions"].end(); ++it) {
+            if (it.key().empty() || it.key()[0] == '_') continue;
+            RegionDef r;
+            r.name = it.key();
+            r.organized = date_or(it.value(), "organized", LONG_MIN);
+            w.regions.push_back(r);
+        }
     for (const auto& je : wj.at("edges")) {
         EdgeDef e;
         const std::string a = je.at("a").get<std::string>(), b = je.at("b").get<std::string>();
@@ -215,6 +226,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
             GangSeed g;
             g.hideout = find_node(world.nodes, jg.at("hideout").get<std::string>(), "gang seed");
             g.men = jg.value("men", 8);
+            g.cells = jg.value("cells", 0);
             s.gangs.push_back(g);
         }
 
@@ -292,7 +304,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(support_income_per_person); P_D(income_ema_alpha); P_D(pop_growth_rate);
     P_D(growth_cover_days); P_D(pop_decline_rate); P_D(hunger_alpha); P_D(hunter_share); P_D(hunter_catch); P_D(game_regrowth); P_D(game_inflow); P_D(deprivation_alpha); P_D(starvation_threshold); P_D(starvation_max_rate); P_D(famine_death_share); P_I(famine_end_days); P_D(hunger_threshold); P_D(floor_pop);
     P_D(ghost_pop); P_D(leaver_drifter_fraction); P_D(emigrant_cash_share); P_D(newcomer_provision_days); P_D(rush_provision_days); P_D(transient_inflow_rate);
-    P_D(drifter_decay); P_D(law_tax_rate); P_D(visit_spend); P_D(garrison_pay_per_soldier); P_D(contract_backlog_days); P_D(quartermaster_share); P_I(quartermaster_interval_days); P_D(depot_floor_days); P_D(guard_visit_spend); P_D(visit_spend_value_rate);
+    P_D(drifter_decay); P_D(news_paper_pop); P_I(bush_stages); P_D(bush_rate); P_D(bush_take); P_D(bush_resident); P_D(bush_kill); P_D(bush_outrage_resident); P_D(bush_outrage_stranger); P_D(bush_seen); P_D(bush_notable); P_D(bush_notable_outrage); P_D(army_range); P_D(army_skill); P_I(news_stages); P_I(news_paper_days); P_D(news_speed); P_D(news_range); P_I(news_keep); P_D(news_fame); P_D(news_fame_cap); P_I(fame_stages); P_I(posse_rout_pause); P_D(posse_base_skill); P_I(gang_large_men); P_D(fame_robbery); P_D(fame_toll); P_D(fame_kill); P_D(fame_fight); P_D(fame_decay); P_D(fame_posse_min); P_D(fame_catch_floor); P_D(fame_catch_cap); P_D(fame_flee); P_D(fame_flee_trigger); P_D(fame_size_ref); P_D(gang_flee_range); P_D(law_presence_none); P_D(law_presence_marshal); P_D(law_tax_rate); P_I(law_stages); P_D(law_marshal_pop); P_I(law_marshal_days); P_D(law_marshal_min_pop); P_D(law_marshal_outrage); P_D(law_sheriff_pop); P_I(law_sheriff_days); P_I(law_lapse_days); P_I(posse_max_men_marshal); P_D(vigilance_cost_per_man); P_D(visit_spend); P_D(garrison_pay_per_soldier); P_D(contract_backlog_days); P_D(quartermaster_share); P_I(quartermaster_interval_days); P_D(depot_floor_days); P_D(guard_visit_spend); P_D(visit_spend_value_rate);
     P_D(trader_capacity_lb); P_D(drover_fraction); P_D(trader_upkeep); P_D(guard_wage); P_I(guard_step);
     P_I(max_guards); P_D(trader_base_defenders); P_D(guard_strength); P_D(assumed_gang_men);
     P_D(risk_prior); P_D(risk_prior_weight); P_D(risk_ema_alpha); P_D(fear_bump);
@@ -310,6 +322,12 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(gang_form_min_drifters); P_D(gang_form_chance); P_I(gang_review_days);
     P_D(gang_range_miles); P_D(fence_rate); P_D(fence_cash_share);
     P_D(gang_loss_when_repulsed);
+    P_I(gang_wars); P_D(gang_manageable_base); P_D(gang_veteran_fights); P_D(gang_veteran_hold); P_D(gang_veteran_strength);
+    P_D(gang_breakdown_rate); P_D(gang_breakdown_loss); P_I(gang_hard_max); P_D(gang_casualty_random);
+    P_D(gang_rival_fight_chance); P_D(gang_rival_loser_loss); P_D(gang_rival_winner_loss); P_D(gang_rival_loot_share);
+    P_D(gang_boss_fall_chance); P_D(gang_merge_chance); P_D(gang_win_competence); P_D(gang_hardness);
+    P_I(gang_tiers); P_D(fighter_turn_rate); P_D(fighter_decay); P_D(band_form_chance); P_I(band_min_men); P_I(band_max_men);
+    P_D(band_catch_base); P_I(band_merge_min_robberies); P_D(band_join_chance); P_D(band_join_range); P_D(gang_hire_below); P_I(gang_party_max); P_D(band_min_odds); P_D(band_petty_take); P_D(band_petty_catch); P_D(band_law_cap); P_D(law_overmatch);
     P_D(gang_carry_lb_per_man); P_D(gang_head_per_man); P_D(gang_min_take_per_man);
     P_D(gang_desperate_days); P_D(gang_desperate_floor_mult);
     P_D(interest_loss_decay); P_D(agency_loss_threshold); P_D(agency_min_fund); P_D(agency_cost_per_man);

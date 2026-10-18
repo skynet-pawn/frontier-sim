@@ -27,8 +27,10 @@ void Simulation::capture_progress(Gang& g, double spent) {
     if (g.influence < p.capture_threshold || g.men < p.capture_min_men || has_backup(g.hideout)) return;
 
     // The new boss is usually mediocre: skewed toward low competence.
-    const double u = rng_.next_double();
-    g.competence = 0.1 + 0.8 * u * u;
+    if (!p.gang_wars || g.competence <= 0) {  // with gang wars the boss is the man who has led the gang all along
+        const double u = rng_.next_double();
+        g.competence = 0.1 + 0.8 * u * u;
+    }
     g.tribute = p.tribute_base_min + p.tribute_spread * (1.0 - g.competence);
     g.ruling = g.hideout;
     h.captor = g.id;
@@ -69,7 +71,7 @@ void Simulation::rule_town(Gang& g) {
 
     if (rng_.chance(p.infight_rate * (1.0 - g.competence) * (1.0 - g.competence))) {
         const int killed = std::max(1, static_cast<int>(std::ceil(g.men * 0.3)));
-        g.men -= killed;
+        gang_lose_men(g, killed);
         g.competence *= 0.85;
         log_.with({field("gang", g.id), field("node", h.name), field("killed", killed), field("competence", g.competence)});
         log_.add(world_.today, EventType::Gang, "gang_infighting", g.ruling,

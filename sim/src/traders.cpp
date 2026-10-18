@@ -103,7 +103,7 @@ void Simulation::retire(Trader& t, const char* why, bool ruined) {
     if (t.house >= 0) ++house_exits_[ruined ? 1 : 0];
     if (ruined) {  // a failed freelancer is out of work and out of luck: raw material for a gang
         Node& n = world_.nodes[World::idx(t.at)];
-        if (!n.fixed_market) n.drifters += t.firm ? 3.0 : 1.0;
+        if (!n.fixed_market) { n.drifters += t.firm ? 3.0 : 1.0; note_drifters(DrifterFlow::FailedTraders, t.firm ? 3.0 : 1.0); }
     }
     t.alive = false;
     world_.record(MoneyFlow::TraderExit, -(t.cash + t.pending_spend));  // whatever he had (or owed) leaves with him
@@ -194,7 +194,7 @@ void Simulation::step_trader(Trader& t) {
         }
         for (int gid : edge_gangs_[World::idx(eid)]) {
             Gang* g = find_gang(gid);
-            if (g && g->active && rng_.chance(p.gang_encounter_prob))
+            if (g && g->active && rng_.chance(gang_contact_prob(*g)))
                 if (resolve_encounter(*g, t, eid) || !t.alive) return;
         }
     }

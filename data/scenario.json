@@ -10,8 +10,8 @@
   "capital_max": 4000,
 
   "gangs": [
-    { "hideout": "fort_griffin", "men": 8 },
-    { "hideout": "dodge_city", "men": 7 }
+    { "hideout": "fort_griffin", "men": 10, "cells": 3 },
+    { "hideout": "dodge_city", "men": 4 }
   ],
 
   "_leaders_note": "Fictional men for hire who can raise and train a posse; skill multiplies posse strength.",

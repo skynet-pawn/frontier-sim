@@ -59,6 +59,8 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         if (!n.fixed_market) r.pop_start_total += n.population;
     }
 
+    long gang_days = 0, gang_men_days = 0, gang_big_days = 0, sampled_days = 0, band_days = 0;
+    double lawless_days = 0;
     for (int d = 0; d < scenario.days; ++d) {
         sim.step();
         const int tc = static_cast<int>(sim.traders().size());
@@ -80,6 +82,23 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
             if (n.captor >= 0) ++o.days_ruled_by_gang;
         }
         check_invariants(sim, r);
+        if (sim.world().today >= sim.log_from()) {
+            for (const Gang& g : sim.gangs()) {
+                if (!g.active) continue;
+                ++gang_days;
+                gang_men_days += g.men;
+                gang_big_days += g.men >= 30;
+                band_days += sim.is_band_gang(g);
+            }
+            int towns = 0, lawless = 0;
+            for (const Node& n : sim.world().nodes) {
+                if (n.fixed_market || !n.founded || n.ghost) continue;
+                ++towns;
+                lawless += n.law == 0;
+            }
+            lawless_days += towns ? static_cast<double>(lawless) / towns : 0.0;
+            ++sampled_days;
+        }
     }
 
     r.hash = sim.log().hash();
@@ -116,6 +135,33 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.takeovers = static_cast<int>(log.count_kind("gang_takeover"));
     r.towns_freed = static_cast<int>(log.count_kind("town_freed"));
     r.infighting = static_cast<int>(log.count_kind("gang_infighting"));
+    r.gang_wars = static_cast<int>(log.count_kind("gang_war"));
+    r.gang_mergers = static_cast<int>(log.count_kind("gang_merged"));
+    r.gang_breakdowns = static_cast<int>(log.count_kind("gang_breakdown"));
+    r.gang_peak = sim.gang_peak_men();
+    for (int f = 0; f < static_cast<int>(DrifterFlow::Count); ++f) r.drifter_flow[f] = sim.drifter_flow(static_cast<DrifterFlow>(f));
+    r.gangs_ended = sim.gangs_ended();
+    r.gang_life_mean = sim.gangs_ended() ? sim.gang_days_lived() / sim.gangs_ended() : 0;
+    r.gang_size_mean = gang_days ? static_cast<double>(gang_men_days) / gang_days : 0;
+    r.gangs_active_mean = sampled_days ? static_cast<double>(gang_days) / sampled_days : 0;
+    r.gang_big_days = gang_big_days;
+    r.bands_mean = sampled_days ? static_cast<double>(band_days) / sampled_days : 0;
+    r.large_gangs_mean = sampled_days ? static_cast<double>(gang_days - band_days) / sampled_days : 0;
+    r.large_ended = sim.large_ended();
+    r.large_life_mean = sim.large_ended() ? sim.large_days_lived() / sim.large_ended() : 0;
+    for (int k = 0; k < 7; ++k) r.large_end[k] = sim.large_end(k);
+    for (const Node& n : sim.world().nodes) r.papers_end += n.paper;
+    r.papers_founded = static_cast<int>(log.count_kind("paper_founded"));
+    r.headlines = sim.headlines_printed();
+    r.bushwhacks = sim.bushwhacks();
+    r.bush_killed = sim.bush_killed();
+    r.bush_notable = sim.bush_notable();
+    r.cavalry_sent = static_cast<int>(log.count_kind("cavalry_sent"));
+    r.lawless_share = sampled_days ? lawless_days / sampled_days : 0;
+    r.law_established = static_cast<int>(log.count_kind("law_established"));
+    r.law_lapsed = static_cast<int>(log.count_kind("law_lapsed"));
+    r.band_catches = static_cast<int>(log.count_kind("band_caught"));
+    r.band_joins = static_cast<int>(log.count_kind("band_joined"));
     r.vigilance = static_cast<int>(log.count_kind("vigilance_formed"));
     r.waypoint_sales = static_cast<int>(log.count_kind("trade_waypoint"));
     // A town on the edge of food supply crosses the hunger thresholds again and again; that is one hungry

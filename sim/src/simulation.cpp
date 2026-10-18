@@ -52,7 +52,7 @@ Simulation::Simulation(const WorldDef& def, const Scenario& scenario)
         in.budget_per_day = d.budget_per_day; in.dues_rate = d.dues_rate; in.from = d.from; in.until = d.until;
         interests_.push_back(std::move(in));
     }
-    for (const GangSeed& g : sc_.gangs) create_gang(g.hideout, g.men, "seeded in scenario.json");
+    for (const GangSeed& g : sc_.gangs) create_gang(g.hideout, g.men, "seeded in scenario.json", g.cells);
 
     // Everything created so far is the starting stock of money, not a flow.
     for (double& f : world_.ledger) f = 0;
@@ -100,6 +100,7 @@ void Simulation::step() {
     houses_day();
     traders_day();
     crime_day();
+    news_day();
     end_of_day();
     ++world_.today;
 }
@@ -554,8 +555,20 @@ void Simulation::economy_day() {
             }
         }
 
-        if (n.transient_inflow) n.drifters += n.population * p.transient_inflow_rate;
+        if (n.transient_inflow) {
+            n.drifters += n.population * p.transient_inflow_rate;
+            note_drifters(DrifterFlow::Arrived, n.population * p.transient_inflow_rate);
+        }
+        note_drifters(DrifterFlow::Decay, n.drifters * p.drifter_decay);
         n.drifters *= 1.0 - p.drifter_decay;
+        if (p.gang_tiers) {  // a few idle men turn to crime; fighters who do not find a gang give up in time
+            const double turn = n.drifters * p.fighter_turn_rate;
+            n.drifters -= turn;
+            n.fighters += turn;
+            note_drifters(DrifterFlow::TurnedFighter, turn);
+            note_drifters(DrifterFlow::FighterDecay, n.fighters * p.fighter_decay);
+            n.fighters *= 1.0 - p.fighter_decay;
+        }
 
         update_population(id);
     }
@@ -607,6 +620,7 @@ void Simulation::update_population(NodeId id) {
         }
         n.population -= loss;
         n.drifters += loss * p.leaver_drifter_fraction;
+        note_drifters(DrifterFlow::BustLeavers, loss * p.leaver_drifter_fraction);
     }
     n.population = std::max(n.population, 0.0);
     n.peak_pop = std::max(n.peak_pop, n.population);
@@ -661,7 +675,7 @@ void Simulation::end_of_day() {
             for (double& press : n.pressure) press *= 1.0 - p_market_recovery;
             continue;
         }
-        const double tax = std::min(n.cash, n.inflow_today * p.law_tax_rate);
+        const double tax = (p.law_stages && n.law == 0) ? 0.0 : std::min(n.cash, n.inflow_today * p.law_tax_rate);   // no officer, nothing set aside
         n.cash -= tax;
         // Under a gang's rule the taxes go to the gang, not to the sheriff.
         Gang* boss = n.captor >= 0 ? find_gang(n.captor) : nullptr;
@@ -671,6 +685,7 @@ void Simulation::end_of_day() {
         n.income_peak = std::max(n.income_peak, n.income_ema);
         n.earned_total += n.inflow_today;
         n.outrage *= 1.0 - p.outrage_decay;
+        n.fear *= 1.0 - p.outrage_decay;
         n.inflow_today = 0;
     }
     for (Edge& e : world_.edges) {

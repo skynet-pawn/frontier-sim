@@ -91,9 +91,16 @@ struct Node {
     double earned_sales = 0, earned_visitors = 0, earned_government = 0, earned_total = 0;
     double hunger = 0;           // smoothed share of food need left unmet (the civilians', where a garrison is fed from the depot)
     double garrison_hunger = 0;  // the same for the soldiers: how far the depot and the shelf together fell short
-    double law_fund = 0;         // taxes set aside for sheriffs and posses
+    double law_fund = 0;         // taxes set aside for sheriffs and posses (a town with no law sets none aside)
+    int region = -1;             // index into World::regions; -1 outside any jurisdiction
+    int law = 2;                 // 0 none (a miners' meeting), 1 town marshal, 2 county sheriff and deputies
+    int law_ready = 0, law_lapse = 0;   // days the town has met the next stage's size, and days below its present stage's
+    int paper_streak = 0;        // days toward opening (or closing) a paper
+    int paper = 0;               // a newspaper prints here (news.cpp)
+    double fear = 0;             // townspeople's unease after strangers are robbed or killed nearby: small, and it fades
     double outrage = 0;          // local anger over robberies; triggers posses
-    double drifters = 0;         // idle armed men: the raw material of gangs
+    double drifters = 0;         // idle men: most find work or move on
+    double fighters = 0;         // the few who turn to crime and can fight: the raw material of bands and gangs
     double peak_pop = 0;
     // Residents who buy from the market. Farmers and ranchers around a town (base_population) grow most of
     // their own food, so only a fifth of them draw on the town's shelves.
@@ -104,6 +111,7 @@ struct Node {
     long captured_day = 0;
     double captured_income = 1;
     long last_posse_day = -100000;
+    long posse_pause_until = -100000;   // a town whose posse was routed does not send another for a while
     long last_shortage_log = -100000, last_pop_log = -100000;  // keep the log readable when a town hovers at a threshold
     int last_pop_dir = 0;
     bool ghost = false;
@@ -155,6 +163,9 @@ public:
     long today = 0;
     double ledger[kMoneyFlowCount] = {};   // signed running total per MoneyFlow
     std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
+    std::vector<std::string> region_names;   // jurisdictions (territories, states, reserves)
+    std::vector<long> region_organized;      // the day a region's county government begins
+    bool organized(const Node& n) const { return n.region < 0 || today >= region_organized[static_cast<std::size_t>(n.region)]; }
     std::vector<std::string> zone_names;     // weather zones
     std::vector<double> zone_yield;          // this year's yield multiplier per zone (1 = normal)
     double order_filled_value = 0, order_filled_units = 0;  // diagnostics: what traders have been paid for open orders

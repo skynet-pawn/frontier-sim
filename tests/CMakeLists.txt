@@ -11,6 +11,9 @@ frontier_test(action_test)
 frontier_test(farm_test)
 
 # Dev tool for hunting money leaks; not a test.
+add_executable(law_probe law_probe.cpp)
+target_link_libraries(law_probe PRIVATE frontier_sim)
+target_compile_definitions(law_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
 add_executable(audit_probe audit_probe.cpp)
 target_link_libraries(audit_probe PRIVATE frontier_sim)
 target_compile_definitions(audit_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")

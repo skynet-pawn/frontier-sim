@@ -54,6 +54,9 @@ struct NodeDef {
     bool fixed_market = false;      // an eastern market: fixed prices, unlimited cash and stock
     bool transient_inflow = false;  // railheads, camps, forts: where drifters collect
     std::vector<std::string> tags;
+    std::string region;             // the territory, state or reserve it lies in: law and news are regional
+    int law = -1;                   // law at the start: 0 none, 1 town marshal, 2 county sheriff and deputies (-1: from size)
+    int paper = -1;                 // 1 = a newspaper at the start, 0 none (-1: from size)
     std::vector<double> stock, fixed_price, reserve, extra_demand;
     std::vector<ProductionDef> production;
 
@@ -92,7 +95,15 @@ struct InterestDef {
     long from = LONG_MIN, until = LONG_MAX;
 };
 
+// A jurisdiction. Counties, courts and sheriffs exist only once the territory is organized; before that a camp has a
+// miners' meeting or a marshal its citizens hire (Deadwood in 1876 stood on Sioux treaty land with no legal government).
+struct RegionDef {
+    std::string name;
+    long organized = LONG_MIN;      // the day county government and sheriffs become possible
+};
+
 struct WorldDef {
+    std::vector<RegionDef> regions;
     std::vector<GoodDef> goods;
     std::vector<NodeDef> nodes;
     std::vector<EdgeDef> edges;
@@ -144,6 +155,56 @@ struct Params {
     double leaver_drifter_fraction = 0.15;   // share of people leaving a bust town who turn to drifting
     double transient_inflow_rate = 0.0004;   // drifters arriving per resident per day
     double drifter_decay = 0.01;
+    // Law by stages (law.cpp). A new camp has no law at all; a marshal comes when the town is big enough or has been hurt
+    // enough, a sheriff and deputies when the territory is organized and the town is a county seat in all but name.
+    // Money pays for law once it exists and makes posses better; it does not create it.
+    int law_stages = 1;
+    double law_marshal_pop = 150;            // civilians at which a town hires a marshal (after law_marshal_days of being that big)
+    int law_marshal_days = 120;
+    double law_marshal_min_pop = 60;         // a smaller camp hires one only after real outrage
+    double law_marshal_outrage = 3;
+    double law_sheriff_pop = 500;            // civilians at which the county puts a sheriff in an organized territory
+    int law_sheriff_days = 60;
+    int law_lapse_days = 240;                // a town this far below its threshold for this long loses its officer
+    int posse_max_men_marshal = 8;           // a marshal and a few citizens; a sheriff can swear in a full posse
+    double vigilance_cost_per_man = 4;       // a committee in a town with no law pays its men from the town's cash
+    // Infamy (crime.cpp). A region hunts only the gangs it has heard of; a gang that has become too well known where it works
+    // moves on to country that has not. Bigger gangs are noticed sooner.
+    double posse_base_skill = 0.6;           // what a citizen posse man is worth against a hardened gang man, on average (varies 0.5x to 1.5x)
+    int posse_rout_pause = 90;               // days a town waits to send another posse after losing one
+    int gang_large_men = 8;                  // a gang that ever had this many men counts as a large gang in the statistics
+    int fame_stages = 1;
+    double fame_robbery = 0.5, fame_toll = 0.15, fame_kill = 0.5, fame_fight = 0.3;   // what a deed adds in the regions it touches
+    double fame_decay = 0.005;               // daily fade: about 140 days to halve
+    double fame_posse_min = 1.0;             // a town raises a posse only against a gang its region knows at least this well
+    double fame_catch_floor = 0.3;           // a band nobody has heard of is caught at this share of the usual chance
+    double fame_catch_cap = 2.0;             // and at most this multiple, however famous
+    double fame_flee = 0.6;                  // weight of local fame against a trail's attraction
+    double fame_flee_trigger = 3.0;          // heat (fame x size) at which a gang leaves for fresh country
+    double fame_size_ref = 8;                // men at which a gang counts 1.5x for being noticed
+    double gang_flee_range = 450;            // miles a fleeing gang may move its hideout
+    double law_presence_none = 0.15, law_presence_marshal = 0.6;   // how much lawmen's reach counts where there is no law / a marshal (a sheriff counts 1)
+    // Bushwhacking (crime.cpp): a band also waylays lone men leaving the hideout town. A resident who is killed is missed or found,
+    // and that angers the town; a stranger passing through is noticed far less. A man with connections elsewhere can bring in the Army.
+    int bush_stages = 1;
+    double bush_rate = 0.02;                 // daily chance a band waylays someone
+    double bush_take = 80;                   // dollars a victim carries, at most, drawn from the town's cash
+    double bush_resident = 0.55;             // share of victims who live in the town (the rest are strangers: gamblers, drifters)
+    double bush_kill = 0.25;                 // chance the victim is killed
+    double bush_outrage_resident = 1.0;      // outrage a missed or found resident adds, doubled if he was killed
+    double bush_outrage_stranger = 0.05;     // a stranger's loss: fear more than anger
+    double bush_seen = 0.3;                  // chance a witness can name the gang
+    double bush_notable = 0.01;              // chance the victim is a man with connections elsewhere
+    double bush_notable_outrage = 4;
+    double army_range = 300;                 // miles within which a post sends a detachment after the murder of one of its own
+    double army_skill = 1.3;
+    int news_stages = 1;
+    int news_paper_days = 180;               // days a town must be big enough (or too small) before its paper opens (closes)
+    double news_speed = 60;                  // miles a day a story travels by wire, rail and rider
+    double news_range = 900;                 // miles a very big story carries (smaller stories carry less far)
+    int news_keep = 12;                      // headlines a paper's recent file holds
+    double news_fame = 0.4, news_fame_cap = 3.0;   // a gang's fame rises this much (times the story's weight) where a paper prints it
+    double news_paper_pop = 800;             // civilians at which a town supports a newspaper (news.cpp)
     double law_tax_rate = 0.02;              // share of local inflow set aside for law enforcement
     double garrison_pay_per_soldier = 0.45;  // $/day a soldier spends in the post town (sutlers, saloons, laundresses)
     double quartermaster_share = 0.7;        // share of a post's contract needs the Army's own trains deliver
@@ -261,7 +322,7 @@ struct Params {
     double gang_encounter_prob = 0.25;       // daily chance a gang on an edge meets a given trader
     double gang_upkeep = 0.6;                // $/man/day
     double gang_recruit_cost = 150;
-    int gang_min_men = 3;
+    int gang_min_men = 2;                    // below this a band is no band (it takes two to hold up a wagon)
     int gang_max_men = 30;                   // beyond this a band can't hide, feed itself or keep order
     double gang_form_min_drifters = 6;
     double gang_form_chance = 0.03;
@@ -270,6 +331,43 @@ struct Params {
     double fence_rate = 0.45;                // fraction of value a fence pays for stolen goods
     double fence_cash_share = 0.5;           // the fence can spend at most this share of its cash
     double gang_loss_when_repulsed = 0.3;
+    // Gang wars, veterans and the size a boss can hold together (crime.cpp). Off (0) gives the old model: a hard
+    // cap of gang_max_men, no fights between gangs, and every man counts the same in a fight. All rough guesses.
+    int gang_wars = 1;
+    double gang_manageable_base = 12;        // men a middling boss (competence 0.5) holds; a hopeless one holds half, a shrewd one twice
+    double gang_veteran_fights = 10;         // shootouts that make a man a veteran
+    double gang_veteran_hold = 0.5;          // men of manageable size each veteran adds (lieutenants who keep order)
+    double gang_veteran_strength = 1.5;      // a veteran counts for this many men in a fight
+    double gang_breakdown_rate = 0.02;       // daily chance of a breakdown times (men / manageable - 1) squared
+    double gang_breakdown_loss = 0.3;        // share of the men lost to a breakdown (half scatter as drifters, the rest are killed)
+    int gang_hard_max = 80;                  // recruiting stops here; the cost of each man rises with the gang's size well before
+    double gang_casualty_random = 0.25;      // share of casualties that fall on a random man instead of the least experienced
+    double gang_rival_fight_chance = 0.04;   // daily chance two gangs working the same trail fight
+    double gang_rival_loser_loss = 0.6;      // share of the loser's men lost
+    double gang_rival_winner_loss = 0.4;     // winner loses this times the loser's share of the combined strength
+    double gang_rival_loot_share = 0.5;      // share of the loser's cash the winner takes
+    double gang_boss_fall_chance = 0.5;      // chance the loser's boss falls, times the share of men the loser lost
+    double gang_merge_chance = 0.7;          // chance the winner takes the survivors of a gang whose boss fell
+    double gang_win_competence = 0.03;       // a boss who wins a fight is a little more respected
+    double gang_hardness = 1.3;              // a hardened gang's edge over a posse of townsmen, on top of terrain and veterans
+    // Two tiers (crime.cpp): small bands of 2 to 5 men from the idle men who can fight, and a few large organized gangs
+    // made of several bands that keep their own raiding parties. Off (0) gives one kind of gang formed straight from drifters.
+    int gang_tiers = 1;
+    double fighter_turn_rate = 0.006;        // daily share of idle men who turn to crime and become fighters (the rest find work, move on or starve)
+    double fighter_decay = 0.01;             // daily share of fighters who give up, leave, are jailed or die
+    double band_form_chance = 0.02;          // daily chance, at a town with at least band_min_men fighters, that some of them band together
+    int band_min_men = 2, band_max_men = 5;
+    double band_catch_base = 0.015;           // chance a hold-up by a band ends with lawmen catching it, times 1 plus the local law fund over law_deter_scale (up to band_law_cap)
+    double band_law_cap = 2;                 // most the law fund can multiply a band's chance of being caught
+    int band_merge_min_robberies = 2;        // a band must have pulled this many jobs without being caught before a gang will have it
+    double band_join_chance = 0.5;           // chance, at each ten-day review, that a successful band joins a gang in reach
+    double band_join_range = 150;            // miles between hideouts within which bands and gangs find each other
+    double gang_hire_below = 1.0;            // a gang takes in bands only while it is under this share of what its boss can hold
+    double band_petty_take = 0.5;            // $ a man a day a band lifts from its hideout town (pilfering, lone travellers, small hold-ups)
+    double band_petty_catch = 0.002;         // daily chance lawmen catch a band at its petty work, times 1 plus the town law fund over law_deter_scale
+    double band_min_odds = 0.65;            // a raiding party only stops a wagon it expects to beat (soft targets only)
+    double law_overmatch = 2;                // a posse or detective party is sized to about this many times the gang's men (the law knows roughly how big a gang is), within what it can pay for
+    int gang_party_max = 5;                  // men in one raiding party; a bigger gang works as several parties on the same trail
     // What a gang can carry off, and whether a stop is worth it. A rider takes what fits on his saddle, so cheap bulk
     // (flour, timber) is never worth a fight while gold, ammunition and whiskey are. All rough; tune from the runs.
     double gang_carry_lb_per_man = 60;       // lb a rider can take off a wagon
@@ -277,27 +375,27 @@ struct Params {
     double gang_min_take_per_man = 5;        // $ a stop must yield per man before the gang bothers
     double gang_desperate_days = 5;          // days of cash on hand below which a gang takes whatever it can get
     double gang_desperate_floor_mult = 0.2;  // a desperate gang's floor (and it will take food)
-    double law_deter_scale = 1500;           // law fund at which a town halves a gang's interest
+    double law_deter_scale = 4000;           // law fund at which a town halves a gang's interest
 
     // Law.
     double outrage_per_robbery = 1.0;
     double outrage_decay = 0.03;
-    double posse_outrage_threshold = 2.0;
+    double posse_outrage_threshold = 8.0;   // a frontier town puts up with a good deal before it sends men out
     double posse_cost_per_man = 25;
     int posse_min_men = 6, posse_max_men = 25;
     double posse_speed = 25;
-    int posse_cooldown = 30;                 // days; shortened further when outrage is well above the threshold
+    int posse_cooldown = 120;                // days; shortened further when outrage is well above the threshold
     double posse_range = 200;
     double gang_terrain_advantage = 1.3;
 
     // Private interests and the detectives they hire.
     double interest_loss_decay = 0.02;       // per day: old losses are forgotten
-    double agency_loss_threshold = 1500;     // recent losses at which an interest hires detectives
+    double agency_loss_threshold = 6000;     // recent losses at which an interest hires detectives
     double agency_min_fund = 2500;
     double agency_cost_per_man = 60;
-    int agency_min_men = 8, agency_max_men = 40;
-    double agency_skill = 1.8;               // professionals: strength multiplier
-    int agency_cooldown = 90;
+    int agency_min_men = 4, agency_max_men = 12;   // a handful of operatives, not an army
+    double agency_skill = 1.5;               // professionals: strength multiplier
+    int agency_cooldown = 365;
     double backup_range = 250;               // miles: an interest this close counts as backing the local law
 
     // Town capture by gangs.
@@ -376,6 +474,7 @@ struct CampaignDef {
 struct GangSeed {
     NodeId hideout = -1;
     int men = 8;
+    int cells = 0;               // raiding parties it is made of (0: as many as its size needs)
 };
 
 struct LeaderSeed {

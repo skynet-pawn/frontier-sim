@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -93,10 +94,24 @@ struct SupplyContract {
 };
 
 // A band of outlaws, treated as one object with a headcount.
+// Where idle armed men come from and go to, so the gang cycle can be audited: the pool of drifters is fed by arrivals and by
+// failure, and drained by decay (they find work, die or leave) and by gangs forming. Gang numbers add the rest.
+enum class DrifterFlow {
+    Arrived, BustLeavers, FarmLeavers, FailedTraders, Reprisal, GangScatter, BreakdownScatter, ReturnedUnformed,   // into the pool
+    Decay, FormedGang,                                                                                              // out of it
+    TurnedFighter, FighterDecay,                                                                                    // drifters who turn to crime; fighters who give up
+    GangRecruited,                                                                                                  // into gangs from nowhere
+    GangLosses, GangVanished,                                                                                       // out of gangs for good
+    Count
+};
+const char* drifter_flow_name(DrifterFlow f);
+
 struct Gang {
     int id = 0;
     bool active = true;
     int men = 0;
+    int cells = 1;               // raiding parties: it robs as several parties of a few men each, and fights as one body
+    std::vector<int> fights;     // shootouts each man has survived (same length as men; see gang_add_men / gang_lose_men)
     double cash = 0;
     EdgeId edge = -1;            // where it is currently waiting for traffic
     NodeId hideout = -1;         // town that fences its loot and sells it supplies
@@ -111,9 +126,44 @@ struct Gang {
     double influence = 0;        // grows with money spent in the hideout town relative to its economy
     double last_spend = 0;
     NodeId ruling = -1;          // the town this gang runs, if any
-    double competence = 0;       // how well the boss runs a town: 0 hopeless .. 1 shrewd
+    double competence = 0;       // how well the boss holds men together and runs a town: 0 hopeless .. 1 shrewd
     double tribute = 0;          // share of the town's inflow taken
     bool controlled = false;     // moves only when told to (act_gang_relocate)
+
+    // Infamy. How well each jurisdiction knows this gang's name and deeds (index = region). Witnesses make it locally; the
+    // papers carry it to other regions after a delay (news.cpp). A region that has never heard of a gang does not hunt it.
+    std::vector<float> known;
+    int peak = 0;                // most men it ever had
+    bool fleeing = false;        // the next review may range far afield: the heat here is too much
+};
+
+// One line in a newspaper. `gang` is the outlaw gang it names (its fame rises where the story is read), -1 if none.
+struct Headline {
+    long day = 0;
+    NodeId node = -1;            // where it happened
+    std::string kind;            // the log entry it came from
+    std::string text;
+    int gang = -1;
+    double weight = 0.5;         // how far and how loudly it travels
+    bool crime = false;          // an outlaw's deed (raises the gang's fame where it is read)
+};
+struct NewsDelivery {
+    long due = 0;
+    NodeId paper = -1;
+    std::shared_ptr<const Headline> headline;
+};
+
+// A man robbed (and maybe killed) on a lonely road near a band's hideout, whose fate is not yet known to anyone. Residents
+// and well-connected men are missed and found; strangers pass unremarked. `outrage` is what the report will add.
+struct Bushwhack {
+    long due = 0;                // the day he is missed or found
+    NodeId town = -1;            // where his people live
+    EdgeId edge = -1;
+    int gang = -1;               // set only if someone saw who did it
+    bool killed = false;
+    bool notable = false;        // a man with connections elsewhere (an officer, a mine owner, an express agent)
+    double outrage = 0;
+    std::string who;
 };
 
 // A leader for hire: someone who can raise, train and organize a posse. From the simulation's point of
@@ -130,7 +180,7 @@ struct Leader {
     int jobs = 0, wins = 0;
 };
 
-enum class PosseKind { Town, Vigilance, Agency };
+enum class PosseKind { Town, Vigilance, Agency, Army };
 
 // A private interest with money and reach (see InterestDef).
 struct Interest {
@@ -192,6 +242,25 @@ public:
     const EventLog& log() const { return log_; }
     const std::vector<Trader>& traders() const { return traders_; }
     const std::vector<Gang>& gangs() const { return gangs_; }
+    int gang_peak_men() const { return gang_peak_men_; }
+    bool is_band_gang(const Gang& g) const { return is_band(g); }
+    double drifter_flow(DrifterFlow f) const { return drifter_flow_[static_cast<std::size_t>(f)]; }
+    long gangs_ended() const { return gangs_ended_; }
+    // The headlines a town's paper has printed lately, oldest first (empty if it has none).
+    const std::vector<std::shared_ptr<const Headline>>& paper_headlines(NodeId n) const {
+        static const std::vector<std::shared_ptr<const Headline>> none;
+        return static_cast<std::size_t>(n) < papers_.size() ? papers_[static_cast<std::size_t>(n)] : none;
+    }
+    long headlines_printed() const { return headlines_printed_; }
+    long bushwhacks() const { return bushwhacks_; }
+    long bush_killed() const { return bush_killed_; }
+    long bush_notable() const { return bush_notable_; }
+    long large_ended() const { return large_ended_; }
+    double large_days_lived() const { return large_days_lived_; }
+    int large_end(int k) const { return large_end_[k]; }
+    double gang_days_lived() const { return gang_days_lived_; }
+    int veterans_of(const Gang& g) const { return gang_veterans(g); }
+    double manageable_of(const Gang& g) const { return gang_manageable(g); }
     const std::vector<Posse>& posses() const { return posses_; }
     const std::vector<Leader>& leaders() const { return leaders_; }
     const std::vector<Interest>& interests() const { return interests_; }
@@ -348,12 +417,44 @@ private:
     bool gang_desperate(const Gang& g) const;
     void gang_day(Gang& g);
     void gang_review(Gang& g);
+    void bushwhack(Gang& g);
+    void bushwhack_reports();
+    void send_cavalry(NodeId near_to, Gang& g, const std::string& why);
+    void gang_review_pick(Gang& g);
+    // Infamy and flight (crime.cpp).
+    double gang_known(const Gang& g, int region) const { return region >= 0 && static_cast<std::size_t>(region) < g.known.size() ? g.known[static_cast<std::size_t>(region)] : 0.0; }
+    void gang_deed_region(Gang& g, int region, double weight);
+    void gang_deed_edge(Gang& g, EdgeId e, double weight);
+    double gang_heat(const Gang& g, EdgeId e) const;
+    double law_presence(const Node& n) const;
     void gang_dissolve(Gang& g, const char* why);
+    // Gang wars and veterans (crime.cpp).
+    void gang_add_men(Gang& g, int n, int fights = 0);
+    void gang_lose_men(Gang& g, int n);
+    int gang_veterans(const Gang& g) const;
+    double gang_strength(const Gang& g) const;     // men, with veterans counting for more
+    double gang_manageable(const Gang& g) const;   // how many men this boss can hold together
+    void gang_fought(Gang& g);                     // every survivor has been in another shootout
+    void gang_breakdown_check(Gang& g);
+    void gang_wars_day();
+    void gang_fix_cells(Gang& g);
+    void gang_absorb(Gang& host, Gang& other);
+    void gang_try_join(Gang& g);
+    void band_catch_check(Gang& g, EdgeId e, double base = -1);
+    void try_form_band(NodeId n);
+    void scatter_men(NodeId at, double n, DrifterFlow why);
+    bool is_band(const Gang& g) const { return g.ruling < 0 && g.men <= world_.params.band_max_men; }
+    double gang_contact_prob(const Gang& g) const;
+    void gang_war(Gang& a, Gang& b, EdgeId e);
     void try_form_gang(NodeId n);
-    void create_gang(NodeId hideout, int men, const char* cause);
+    void create_gang(NodeId hideout, int men, const char* cause, int cells = 0);
     double gang_edge_score(const Gang& g, EdgeId e) const;
     double grudge_of(const Gang& g, NodeId n) const;
     void try_form_posse(NodeId n);
+    void law_day();
+    void news_day();
+    bool make_headline(const Event& e, Headline& h) const;
+    void set_law(NodeId n, int level, const std::string& cause);
     Leader* pick_leader(const Node& at, double travel_days, double budget, double reserve, double& lead_days, double& fee);
     void interests_day();
     bool interest_active(const Interest& in) const;
@@ -399,6 +500,21 @@ private:
     std::vector<Posse> posses_;
     std::vector<Leader> leaders_;
     std::vector<Interest> interests_;
+    int gang_peak_men_ = 0;                    // the largest gang seen so far
+    double drifter_flow_[static_cast<std::size_t>(DrifterFlow::Count)] = {};
+    std::vector<std::vector<std::shared_ptr<const Headline>>> papers_;   // per node: what its paper has printed lately
+    std::vector<NewsDelivery> news_queue_;
+    std::vector<NodeId> paper_nodes_;
+    std::vector<Bushwhack> bush_pending_;
+    long bushwhacks_ = 0, bush_killed_ = 0, bush_notable_ = 0;
+    std::size_t news_cursor_ = 0;              // next log entry to consider for a headline
+    long headlines_printed_ = 0;
+    long large_ended_ = 0;                     // gangs that ever reached 6 men, how long they lasted, and how they ended
+    double large_days_lived_ = 0;
+    int large_end_[7] = {};
+    long gangs_ended_ = 0;                     // gangs that broke up, and the days they lasted
+    double gang_days_lived_ = 0;
+    void note_drifters(DrifterFlow f, double n) { drifter_flow_[static_cast<std::size_t>(f)] += n; }
     std::vector<std::vector<int>> edge_gangs_;  // gang ids per edge, rebuilt daily
     int next_trader_id_ = 1, next_gang_id_ = 1, next_posse_id_ = 1, next_leader_id_ = 1;
     double avg_profit_ema_ = 0;

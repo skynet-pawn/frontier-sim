@@ -9,6 +9,7 @@ add_library(frontier_sim STATIC
     src/jobs.cpp
     src/law.cpp
     src/merchants.cpp
+    src/news.cpp
     src/rng.cpp
     src/simulation.cpp
     src/stats.cpp

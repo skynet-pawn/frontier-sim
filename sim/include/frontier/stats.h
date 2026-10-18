@@ -39,6 +39,24 @@ struct RunStats {
     int robberies = 0, tolls = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
     int posses = 0, posse_victories = 0, posse_routs = 0, leaders_killed = 0, leaders_emerged = 0;
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
+    double drifter_flow[16] = {};   // men, whole run (warm-up included)
+    long gangs_ended = 0;
+    double gang_life_mean = 0;                                  // mean days a gang lasts
+    long large_ended = 0;                                       // gangs that ever reached 6 men and broke up, and how: law, money, rivals, quarrels, freighters, other
+    double large_life_mean = 0;
+    int large_end[7] = {};
+    int papers_end = 0, papers_founded = 0;
+    long bushwhacks = 0, bush_killed = 0, bush_notable = 0;
+    int cavalry_sent = 0;
+    long headlines = 0;
+    double lawless_share = 0;                                   // mean share of towns with no law at all, per day since the log began
+    int law_established = 0, law_lapsed = 0;
+    double bands_mean = 0, large_gangs_mean = 0;                // bands (5 men or fewer) and larger gangs on the road, mean a day since the log began
+    int band_catches = 0, band_joins = 0;
+    int gang_wars = 0, gang_mergers = 0, gang_breakdowns = 0;   // fights between gangs, a winner taking in a beaten gang, big bands quarrelling apart
+    int gang_peak = 0;                                          // the largest gang at any time
+    double gangs_active_mean = 0, gang_size_mean = 0;           // per day since the log began: gangs on the road, and men per gang
+    long gang_big_days = 0;                                     // gang-days spent at 30 or more men
     int merchant_orders = 0, orders_expired = 0, convoys_hired = 0;
     int contracts_signed = 0, contracts_cancelled = 0;
     int jobs_taken = 0, jobs_delivered = 0;

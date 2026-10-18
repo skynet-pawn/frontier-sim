@@ -12,6 +12,7 @@
 #include "frontier/date.h"
 #include "frontier/format.h"
 #include "frontier/stats.h"
+#include "frontier/simulation.h"
 
 namespace {
 
@@ -137,6 +138,33 @@ int main(int argc, char** argv) {
         row("tolls (gang took part of a load)", runs, [](const RunStats& r) { return double(r.tolls); });
         row("  of them over $1,500", runs, [](const RunStats& r) { return double(r.robberies_over_1500); });
         row("gangs formed", runs, [](const RunStats& r) { return double(r.gangs_formed); });
+        row("gangs on the road (mean a day)", runs, [](const RunStats& r) { return r.gangs_active_mean; });
+        row("  of them small bands (5 men or fewer)", runs, [](const RunStats& r) { return r.bands_mean; });
+        row("  of them larger gangs", runs, [](const RunStats& r) { return r.large_gangs_mean; });
+        row("  bands caught by lawmen", runs, [](const RunStats& r) { return double(r.band_catches); });
+        row("  bands joining a gang", runs, [](const RunStats& r) { return double(r.band_joins); });
+        row("  men per gang (mean)", runs, [](const RunStats& r) { return r.gang_size_mean; });
+        row("  largest gang ever", runs, [](const RunStats& r) { return double(r.gang_peak); });
+        row("  gang-days at 30+ men", runs, [](const RunStats& r) { return double(r.gang_big_days); });
+        row("  fights between gangs", runs, [](const RunStats& r) { return double(r.gang_wars); });
+        row("  gangs taken in by a winner", runs, [](const RunStats& r) { return double(r.gang_mergers); });
+        row("  big bands quarrelling apart", runs, [](const RunStats& r) { return double(r.gang_breakdowns); });
+        row("large gangs that broke up (ever 8+ men)", runs, [](const RunStats& r) { return static_cast<double>(r.large_ended); });
+        row("  mean days such a gang lasted", runs, [](const RunStats& r) { return r.large_life_mean; });
+        static const char* const kEnd[7] = {"to a posse, vigilance or detectives", "out of money", "to a rival gang", "to quarrels", "to armed freighters", "other", "caught by lawmen (as a band)"};
+        for (int k = 0; k < 7; ++k) row((std::string("    ended ") + kEnd[k]).c_str(), runs, [k](const RunStats& r) { return static_cast<double>(r.large_end[k]); });
+        row("newspapers open at the end / founded in the run", runs, [](const RunStats& r) { return static_cast<double>(r.papers_end); });
+        row("  papers founded", runs, [](const RunStats& r) { return static_cast<double>(r.papers_founded); });
+        row("  headlines printed (all papers)", runs, [](const RunStats& r) { return static_cast<double>(r.headlines); });
+        row("bushwhackings (lone men waylaid) / killed / notable", runs, [](const RunStats& r) { return static_cast<double>(r.bushwhacks); });
+        row("  killed", runs, [](const RunStats& r) { return static_cast<double>(r.bush_killed); });
+        row("  notable victims (cavalry sent: see next row)", runs, [](const RunStats& r) { return static_cast<double>(r.bush_notable); });
+        row("  cavalry detachments sent", runs, [](const RunStats& r) { return static_cast<double>(r.cavalry_sent); });
+        row("towns with no law (mean share of days)", runs, [](const RunStats& r) { return r.lawless_share; });
+        row("  law offices opened / closed", runs, [](const RunStats& r) { return static_cast<double>(r.law_established); });
+        row("  mean days a gang lasts", runs, [](const RunStats& r) { return r.gang_life_mean; });
+        for (int f = 0; f < static_cast<int>(frontier::DrifterFlow::Count); ++f)
+            row((std::string("  men: ") + frontier::drifter_flow_name(static_cast<frontier::DrifterFlow>(f))).c_str(), runs, [f](const RunStats& r) { return r.drifter_flow[f]; });
         row("posses raised", runs, [](const RunStats& r) { return double(r.posses); });
         row("  posse victories", runs, [](const RunStats& r) { return double(r.posse_victories); });
         row("  posses routed", runs, [](const RunStats& r) { return double(r.posse_routs); });
@@ -283,12 +311,12 @@ int main(int argc, char** argv) {
 
         if (!csv.empty()) {
             std::ofstream f(csv);
-            f << "seed,hash,traders_min,traders_end,robberies,gangs_formed,posses,posse_victories,posse_routs,detectives,takeovers,freed,vigilance,famines,ghost_towns,pop_start,pop_end,money_end,east_buys,east_sells,emigrated,richest_cash,famine_towns,famine_events,shortages,shortage_events,shortage_towns,starved,game_taken,game_left,contracts_signed,contracts_cancelled,contract_revenue,contract_outlay,jobs_delivered,job_pay,job_lost\n";
+            f << "seed,hash,traders_min,traders_end,robberies,gangs_formed,posses,posse_victories,posse_routs,detectives,takeovers,freed,vigilance,famines,ghost_towns,pop_start,pop_end,money_end,east_buys,east_sells,emigrated,richest_cash,famine_towns,famine_events,shortages,shortage_events,shortage_towns,starved,game_taken,game_left,contracts_signed,contracts_cancelled,contract_revenue,contract_outlay,jobs_delivered,job_pay,job_lost,gangs_active_mean,gang_size_mean,gang_peak,gang_big_days,gang_wars,gang_mergers,gang_breakdowns\n";
             for (const RunStats& r : runs)
                 f << r.seed << ',' << r.hash << ',' << r.traders_min << ',' << r.traders_end << ',' << r.robberies << ',' << r.gangs_formed << ',' << r.posses << ','
                   << r.posse_victories << ',' << r.posse_routs << ',' << r.detective_parties << ',' << r.takeovers << ',' << r.towns_freed << ',' << r.vigilance << ','
                   << r.famines << ',' << r.ghost_towns << ',' << r.pop_start_total << ',' << r.pop_end_total << ',' << r.money_end << ',' << r.east_buys << ','
-                  << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << ',' << r.shortages << ',' << r.shortage_events << ',' << r.shortage_towns << ',' << r.starved << ',' << r.game_taken << ',' << r.game_left << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << ',' << r.jobs_delivered << ',' << r.job_pay << ',' << r.job_lost << '\n';
+                  << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << ',' << r.shortages << ',' << r.shortage_events << ',' << r.shortage_towns << ',' << r.starved << ',' << r.game_taken << ',' << r.game_left << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << ',' << r.jobs_delivered << ',' << r.job_pay << ',' << r.job_lost << ',' << r.gangs_active_mean << ',' << r.gang_size_mean << ',' << r.gang_peak << ',' << r.gang_big_days << ',' << r.gang_wars << ',' << r.gang_mergers << ',' << r.gang_breakdowns << '\n';
         }
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());

@@ -165,6 +165,7 @@ void Simulation::farms_day() {
             n.farmers -= leave;
             n.population = std::max(0.0, n.population - leave);
             n.drifters += leave * p.leaver_drifter_fraction;  // some give up the land and go looking for work
+            note_drifters(DrifterFlow::FarmLeavers, leave * p.leaver_drifter_fraction);
         }
 
         // The grain comes in over the harvest and goes to market through the year.

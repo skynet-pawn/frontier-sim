@@ -35,8 +35,14 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         if (goods[g].id == "forage") forage_good = static_cast<GoodId>(g);
         if (goods[g].money && money_good < 0) money_good = static_cast<GoodId>(g);
     }
+    for (const RegionDef& r : def.regions) { region_names.push_back(r.name); region_organized.push_back(r.organized); }
     for (const NodeDef& d : def.nodes) {
         Node n;
+        if (!d.region.empty()) {
+            auto it = std::find(region_names.begin(), region_names.end(), d.region);
+            if (it == region_names.end()) { region_names.push_back(d.region); region_organized.push_back(LONG_MIN); it = region_names.end() - 1; }
+            n.region = static_cast<int>(it - region_names.begin());
+        }
         n.id = d.id; n.name = d.name; n.kind = d.kind;
         n.x = d.x; n.y = d.y;
         n.fixed_market = d.fixed_market;
@@ -89,6 +95,14 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.income_ema = n.fixed_market ? 0 : std::max(0.0, n.population - n.base_population - n.farmers - n.garrison) * p.support_income_per_person;
         n.income_peak = n.income_ema;
         n.peak_pop = n.population;
+        // The law a place has on the first day: the stated level, else by size. An eastern market is fully policed, a
+        // post has its provost guard, and a camp too small or too new for a marshal has none.
+        if (d.law >= 0) n.law = d.law;
+        else if (!p.law_stages || n.fixed_market) n.law = 2;
+        else if (n.market_population() >= p.law_sheriff_pop && organized(n)) n.law = 2;
+        else if (n.market_population() >= p.law_marshal_pop || n.garrison > 0) n.law = 1;
+        else n.law = 0;
+        n.paper = d.paper >= 0 ? d.paper : (n.market_population() >= p.news_paper_pop ? 1 : 0);
         nodes.push_back(std::move(n));
     }
     for (const EdgeDef& d : def.edges) {
