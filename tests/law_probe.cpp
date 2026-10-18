@@ -1,4 +1,5 @@
 // Dev tool: prints each town's law level, region and civilians on the first day and every N days after.
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 
@@ -16,9 +17,9 @@ int main(int argc, char** argv) {
             std::printf("%s\n", frontier::format_date(sim.world().today).c_str());
             for (const auto& n : sim.world().nodes)
                 if (!n.fixed_market)
-                    std::printf("  %-18s region %-16s law %d paper %d civ %7.0f outrage %.1f fund %.0f\n", n.name.c_str(),
+                    std::printf("  %-18s region %-16s law %d paper %d civ %7.0f income/day %8.0f flag %d outrage %.1f fund %.0f\n", n.name.c_str(),
                                 n.region >= 0 ? sim.world().region_names[static_cast<std::size_t>(n.region)].c_str() : "-", n.law, n.paper,
-                                n.market_population(), n.outrage, n.law_fund);
+                                n.market_population(), n.income_ema, n.transient_inflow ? 1 : 0, n.outrage, n.law_fund);
         }
         sim.step();
     }

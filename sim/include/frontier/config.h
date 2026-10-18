@@ -154,6 +154,17 @@ struct Params {
     double emigrant_cash_share = 0.8;        // share of a town's cash that leaves with its departing residents
     double leaver_drifter_fraction = 0.15;   // share of people leaving a bust town who turn to drifting
     double transient_inflow_rate = 0.0004;   // drifters arriving per resident per day
+    // Where outlaws come from. With crime_source 1 every frontier town draws idle men in proportion to its people, and the men
+    // there turn to crime in proportion to the money moving through it per head and how little law it has (a gold camp or a
+    // railhead breeds outlaws; a county seat with a sheriff or a poor farm village barely does). The factors are soft weights,
+    // never gates. 0 uses the old hand-set transient_inflow flag.
+    int crime_source = 1;
+    double crime_source_scale = 4.0;         // rescales the whole rule so the 31-node map keeps its calibrated crime
+    double crime_income_ref = 1.0;           // town income per head per day that counts as rich ($)
+    double crime_income_floor = 0.25;        // what a town with no money flowing still draws
+    double crime_law_none = 1.0;             // draw by law level: none, marshal, sheriff
+    double crime_law_marshal = 0.5;
+    double crime_law_sheriff = 0.15;
     double drifter_decay = 0.01;
     // Law by stages (law.cpp). A new camp has no law at all; a marshal comes when the town is big enough or has been hurt
     // enough, a sheriff and deputies when the territory is organized and the town is a county seat in all but name.

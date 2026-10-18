@@ -348,6 +348,8 @@ private:
     void apply_campaigns();
     void economy_day();
     void update_population(NodeId n);
+    double idle_men_arriving(const Node& n) const;
+    double crime_turn_factor(const Node& n) const;
     void end_of_day();
 
     // ---- farms and new towns (farms.cpp) ----

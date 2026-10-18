@@ -563,14 +563,13 @@ void Simulation::economy_day() {
             }
         }
 
-        if (n.transient_inflow) {
-            n.drifters += n.population * p.transient_inflow_rate;
-            note_drifters(DrifterFlow::Arrived, n.population * p.transient_inflow_rate);
-        }
+        const double arrivals = idle_men_arriving(n);
+        n.drifters += arrivals;
+        note_drifters(DrifterFlow::Arrived, arrivals);
         note_drifters(DrifterFlow::Decay, n.drifters * p.drifter_decay);
         n.drifters *= 1.0 - p.drifter_decay;
         if (p.gang_tiers) {  // a few idle men turn to crime; fighters who do not find a gang give up in time
-            const double turn = n.drifters * p.fighter_turn_rate;
+            const double turn = n.drifters * p.fighter_turn_rate * crime_turn_factor(n);
             n.drifters -= turn;
             n.fighters += turn;
             note_drifters(DrifterFlow::TurnedFighter, turn);
@@ -580,6 +579,27 @@ void Simulation::economy_day() {
 
         update_population(id);
     }
+}
+
+// Idle men drawn to a town each day: more people mean more idle hands. The eastern markets are not part of the frontier's
+// outlaw country.
+double Simulation::idle_men_arriving(const Node& n) const {
+    const Params& p = world_.params;
+    if (!p.crime_source) return n.transient_inflow ? n.population * p.transient_inflow_rate : 0.0;
+    if (n.fixed_market || n.ghost || !n.founded) return 0.0;
+    return n.population * p.transient_inflow_rate * p.crime_source_scale;
+}
+
+// How readily the idle men at a town turn to crime. Crime follows money and thin law: there is something worth taking where
+// money moves through the town per head (a gold camp or a railhead, not a farm village), and the men turn easily where there
+// is no law and rarely under a sheriff. It applies to every idle man there, whether he drifted in, lost his job when a town
+// died, or was ruined on the road. Both are soft weights, never gates.
+double Simulation::crime_turn_factor(const Node& n) const {
+    const Params& p = world_.params;
+    if (!p.crime_source) return 1.0;
+    const double money = p.crime_income_floor + std::clamp(n.income_ema / std::max(1.0, n.market_population()) / p.crime_income_ref, 0.0, 1.75);
+    const double law = n.law <= 0 ? p.crime_law_none : n.law == 1 ? p.crime_law_marshal : p.crime_law_sheriff;
+    return money * law;
 }
 
 // A town holds as many people as its income supports (up to what land and water allow).
