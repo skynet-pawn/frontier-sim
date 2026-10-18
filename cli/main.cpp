@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     using namespace frontier;
     std::uint64_t seed = 0;
     bool seed_set = false, trace = false, quiet = false;
-    int days = -1, report_days = 0;
+    int days = -1, report_days = 0, profile_days = 0;
     std::string dir;
 
     for (int i = 1; i < argc; ++i) {
@@ -73,6 +73,7 @@ int main(int argc, char** argv) {
         else if (a == "--days") days = std::atoi(next());
         else if (a == "--data") dir = next();
         else if (a == "--report-days") report_days = std::atoi(next());
+        else if (a == "--profile") profile_days = std::atoi(next());
         else if (a == "--trace") trace = true;
         else if (a == "--quiet") quiet = true;
         else { usage(); return a == "--help" ? 0 : 2; }
@@ -100,6 +101,18 @@ int main(int argc, char** argv) {
         for (int d = 1; d <= scenario.days; ++d) {
             sim.step();
             if (report_days > 0 && d % report_days == 0) print_towns(sim);
+            if (profile_days > 0 && d % profile_days == 0) {
+                // Seconds per day in each phase since the last line, so growth with the run shows up.
+                static double last[Simulation::kPhaseCount] = {};
+                std::printf("profile day %d (ms/day):", d);
+                for (int k = 0; k < Simulation::kPhaseCount; ++k) {
+                    if (!*Simulation::phase_name(k)) continue;
+                    std::printf("  [%s] %.1f", Simulation::phase_name(k), 1000.0 * (sim.phase_seconds(k) - last[k]) / profile_days);
+                    last[k] = sim.phase_seconds(k);
+                }
+                std::puts("");
+                std::fflush(stdout);
+            }
         }
         print_towns(sim);
 

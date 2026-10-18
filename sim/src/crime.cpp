@@ -25,8 +25,8 @@ void Simulation::rebuild_edge_gangs() {
 
 void Simulation::crime_day() {
     const Params& p = world_.params;
-    rebuild_edge_gangs();
-    if (p.gang_wars) gang_wars_day();
+    { PhaseTimer t(phase_time_[6]); rebuild_edge_gangs();
+    if (p.gang_wars) gang_wars_day(); }
 
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
         const Node& n = world_.nodes[i];
@@ -36,13 +36,15 @@ void Simulation::crime_day() {
             try_form_gang(static_cast<NodeId>(i));
         }
     }
-    for (std::size_t i = 0; i < gangs_.size(); ++i) gang_day(gangs_[i]);
-    for (std::size_t i = 0; i < posses_.size(); ++i) posse_day(posses_[i]);
-    if (p.law_stages) law_day();
-    for (std::size_t i = 0; i < world_.nodes.size(); ++i) try_form_posse(static_cast<NodeId>(i));
-    for (std::size_t i = 0; i < world_.nodes.size(); ++i) try_vigilance(static_cast<NodeId>(i));
-    interests_day();
-    bushwhack_reports();
+    { PhaseTimer t(phase_time_[7]); for (std::size_t i = 0; i < gangs_.size(); ++i) gang_day(gangs_[i]); }
+    { PhaseTimer t(phase_time_[8]); for (std::size_t i = 0; i < posses_.size(); ++i) posse_day(posses_[i]); }
+    {
+        PhaseTimer t(phase_time_[9]);
+        if (p.law_stages) law_day();
+        for (std::size_t i = 0; i < world_.nodes.size(); ++i) try_form_posse(static_cast<NodeId>(i));
+        for (std::size_t i = 0; i < world_.nodes.size(); ++i) try_vigilance(static_cast<NodeId>(i));
+    }
+    { PhaseTimer t(phase_time_[10]); interests_day(); bushwhack_reports(); }
 
     gangs_.erase(std::remove_if(gangs_.begin(), gangs_.end(), [](const Gang& g) { return !g.active; }), gangs_.end());
     posses_.erase(std::remove_if(posses_.begin(), posses_.end(), [](const Posse& q) { return !q.active; }),

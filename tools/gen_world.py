@@ -1,4 +1,4 @@
-"""Scale test world: the real 30 nodes plus synthetic farm and ranch towns, to N nodes in all.
+"""Scale test world (farm towns are not drifter sources, about 30% of ranch towns are, like the real map): the real 30 nodes plus synthetic farm and ranch towns, to N nodes in all.
 usage: gen_world.py N OUTDIR      (scenario trader counts are scaled by N/30)"""
 import json, math, os, random, re, shutil, sys
 N = int(sys.argv[1]); out = sys.argv[2]
@@ -26,12 +26,13 @@ while len(nodes) < N:
     if rng.random() < 0.7:
         nodes.append({'id': 'syn_farm_%d' % k, 'name': 'Farm Town %d' % k, 'region': reg, 'kind': 'farm town', 'x': round(x), 'y': round(y),
                       'base_population': pop // 5, 'farmers': pop // 2, 'farm_capacity': rng.choice([1500, 2500, 4000]),
-                      'farm_yield': round(rng.uniform(0.6, 1.0), 2), 'climate': climate(x, y), 'population': pop, 'capacity': 4000,
-                      'cash': 1500, 'transient_inflow': True,
+                      'farm_yield': round(rng.uniform(0.6, 1.0), 2), 'climate': climate(x, y), 'population': pop, 'capacity': rng.choice([800, 1500, 3000]),
+                      'cash': 1500,
                       'stock': {'beef_cattle': 30, 'flour': pop, 'tools': 15, 'whiskey': 40, 'ammunition': 20}})
     else:
         nodes.append({'id': 'syn_ranch_%d' % k, 'name': 'Ranch Town %d' % k, 'region': reg, 'kind': 'ranch town', 'x': round(x), 'y': round(y),
-                      'base_population': pop // 5, 'population': pop, 'capacity': 4000, 'cash': 1000, 'transient_inflow': True,
+                      'base_population': pop // 5, 'population': pop, 'capacity': rng.choice([300, 800, 1500]), 'cash': 1000,
+                      'transient_inflow': rng.random() < 0.3,
                       'stock': {'beef_cattle': 100, 'flour': pop // 2, 'whiskey': 30, 'ammunition': 20},
                       'production': {'beef_cattle': {'rate': rng.choice([10, 20, 40]), 'labor_pop': 25}}})
     pos.append((x, y))

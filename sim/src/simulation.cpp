@@ -1,6 +1,7 @@
 #include "frontier/simulation.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -90,18 +91,25 @@ void Simulation::pay_leader(Leader& l, double amount) {
     l.earned += amount;
 }
 
+namespace {
+const char* const kPhaseNames[Simulation::kPhaseCount] = {"network+shocks", "economy", "merchants", "contracts", "houses", "traders",
+                                                          "crime: edges+wars", "crime: gangs", "crime: posses", "crime: law+posse forming",
+                                                          "crime: interests+bushwhack", "news: papers+headlines", "news: delivery",
+                                                          "end of day", "", ""};
+}  // namespace
+
+const char* Simulation::phase_name(int i) { return kPhaseNames[i]; }
+
 void Simulation::step() {
-    update_network();
-    apply_shocks();
-    apply_campaigns();
-    economy_day();
-    merchants_day();
-    contracts_day();
-    houses_day();
-    traders_day();
+    { PhaseTimer t(phase_time_[0]); update_network(); apply_shocks(); apply_campaigns(); }
+    { PhaseTimer t(phase_time_[1]); economy_day(); }
+    { PhaseTimer t(phase_time_[2]); merchants_day(); }
+    { PhaseTimer t(phase_time_[3]); contracts_day(); }
+    { PhaseTimer t(phase_time_[4]); houses_day(); }
+    { PhaseTimer t(phase_time_[5]); traders_day(); }
     crime_day();
     news_day();
-    end_of_day();
+    { PhaseTimer t(phase_time_[13]); end_of_day(); }
     ++world_.today;
 }
 
@@ -748,10 +756,10 @@ void Simulation::release_leader(Leader& l, NodeId at) {
     l.at = at;
 }
 
+// gangs_ is kept in id order (ids rise as gangs form and removal keeps the order), so this is a binary search.
 Gang* Simulation::find_gang(int id) {
-    for (Gang& g : gangs_)
-        if (g.id == id) return &g;
-    return nullptr;
+    const auto it = std::lower_bound(gangs_.begin(), gangs_.end(), id, [](const Gang& g, int want) { return g.id < want; });
+    return it != gangs_.end() && it->id == id ? &*it : nullptr;
 }
 
 // The cause chain, per food: what is on the shelf, what the town has asked for and for how long, what is on the road to

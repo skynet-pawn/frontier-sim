@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -10,6 +11,14 @@
 #include "frontier/world.h"
 
 namespace frontier {
+
+// Adds the time from construction to destruction to one phase's total (profiling only).
+struct PhaseTimer {
+    double& total;
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    explicit PhaseTimer(double& t) : total(t) {}
+    ~PhaseTimer() { total += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); }
+};
 
 // A mobile entity on the graph: one trading outfit (a wagon train, a drover's
 // crew, a freight agent). Decisions are utility scores over (destination,
@@ -234,6 +243,10 @@ public:
     Simulation(const WorldDef& def, const Scenario& scenario);
 
     void step();                 // advance one day
+    // Wall-clock seconds spent in each part of the day, for finding what costs time at scale (never read by the sim).
+    static constexpr int kPhaseCount = 16;
+    static const char* phase_name(int i);
+    double phase_seconds(int i) const { return phase_time_[i]; }
     void run(int days) { for (int i = 0; i < days; ++i) step(); }
 
     World& world() { return world_; }
@@ -410,6 +423,7 @@ private:
 
     // ---- crime and law (crime.cpp) ----
     void crime_day();
+    double phase_time_[kPhaseCount] = {};
     void rebuild_edge_gangs();
     bool resolve_encounter(Gang& g, Trader& t, EdgeId e);
     struct GangTake { double units = 0, value = 0, loot = 0; bool worth = false; };  // value: owner's loss; loot: what the goods are worth

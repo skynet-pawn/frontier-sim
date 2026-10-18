@@ -123,6 +123,7 @@ void Simulation::news_day() {
     if (!p.news_stages) return;
 
     // Papers open and close slowly: a town needs a few months at the size to support one.
+    PhaseTimer papers_timer(phase_time_[11]);
     if (world_.today % 10 == 0) {
         paper_nodes_.clear();
         for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
@@ -179,6 +180,7 @@ void Simulation::news_day() {
     }
 
     // Deliver what is due. The queue is short-lived: stories a few days old at most.
+    PhaseTimer delivery_timer(phase_time_[12]);
     std::size_t keep = 0;
     for (std::size_t i = 0; i < news_queue_.size(); ++i) {
         const NewsDelivery& d = news_queue_[i];
