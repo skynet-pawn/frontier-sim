@@ -145,6 +145,10 @@ void Simulation::create_gang(NodeId hideout, int men, const char* cause, int cel
         const double u = rng_.next_double();
         g.competence = 0.1 + 0.8 * u * u;
     }
+    {  // a tenth of bosses are careful in town, a tenth careless
+        const double u = rng_.next_double();
+        g.care = u < world_.params.camp_careless_share ? 0 : u < world_.params.camp_careless_share + world_.params.camp_careful_share ? 2 : 1;
+    }
     g.hideout = hideout;
     g.cash = men * 20.0;
     world_.record(MoneyFlow::GangStake, g.cash);
@@ -160,6 +164,7 @@ void Simulation::create_gang(NodeId hideout, int men, const char* cause, int cel
         scatter_men(hideout, men, DrifterFlow::ReturnedUnformed);
         return;
     }
+    choose_camp(g);
     log_.with({field("gang", g.id), field("men", men), field("node", nname(hideout))});
     log_.add(world_.today, EventType::Gang, "gang_formed", hideout,
              strf("Gang #%d (%d men) forms at %s and takes to the %s", g.id, men, nname(hideout).c_str(),
@@ -221,7 +226,9 @@ void Simulation::gang_day(Gang& g) {
         const double take = std::min(h.cash * 0.01, g.men * p.band_petty_take);
         h.cash -= take;
         g.cash += take;
-        band_catch_check(g, -1, p.band_petty_catch);
+        // Without a camp the band is at home in town and lawmen find it there; with one they have to find the camp.
+        if (!p.camp_stages) band_catch_check(g, -1, p.band_petty_catch);
+        else band_catch_check(g, -1, p.camp_found_catch, "lawmen followed the band's tracks back to its camp");
         if (!g.active) return;
         bushwhack(g);
     }
@@ -251,6 +258,11 @@ void Simulation::gang_day(Gang& g) {
         spent += recruit_cost;
         h.cash += recruit_cost;  // horses, guns and whiskey are bought in the hideout town
         h.inflow_today += recruit_cost;
+    }
+
+    if (p.camp_stages && g.ruling < 0) {
+        spent += gang_town_visit(g);
+        if (!g.active) return;
     }
 
     gang_peak_men_ = std::max(gang_peak_men_, g.men);
@@ -315,6 +327,7 @@ void Simulation::gang_review_pick(Gang& g) {
     g.edge = pick;
     if (new_home != g.hideout) g.influence = 0;  // influence is local
     g.hideout = new_home;
+    choose_camp(g);
     log_.with({field("gang", g.id), field("men", g.men), field("node", nname(g.hideout)), field("from", from), field("to", ename(pick))});
     const Node& landed = world_.nodes[World::idx(g.hideout)];
     if (g.fleeing) {
@@ -413,6 +426,7 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     if (t.agent_for >= 0) lost_orders_value_ += value;  // the town paid for this
 
     // Stolen goods need a buyer: the hideout town pays a discount from its own cash, then holds the stock.
+    // Selling them is the moment a band is most likely to be noticed (checked below, once the sale is made).
     Node& hide = world_.nodes[World::idx(g.hideout)];
     const double fence_pay = std::min(units * world_.mid_price(g.hideout, cargo) * p.fence_rate,
                                       hide.cash * p.fence_cash_share);
@@ -455,10 +469,12 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
                  value < 1500);
         t.qty -= units;
         band_catch_check(g, eid);
+        if (p.camp_stages) band_catch_check(g, -1, p.camp_fence_catch);   // selling the loot gets it noticed
         return false;  // the wagons go on with the rest
     }
 
     band_catch_check(g, eid);
+    if (p.camp_stages) band_catch_check(g, -1, p.camp_fence_catch);
     t.cargo = -1;
     t.qty = 0;
     t.travelling = false;
@@ -560,7 +576,7 @@ void Simulation::gang_try_join(Gang& g) {
 // A band is small and bold: each hold-up risks lawmen catching up with it, more where the law is funded. Most do not last.
 // With base < 0 this is a hold-up on a trail (the chance uses the law at both ends); otherwise it is the daily risk of
 // the band's petty work around its hideout, with `base` the daily chance before the town's law fund raises it.
-void Simulation::band_catch_check(Gang& g, EdgeId eid, double base) {
+void Simulation::band_catch_check(Gang& g, EdgeId eid, double base, const char* how) {
     const Params& p = world_.params;
     if (!p.gang_tiers || !g.active || !is_band(g)) return;
     const bool daily = base >= 0;
@@ -581,18 +597,75 @@ void Simulation::band_catch_check(Gang& g, EdgeId eid, double base) {
     const double law = 1.0 + std::min(p.band_law_cap, law_fund / p.law_deter_scale);
     const double chance = std::min(0.9, (daily ? base : p.band_catch_base) * law * reach * fame);
     if (!rng_.chance(chance)) return;
-    const std::string where = daily ? "around " + nname(g.hideout) : "on the " + ename(eid);
+    if (p.camp_stages && !daily && rng_.chance(p.camp_escape)) {  // the posse nearly has it, but the band knows the way to its camp
+        ++camp_escapes_;
+        return;
+    }
+    if (p.camp_stages && daily) ++camp_caught_;
+    const std::string where = daily ? (how ? "at its camp near " : p.camp_stages ? "in " : "around ") + nname(g.hideout) : "on the " + ename(eid);
     log_.with({field("gang", g.id), field("men", g.men), field("robberies", g.robberies), field("node", nname(g.hideout))});
     log_.add(world_.today, EventType::Law, "band_caught", g.hideout,
              strf("Lawmen catch band #%d (%d men) %s after %d jobs", g.id, g.men, where.c_str(), g.robberies),
              strf("%s (%.1f%% a %s; the town's funded law raises it); what the band held goes to %s",
-                  daily ? "the band lives off petty theft near the town, where people know the law" : "each hold-up risks being caught", chance * 100,
+                  daily ? (how ? how : p.camp_stages ? "the band rode into town with money to spend and someone knew the law" : "the band lives off petty theft near the town, where people know the law") : "each hold-up risks being caught", chance * 100,
                   daily ? "day" : "hold-up", nname(g.hideout).c_str()),
              g.robberies < 3);
     Node& h = world_.nodes[World::idx(g.hideout)];
     h.cash += g.cash;  // seized and spent locally; keeps the money audit whole
     g.cash = 0;
     gang_dissolve(g, "caught by lawmen");
+}
+
+// Where a gang really lives. The camp lies a few miles up its trail from the town it trades with, away from anyone who
+// would ask questions: a dugout, a cabin whose people were driven off (or "abandoned", with a story about a bear), a ruined
+// fort or blockhouse from one of the old wars, a line shack, a canyon with water. The kind is only a label for the viewer.
+const char* Simulation::camp_kind_name(int kind) {
+    static const char* const names[] = {"a dugout in a cut bank", "a cabin whose owners were driven off", "an abandoned cabin", "a ruined blockhouse",
+                                        "an empty line shack", "a canyon with water"};
+    return kind >= 0 && kind < 6 ? names[kind] : "a camp";
+}
+
+void Simulation::choose_camp(Gang& g) {
+    const Params& p = world_.params;
+    if (!p.camp_stages || g.edge < 0) return;
+    const Edge& e = world_.edges[World::idx(g.edge)];
+    const double limit = std::min(p.camp_max_miles, 0.45 * e.miles);
+    const double lo = std::min(p.camp_min_miles, limit);
+    g.camp_miles = lo + (limit - lo) * rng_.next_double();
+    const double u = rng_.next_double();
+    g.camp_kind = u < 0.25 ? 0 : u < 0.45 ? 1 : u < 0.65 ? 2 : u < 0.80 ? 3 : u < 0.92 ? 4 : 5;
+    log_.with({field("gang", g.id), field("miles", g.camp_miles), field("kind", g.camp_kind)});
+    log_.add(world_.today, EventType::Gang, "camp_made", g.hideout,
+             strf("Gang #%d makes camp in %s, %.0f miles up the %s from %s", g.id, camp_kind_name(g.camp_kind), g.camp_miles,
+                  ename(g.edge).c_str(), nname(g.hideout).c_str()),
+             "a camp off the road gives the gang somewhere to go when the law comes; it only rides into town to spend", true);
+}
+
+// A flush gang rides into town to spend what it has taken: whiskey, cards, women. It leaves money behind, which is why towns
+// put up with the trade, and risks being seen. A careful boss keeps his men quiet; a careless one lets them start something,
+// and that is what raises the town against them. Returns what was left in town.
+double Simulation::gang_town_visit(Gang& g) {
+    const Params& p = world_.params;
+    if (g.camp_kind < 0 || g.cash < g.men * p.camp_visit_cash_per_man || !rng_.chance(p.camp_visit_chance)) return 0;
+    Node& h = world_.nodes[World::idx(g.hideout)];
+    const double spree = g.cash * p.camp_visit_spend;
+    g.cash -= spree;
+    h.cash += spree;
+    h.inflow_today += spree;
+    ++camp_visits_;
+    const double trouble_chance = g.care == 0 ? p.camp_trouble_careless : g.care == 2 ? p.camp_trouble_careful : p.camp_trouble_ordinary;
+    const bool trouble = rng_.chance(trouble_chance);
+    if (trouble) {
+        ++camp_trouble_;
+        h.outrage += p.camp_trouble_outrage;
+        gang_deed_region(g, h.region, p.fame_fight * 0.5);
+        log_.with({field("gang", g.id), field("men", g.men), field("node", h.name)});
+        log_.add(world_.today, EventType::Gang, "gang_trouble", g.hideout,
+                 strf("Gang #%d (%d men) shoots up %s on a spree", g.id, g.men, h.name.c_str()),
+                 strf("the boss %s keep his men quiet; the town is angry", g.care == 0 ? "did not trouble to" : "could not"), true);
+    }
+    band_catch_check(g, -1, p.camp_visit_catch * (trouble ? 3.0 : 1.0));
+    return spree;
 }
 
 // ---------------------------------------------------------------- gang wars, veterans and size

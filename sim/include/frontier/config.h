@@ -158,6 +158,28 @@ struct Params {
     // there turn to crime in proportion to the money moving through it per head and how little law it has (a gold camp or a
     // railhead breeds outlaws; a county seat with a sheriff or a poor farm village barely does). The factors are soft weights,
     // never gates. 0 uses the old hand-set transient_inflow flag.
+    // Hideouts. With camp_stages 1 a gang lives at a camp off the roads (a dugout, a taken or abandoned cabin, a ruined fort),
+    // a few miles up its trail from the nearest town, and robs on the roads. It rides into town only to spend after a score,
+    // so lawmen find it on the road or on a spree, not at home. A careful boss keeps his men quiet in town; a careless one
+    // starts trouble, and trouble is what raises a posse.
+    int camp_stages = 1;
+    double camp_min_miles = 15;              // camp distance from the nearest town along its trail
+    double camp_max_miles = 50;
+    double camp_escape = 0.3;                // share of would-be catches on the road that end with the band reaching its camp
+    double camp_visit_chance = 0.08;         // daily chance a flush gang rides in to spend
+    double camp_visit_cash_per_man = 150;    // cash a man's share must reach before the gang feels flush ($)
+    double camp_visit_spend = 0.5;           // share of the gang's cash left in town on a visit
+    // Bosses differ in how well they keep their men quiet in town, apart from how well they hold them together: a tenth are
+    // careful, a tenth careless, the rest ordinary. The chance a visit ends in trouble (a fight, a shooting) follows the type.
+    double camp_careful_share = 0.1;
+    double camp_careless_share = 0.1;
+    double camp_trouble_careless = 0.3;
+    double camp_trouble_ordinary = 0.1;
+    double camp_trouble_careful = 0.02;
+    double camp_trouble_outrage = 1.5;       // outrage the town feels after trouble
+    double camp_visit_catch = 0.05;          // chance lawmen take a band on a visit (three times that after trouble)
+    double camp_found_catch = 0.003;         // daily chance lawmen find a band's camp, times the law around the nearest town
+    double camp_fence_catch = 0.002;         // chance a fence sale of loot is noticed and a band caught
     int crime_source = 1;
     double crime_source_scale = 4.0;         // rescales the whole rule so the 31-node map keeps its calibrated crime
     double crime_income_ref = 1.0;           // town income per head per day that counts as rich ($)

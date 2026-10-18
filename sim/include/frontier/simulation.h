@@ -144,6 +144,12 @@ struct Gang {
     std::vector<float> known;
     int peak = 0;                // most men it ever had
     bool fleeing = false;        // the next review may range far afield: the heat here is too much
+
+    // Camp (crime.cpp): where it really lives, off the roads. `hideout` is the town it trades with; the camp lies this many
+    // miles up its trail from that town. The kind is a label for the viewer; nothing in the sim reads it.
+    double camp_miles = 0;
+    int camp_kind = -1;
+    int care = 1;                // how well the boss keeps his men quiet in town: 0 careless, 1 ordinary, 2 careful
 };
 
 // One line in a newspaper. `gang` is the outlaw gang it names (its fame rises where the story is read), -1 if none.
@@ -265,6 +271,11 @@ public:
         return static_cast<std::size_t>(n) < papers_.size() ? papers_[static_cast<std::size_t>(n)] : none;
     }
     long headlines_printed() const { return headlines_printed_; }
+    long camp_visits() const { return camp_visits_; }
+    long camp_trouble() const { return camp_trouble_; }
+    long camp_escapes() const { return camp_escapes_; }
+    long camp_caught() const { return camp_caught_; }
+    static const char* camp_kind_name(int kind);
     long bushwhacks() const { return bushwhacks_; }
     long bush_killed() const { return bush_killed_; }
     long bush_notable() const { return bush_notable_; }
@@ -437,6 +448,9 @@ private:
     void bushwhack_reports();
     void send_cavalry(NodeId near_to, Gang& g, const std::string& why);
     void gang_review_pick(Gang& g);
+    // Camps and town visits (crime.cpp).
+    void choose_camp(Gang& g);
+    double gang_town_visit(Gang& g);   // returns what it left in town
     // Infamy and flight (crime.cpp).
     double gang_known(const Gang& g, int region) const { return region >= 0 && static_cast<std::size_t>(region) < g.known.size() ? g.known[static_cast<std::size_t>(region)] : 0.0; }
     void gang_deed_region(Gang& g, int region, double weight);
@@ -456,7 +470,7 @@ private:
     void gang_fix_cells(Gang& g);
     void gang_absorb(Gang& host, Gang& other);
     void gang_try_join(Gang& g);
-    void band_catch_check(Gang& g, EdgeId e, double base = -1);
+    void band_catch_check(Gang& g, EdgeId e, double base = -1, const char* how = nullptr);
     void try_form_band(NodeId n);
     void scatter_men(NodeId at, double n, DrifterFlow why);
     bool is_band(const Gang& g) const { return g.ruling < 0 && g.men <= world_.params.band_max_men; }
@@ -523,6 +537,7 @@ private:
     std::vector<NodeId> paper_nodes_;
     std::vector<Bushwhack> bush_pending_;
     long bushwhacks_ = 0, bush_killed_ = 0, bush_notable_ = 0;
+    long camp_visits_ = 0, camp_trouble_ = 0, camp_escapes_ = 0, camp_caught_ = 0;
     std::size_t news_cursor_ = 0;              // next log entry to consider for a headline
     long headlines_printed_ = 0;
     long large_ended_ = 0;                     // gangs that ever reached 6 men, how long they lasted, and how they ended

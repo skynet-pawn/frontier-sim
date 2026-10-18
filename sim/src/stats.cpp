@@ -155,6 +155,10 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.headlines = sim.headlines_printed();
     r.bushwhacks = sim.bushwhacks();
     r.bush_killed = sim.bush_killed();
+    r.camp_visits = sim.camp_visits();
+    r.camp_trouble = sim.camp_trouble();
+    r.camp_escapes = sim.camp_escapes();
+    r.camp_caught = sim.camp_caught();
     r.bush_notable = sim.bush_notable();
     r.cavalry_sent = static_cast<int>(log.count_kind("cavalry_sent"));
     r.lawless_share = sampled_days ? lawless_days / sampled_days : 0;

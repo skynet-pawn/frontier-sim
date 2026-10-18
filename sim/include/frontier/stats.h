@@ -47,6 +47,7 @@ struct RunStats {
     int large_end[7] = {};
     int papers_end = 0, papers_founded = 0;
     long bushwhacks = 0, bush_killed = 0, bush_notable = 0;
+    long camp_visits = 0, camp_trouble = 0, camp_escapes = 0, camp_caught = 0;
     int cavalry_sent = 0;
     long headlines = 0;
     double lawless_share = 0;                                   // mean share of towns with no law at all, per day since the log began

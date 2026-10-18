@@ -158,6 +158,10 @@ int main(int argc, char** argv) {
         row("  headlines printed (all papers)", runs, [](const RunStats& r) { return static_cast<double>(r.headlines); });
         row("bushwhackings (lone men waylaid) / killed / notable", runs, [](const RunStats& r) { return static_cast<double>(r.bushwhacks); });
         row("  killed", runs, [](const RunStats& r) { return static_cast<double>(r.bush_killed); });
+        row("gang visits to town to spend", runs, [](const RunStats& r) { return static_cast<double>(r.camp_visits); });
+        row("  ended in trouble", runs, [](const RunStats& r) { return static_cast<double>(r.camp_trouble); });
+        row("  bands caught on a visit or at the fence", runs, [](const RunStats& r) { return static_cast<double>(r.camp_caught); });
+        row("  bands that reached their camp ahead of the law", runs, [](const RunStats& r) { return static_cast<double>(r.camp_escapes); });
         row("  notable victims (cavalry sent: see next row)", runs, [](const RunStats& r) { return static_cast<double>(r.bush_notable); });
         row("  cavalry detachments sent", runs, [](const RunStats& r) { return static_cast<double>(r.cavalry_sent); });
         row("towns with no law (mean share of days)", runs, [](const RunStats& r) { return r.lawless_share; });
