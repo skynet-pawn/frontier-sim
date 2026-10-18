@@ -1,0 +1,8 @@
+{
+  "_note": "Who had law where. 'organized' is the date from which county government and sheriffs are possible in the sim; before it a camp has a miners' meeting or a town marshal its citizens hire. Black Hills: Sioux treaty land until Congress ratified the Manypenny Agreement on 1877-02-28 (verified); Lawrence County seated at Deadwood in 1877 (Britannica). Wyoming Territory was organized in 1868 (from memory, July; not confirmed this session).",
+  "regions": {
+    "nebraska": {"note": "state since March 1867 (memory)", "verified": false},
+    "wyoming": {"organized": "1868-07-25", "note": "Wyoming Territory (memory); statehood 1890", "verified": false},
+    "black_hills": {"organized": "1877-03-01", "note": "treaty land until the Act of February 28, 1877; county government followed. Dakota Territory", "source": "https://en.wikipedia.org/wiki/Manypenny_Agreement", "verified": true}
+  }
+}

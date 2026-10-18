@@ -1,0 +1,90 @@
+{
+  "_note": "Layer 1 of the real map: the Cheyenne-Black Hills corridor, about 1867-1890. This file holds FACTS ONLY (place, position, kind, dated events), each with a source and a 'verified' flag. 'verified': true means a source on the web page named in 'source' was read this session; false means the date is from memory or the sources disagreed, and it must be checked before anyone relies on it. Game numbers (population, cash, stock) are guesses and live in game.json, never here. Latitude and longitude are approximate (good to a few miles), taken from memory of each place's modern location; the town's 1870s site may differ slightly.",
+  "places": [
+    {"id": "omaha", "name": "Omaha", "kind": "market", "lat": 41.2565, "lon": -95.9345, "region": "nebraska",
+     "facts": [
+       {"what": "Eastern end of the Union Pacific; the sim's eastern market for the corridor", "date": "1865", "source": "memory", "verified": false}
+     ]},
+    {"id": "ogallala", "name": "Ogallala", "kind": "railhead", "lat": 41.128, "lon": -101.719, "region": "nebraska",
+     "facts": [
+       {"what": "Union Pacific town on the South Platte side; later the Texas-cattle railhead", "date": "1867", "source": "memory", "verified": false}
+     ]},
+    {"id": "sidney", "name": "Sidney", "kind": "railhead", "lat": 41.1428, "lon": -102.9779, "region": "nebraska",
+     "facts": [
+       {"what": "Union Pacific town; from 1876 the railhead for the Sidney-Black Hills Trail, with an estimated 50 to 75 freight wagons of 8,000 lb leaving daily in 1876", "date": "1876", "source": "https://www.hmdb.org/m.asp?m=158997 (marker) and https://en.wikipedia.org/wiki/Deadwood_Draw", "verified": true},
+       {"what": "Henry T. Clarke's toll bridge over the North Platte opened on the Sidney trail", "date": "1876", "source": "web search result summarizing the Sidney trail", "verified": true},
+       {"what": "Sidney-Black Hills Trail carried stages, freight and prospectors between Sidney, Fort Robinson, Red Cloud and Spotted Tail agencies, Custer City and Deadwood; its use ended around 1887 when a replacement route took over", "date": "1876-1887", "source": "https://www.hmdb.org/m.asp?m=158997", "verified": true}
+     ]},
+    {"id": "cheyenne", "name": "Cheyenne", "kind": "railhead", "lat": 41.14, "lon": -104.82, "region": "wyoming",
+     "facts": [
+       {"what": "Union Pacific tracks entered Cheyenne", "date": "1867-11-13", "source": "https://utahrails.net/up/up-chronology-howard.php", "verified": true},
+       {"what": "Fort D. A. Russell established three miles west of Cheyenne to protect the railroad; first garrisoned by Col. John D. Stevenson with companies of the 30th Infantry", "date": "1867-07-21", "source": "https://en.wikipedia.org/wiki/Fort_D._A._Russell_(Wyoming)", "verified": true},
+       {"what": "Cheyenne and Black Hills Stage, Mail and Express Line began running (formally 1876-1887, known as the Deadwood Stage)", "date": "1876-04", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=316 and related Niobrara County Library pages", "verified": true}
+     ]},
+    {"id": "laramie", "name": "Laramie", "kind": "railhead", "lat": 41.3114, "lon": -105.5911, "region": "wyoming",
+     "facts": [
+       {"what": "Union Pacific reached and founded Laramie (a local history concludes May 4, 1868 from newspapers and contractor letters; a chronology says April 1868)", "date": "1868-05-04", "source": "https://www.wyoachs.com/businesses/2018/1/9/the-railroad-comes-to-laramie", "verified": true}
+     ]},
+    {"id": "fort_laramie", "name": "Fort Laramie", "kind": "fort", "lat": 42.2036, "lon": -104.553, "region": "wyoming",
+     "facts": [
+       {"what": "Fur-trade post at the Laramie and North Platte rivers", "date": "1834", "source": "https://theclio.com/tour/2506", "verified": true},
+       {"what": "U.S. Army bought the post and made it a supply and communications center", "date": "1849", "source": "https://theclio.com/tour/2506", "verified": true},
+       {"what": "Abandonment ordered 1889-08-31; last troops left 1890-03-02; buildings auctioned April 7 or 9, 1890 (sources disagree) for $1,395 in all; Fort Robinson became the preferred post once rail lines reached the area", "date": "1890", "source": "https://npshistory.com/handbooks/historical/20/hh20p.htm and https://fortwiki.com/Fort_Laramie", "verified": true}
+     ]},
+    {"id": "fort_fetterman", "name": "Fort Fetterman", "kind": "fort", "lat": 42.8269, "lon": -105.3736, "region": "wyoming",
+     "facts": [
+       {"what": "Army post on the North Platte near present Douglas; staging point for General Crook's three 1876 campaigns", "date": "1867", "source": "web search result (Wyoming history sites)", "verified": true},
+       {"what": "Abandoned", "date": "1882", "source": "memory; not confirmed in this session", "verified": false}
+     ]},
+    {"id": "fort_robinson", "name": "Fort Robinson", "kind": "fort", "lat": 42.6656, "lon": -103.4647, "region": "nebraska",
+     "facts": [
+       {"what": "Red Cloud Agency moved to a new site on the White River in northwest Nebraska", "date": "1873", "source": "https://history.nebraska.gov/visit/fort-robinson-timeline", "verified": true},
+       {"what": "Tent camp near the agency renamed Camp Robinson on March 29, 1874 after Lt. Levi Robinson, killed the previous month", "date": "1874-03-29", "source": "https://en.wikipedia.org/wiki/Fort_Robinson", "verified": true},
+       {"what": "Red Cloud Agency moved away (the Missouri River on 1877-10-25 per the state timeline; Pine Ridge in 1878 per other sources, which disagree)", "date": "1877-10-25", "source": "https://history.nebraska.gov/visit/fort-robinson-timeline", "verified": true},
+       {"what": "Camp Robinson renamed Fort Robinson", "date": "1878-12", "source": "https://history.nebraska.gov/visit/fort-robinson-timeline", "verified": true}
+     ]},
+    {"id": "custer_city", "name": "Custer City", "kind": "mining camp", "lat": 43.7667, "lon": -103.5986, "region": "black_hills",
+     "facts": [
+       {"what": "Gold-rush town on French Creek; the first Black Hills town, a stop on the early freight and stage road via Custer (311 miles from Cheyenne to Deadwood by this route)", "date": "1875", "source": "one travel source for the year, uncorroborated; 311-mile figure from https://www.niobraracountylibrary.org/historicals/historical-details/?id=316", "verified": false}
+     ]},
+    {"id": "deadwood", "name": "Deadwood", "kind": "mining camp", "lat": 44.3769, "lon": -103.7296, "region": "black_hills",
+     "facts": [
+       {"what": "Town officially laid out in April 1876 during the gold rush; about 25,000 miners swarmed the surrounding hills", "date": "1876-04", "source": "https://www.britannica.com/print/article/154318 and https://storymaps.arcgis.com/stories/5f96fffe1906484bb04e3ccff2cd3e62", "verified": true},
+       {"what": "Became a county seat (Lawrence County)", "date": "1877", "source": "https://www.britannica.com/print/article/154318", "verified": true},
+       {"what": "Lead, three miles up the gulch, was first settled in 1876 and incorporated in 1877; it is part of this node for now", "date": "1876", "source": "web search result", "verified": true},
+       {"what": "A Deadwood-to-Lead rail line was built 1901-02; the Deadwood Stage ended in 1887 when the railroad put it out of business", "date": "1887", "source": "https://shipwrecklibrary.com/?p=4291", "verified": true}
+     ]},
+    {"id": "spearfish", "name": "Spearfish", "kind": "farm district", "lat": 44.4908, "lon": -103.8594, "region": "black_hills",
+     "facts": [
+       {"what": "Valley settled as farm country to feed the Black Hills camps", "date": "1876", "source": "memory; no source found this session", "verified": false}
+     ]},
+    {"id": "rapid_city", "name": "Rapid City", "kind": "mining camp", "lat": 44.0805, "lon": -103.231, "region": "black_hills",
+     "facts": [
+       {"what": "Founded by John R. Brennan and a group of miners at the eastern edge of the Hills; the Rapid City Mining District was founded in July 1875", "date": "1876", "source": "https://sd4history.sd.gov/Unit6/rapidcity.htm", "verified": true}
+     ]},
+    {"id": "sturgis", "name": "Sturgis and Fort Meade", "kind": "fort", "lat": 44.41, "lon": -103.49, "region": "black_hills",
+     "facts": [
+       {"what": "Fort Meade built to control the Sioux and protect the Black Hills mining district, replacing a temporary camp near Bear Butte; Sturgis grew beside it (founding dated 1878 by Britannica and Wikipedia, 1876 by the local chamber of commerce)", "date": "1878", "source": "https://en.wikipedia.org/wiki/Fort_Meade_(South_Dakota) and https://en.wikipedia.org/wiki/Sturgis,_South_Dakota", "verified": true}
+     ]},
+    {"id": "chadron", "name": "Chadron", "kind": "railhead", "lat": 42.8294, "lon": -102.9999, "region": "nebraska",
+     "facts": [
+       {"what": "Fremont, Elkhorn and Missouri Valley Railroad built to Chadron in July 1885 (town moved to meet it); service began August 2", "date": "1885-08-02", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=361", "verified": true}
+     ]},
+    {"id": "douglas", "name": "Douglas", "kind": "railhead", "lat": 42.7597, "lon": -105.382, "region": "wyoming",
+     "facts": [
+       {"what": "Established as the temporary western terminus of the Fremont, Elkhorn and Missouri Valley Railroad (via the Wyoming Central shell company, incorporated October 1885); depot built; replaces Fort Fetterman", "date": "1886", "source": "https://cityofdouglas.org/DocumentCenter/View/1656/Railroad-Interpretive-Center-Visitors-Guide and https://en.wikipedia.org/wiki/Wyoming_Central_Railway", "verified": true}
+     ]},
+    {"id": "casper", "name": "Casper", "kind": "railhead", "lat": 42.8666, "lon": -106.3131, "region": "wyoming",
+     "facts": [
+       {"what": "Wyoming Central tracks completed to Casper (sources agree on 1888; one gives June 15)", "date": "1888-06-15", "source": "https://county10.com/lookback-wind-river-timber-company-and-the-first-tie-drive-to-riverton-2/", "verified": true}
+     ]}
+  ],
+  "not_yet_included": [
+    "Camp Sheridan and the Spotted Tail Agency (September 1874; no coordinates checked)",
+    "Pierre and Fort Pierre (Missouri River freight trail to Deadwood; railroad date unverified)",
+    "Bismarck (Northern Pacific; stage to Deadwood from 1876, unverified)",
+    "Rawlins, Rock Springs, North Platte, Buffalo and Fort McKinney (1878), Sheridan",
+    "Hat Creek stage station and the other stage stations",
+    "Rapid City rail (1886?), Belle Fourche (1890 extension?), Sturgis rail"
+  ]
+}

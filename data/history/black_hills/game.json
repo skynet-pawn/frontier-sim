@@ -1,0 +1,38 @@
+{
+  "_note": "GUESSES, not history. Everything the sim needs about a place that the sources do not give: population, capacity, cash, stock, production, farms. Edit this file to tweak the slice; tools/make_slice.py combines it with places.json, routes.json and jurisdictions.json. 'copy_from' takes a node from the main data/world.json (so the slice behaves like the full map there) and then applies the other fields on top. A place with 'latent': true does not exist at the start; it becomes a town when settling pays after 'farm_open' (the sim's way of founding towns).",
+  "scenario": {
+    "start": "1874-01-01",
+    "log_from": "1875-01-01",
+    "days": 5800,
+    "traders": 40,
+    "max_traders": 500
+  },
+  "nodes": {
+    "omaha":          {"copy_from": "omaha"},
+    "ogallala":       {"copy_from": "ogallala"},
+    "sidney":         {"kind_defaults": "railhead", "population": 250, "base_population": 30, "capacity": 2500, "cash": 1500, "climate": "northern_plains", "farm_capacity": 300, "farm_yield": 0.5, "farm_open": "1880-01-01", "stock": {"flour": 120, "whiskey": 120, "ammunition": 80, "tools": 30}},
+    "cheyenne":       {"copy_from": "cheyenne", "garrison": 150, "note": "Fort D. A. Russell, three miles west, is folded into the town as a garrison"},
+    "laramie":        {"kind_defaults": "railhead", "population": 800, "base_population": 150, "capacity": 4000, "cash": 3000, "climate": "northern_plains", "farm_capacity": 300, "farm_yield": 0.5, "farm_open": "1880-01-01", "stock": {"flour": 300, "whiskey": 150, "ammunition": 80, "tools": 60, "timber": 40}},
+    "fort_laramie":   {"copy_from": "fort_laramie"},
+    "fort_fetterman": {"kind_defaults": "fort", "population": 60, "capacity": 300, "cash": 500, "garrison": 120, "stock": {"flour": 150, "forage": 400, "horses": 40, "ammunition": 100, "whiskey": 10}, "contracts_like": "fort_laramie", "closes": "1882-01-01"},
+    "fort_robinson":  {"kind_defaults": "fort", "population": 200, "capacity": 1200, "cash": 1500, "garrison": 200, "stock": {"flour": 300, "forage": 800, "horses": 60, "ammunition": 150, "whiskey": 20, "beef_cattle": 60}, "contracts_like": "fort_laramie", "extra_demand": {"beef_cattle": 8}, "note": "Red Cloud Agency rations (to 1877) are not modelled yet; the beef demand stands in for them"},
+    "custer_city":    {"kind_defaults": "mining camp", "latent": true, "found_pop": 60, "capacity": 1500, "farm_capacity": 150, "farm_yield": 0.7, "farm_open": "1875-08-01", "climate": "northern_plains", "region_note": "French Creek gold, 1874-75"},
+    "deadwood":       {"copy_from": "deadwood"},
+    "spearfish":      {"copy_from": "spearfish_valley"},
+    "rapid_city":     {"kind_defaults": "mining camp", "latent": true, "found_pop": 50, "capacity": 3000, "farm_capacity": 300, "farm_yield": 0.7, "farm_open": "1876-03-01", "climate": "northern_plains"},
+    "sturgis":        {"kind_defaults": "fort", "latent": true, "found_pop": 60, "capacity": 1500, "farm_capacity": 200, "farm_yield": 0.7, "farm_open": "1878-06-01", "climate": "northern_plains", "note": "Fort Meade's garrison arrives through the campaigns list below"},
+    "chadron":        {"kind_defaults": "railhead", "latent": true, "found_pop": 80, "capacity": 3000, "farm_capacity": 400, "farm_yield": 0.5, "farm_open": "1885-08-01", "climate": "northern_plains"},
+    "douglas":        {"kind_defaults": "railhead", "latent": true, "found_pop": 80, "capacity": 3000, "farm_capacity": 300, "farm_yield": 0.5, "farm_open": "1886-06-01", "climate": "northern_plains"},
+    "casper":         {"kind_defaults": "railhead", "latent": true, "found_pop": 60, "capacity": 3000, "farm_capacity": 300, "farm_yield": 0.5, "farm_open": "1888-06-15", "climate": "northern_plains"}
+  },
+  "kind_defaults": {
+    "railhead":     {"population": 100, "base_population": 20, "capacity": 2500, "cash": 800},
+    "fort":         {"population": 100, "capacity": 800, "cash": 800},
+    "mining camp":  {"population": 30, "capacity": 4000, "cash": 300}
+  },
+  "campaigns": [
+    {"name": "Great Sioux War", "from": "1876-02-01", "until": "1877-10-01", "nodes": ["fort_laramie", "fort_robinson"], "garrison_add": 220, "cause": "Army campaign on the Northern Plains after the Black Hills gold rush brought miners onto Lakota land"},
+    {"name": "Fort Meade established", "from": "1878-06-01", "nodes": ["sturgis"], "garrison_add": 250, "cause": "the Army built Fort Meade to guard the Black Hills mining district (1878; verified)"}
+  ],
+  "keep_shocks": ["Grasshopper plague", "Black Hills gold rush"]
+}

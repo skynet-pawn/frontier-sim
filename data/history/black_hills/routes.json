@@ -1,0 +1,27 @@
+{
+  "_note": "Routes of the Cheyenne-Black Hills corridor with dates. mode is 'rail' or 'trail'. 'miles' is only given where a source gives a distance; otherwise the sim measures it from coordinates and its terrain factor. 'from' and 'to' are the dates the route is usable. Same convention as places.json: verified means a source read this session supports it.",
+  "routes": [
+    {"a": "omaha", "b": "ogallala", "mode": "rail", "name": "Union Pacific", "from": "1867", "source": "memory", "verified": false},
+    {"a": "ogallala", "b": "sidney", "mode": "rail", "name": "Union Pacific", "from": "1867", "source": "memory", "verified": false},
+    {"a": "sidney", "b": "cheyenne", "mode": "rail", "name": "Union Pacific", "from": "1867-11-13", "source": "https://utahrails.net/up/up-chronology-howard.php", "verified": true},
+    {"a": "cheyenne", "b": "laramie", "mode": "rail", "name": "Union Pacific", "from": "1868-05-04", "source": "https://www.wyoachs.com/businesses/2018/1/9/the-railroad-comes-to-laramie", "verified": true},
+    {"a": "cheyenne", "b": "fort_laramie", "mode": "trail", "name": "Cheyenne-Fort Laramie road", "from": "1867", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=316", "verified": true},
+    {"a": "fort_laramie", "b": "custer_city", "mode": "trail", "name": "Cheyenne and Black Hills Stage Line, first route via Custer", "from": "1876-02", "note": "The first route ran by way of Custer City, 311 miles from Cheyenne to Deadwood; the cutoff below shortened it to 266 but the Custer road stayed in use", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=316", "verified": true},
+    {"a": "custer_city", "b": "deadwood", "mode": "trail", "name": "Custer-Deadwood road", "from": "1876-04", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=316", "verified": true},
+    {"a": "fort_laramie", "b": "deadwood", "mode": "trail", "name": "Hat Creek cutoff", "from": "1877-06", "note": "Road from Hat Creek station north to Deadwood Gulch completed June 1877; Cheyenne to Deadwood fell from 311 to 266 miles. Robbers' country: holdups were common south of Hat Creek", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=316", "verified": true},
+    {"a": "sidney", "b": "fort_robinson", "mode": "trail", "name": "Sidney-Black Hills Trail", "from": "1876", "to": "1887", "source": "https://www.hmdb.org/m.asp?m=158997", "verified": true},
+    {"a": "fort_robinson", "b": "custer_city", "mode": "trail", "name": "Sidney-Black Hills Trail", "from": "1876", "to": "1887", "source": "https://www.hmdb.org/m.asp?m=158997", "verified": true},
+    {"a": "deadwood", "b": "rapid_city", "mode": "trail", "name": "Deadwood-Rapid City road", "from": "1876", "source": "memory", "verified": false},
+    {"a": "deadwood", "b": "spearfish", "mode": "trail", "name": "Spearfish valley road", "from": "1876-03", "source": "memory", "verified": false},
+    {"a": "spearfish", "b": "sturgis", "mode": "trail", "name": "Spearfish-Sturgis road", "from": "1878", "source": "memory", "verified": false},
+    {"a": "deadwood", "b": "sturgis", "mode": "trail", "name": "Deadwood-Fort Meade road", "from": "1878", "source": "memory", "verified": false},
+    {"a": "rapid_city", "b": "sturgis", "mode": "trail", "name": "Rapid City-Fort Meade road", "from": "1878", "source": "memory", "verified": false},
+    {"a": "cheyenne", "b": "fort_fetterman", "mode": "trail", "name": "Cheyenne-Fetterman road", "from": "1867", "to": "1886", "source": "memory", "verified": false},
+    {"a": "fort_fetterman", "b": "deadwood", "mode": "trail", "name": "Fetterman-Black Hills road", "from": "1876", "source": "memory", "verified": false},
+    {"a": "omaha", "b": "chadron", "mode": "rail", "name": "Fremont, Elkhorn and Missouri Valley", "from": "1885-08-02", "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=361", "verified": true},
+    {"a": "chadron", "b": "douglas", "mode": "rail", "name": "Wyoming Central", "from": "1886", "source": "https://cityofdouglas.org/DocumentCenter/View/1656/Railroad-Interpretive-Center-Visitors-Guide", "verified": true},
+    {"a": "douglas", "b": "casper", "mode": "rail", "name": "Wyoming Central", "from": "1888-06-15", "source": "https://county10.com/lookback-wind-river-timber-company-and-the-first-tie-drive-to-riverton-2/", "verified": true},
+    {"a": "chadron", "b": "rapid_city", "mode": "trail", "name": "Chadron-Black Hills road", "from": "1885", "source": "memory", "verified": false},
+    {"a": "chadron", "b": "fort_robinson", "mode": "trail", "name": "Chadron-Fort Robinson road", "from": "1885", "source": "memory", "verified": false}
+  ]
+}

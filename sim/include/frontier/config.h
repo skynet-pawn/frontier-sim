@@ -173,7 +173,7 @@ struct Params {
     // careful, a tenth careless, the rest ordinary. The chance a visit ends in trouble (a fight, a shooting) follows the type.
     double camp_careful_share = 0.1;
     double camp_careless_share = 0.1;
-    double camp_trouble_careless = 0.3;
+    double camp_trouble_careless = 0.2;
     double camp_trouble_ordinary = 0.1;
     double camp_trouble_careful = 0.02;
     double camp_trouble_outrage = 1.5;       // outrage the town feels after trouble

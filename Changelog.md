@@ -7,6 +7,15 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-18 (evening)
+
+- `4533a12` **Real-map layer 1: the Cheyenne-Black Hills slice.** A first slice of the real map, reviewed and accepted, 16 places from Omaha to Deadwood, about
+  1867-1890. Facts and guesses are kept apart. `data/history/black_hills/` holds the sourced FACTS (`places.json`, `routes.json`,
+  `jurisdictions.json`: positions, founding and rail dates, forts, stage and freight roads, who had law where), each with a source
+  and a verified flag, plus `game.json` with the GUESSES (population, cash, stock) to tweak. `tools/make_slice.py black_hills`
+  builds a runnable world in `data/slices/black_hills/` (run it with `--data data/slices/black_hills`). Towns appear near their
+  real dates and the Deadwood law story follows 1876-77. See `docs/black_hills_slice_1880.png`.
+
 ## 2026-10-18 (later)
 
 - `bb24e97` **Gang camps.** A gang now lives at a camp off the roads (a dugout, a taken or abandoned cabin, a ruined blockhouse, a line
