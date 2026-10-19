@@ -629,6 +629,20 @@
   }
  ],
  "terrain": "black_hills",
+ "rivers": "black_hills",
+ "river_cross": {
+  "_note": "extra miles for a route to cross a creek, a river, a great river (size 1, 2, 3): a ford or ferry on a trail, a bridge for rail",
+  "trail": [
+   1.0,
+   4.0,
+   12.0
+  ],
+  "rail": [
+   0.2,
+   0.5,
+   1.5
+  ]
+ },
  "terrain_climb": {
   "_note": "extra miles a route costs per 100 m of ascent along the straight line between its towns (trail, rail); descent counts for this share",
   "trail": 1.0,

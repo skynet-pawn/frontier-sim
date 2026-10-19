@@ -139,6 +139,7 @@ struct Edge {
     long from = 0, until = 0;
     std::string note;
     std::vector<std::pair<double, double>> path;   // the route over the terrain, a to b (empty = a straight line); drawing only
+    int river_crossings = 0, river_biggest = 0;    // rivers the route crosses, and the size of the biggest (information; the miles already include the crossings)
     long blocked_until = LONG_MIN;      // a storm, flood or washout shuts the road until this day (a "road_closure" shock)
     std::string block_cause;
     bool active = false;
@@ -166,6 +167,7 @@ public:
     long today = 0;
     double ledger[kMoneyFlowCount] = {};   // signed running total per MoneyFlow
     std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
+    std::vector<RiverLine> rivers;           // for drawing; the crossings are already in the routes' miles
     std::vector<std::string> region_names;   // jurisdictions (territories, states, reserves)
     std::vector<long> region_organized;      // the day a region's county government begins
     bool organized(const Node& n) const { return n.region < 0 || today >= region_organized[static_cast<std::size_t>(n.region)]; }

@@ -1,6 +1,7 @@
 #include "frontier/config.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -98,8 +99,19 @@ WorldDef load_world(const std::string& dir) {
     TerrainGrid grid;
     std::map<std::string, double> climb;
     double climb_descent = 0.3;   // coming down a steep grade slows a wagon too, but less than going up
+    // River crossings: extra miles to cross a creek, a river, a great river (a ford, a ferry, a steamboat transfer; a bridge for rail).
+    std::map<std::string, std::array<double, 3>> river_cross = {{"trail", {1.0, 4.0, 12.0}}, {"rail", {0.2, 0.5, 1.5}}, {"river", {0.0, 0.0, 0.0}}};
     if (wj.contains("terrain")) {
         grid = read_terrain(dir, wj["terrain"].get<std::string>());
+        if (wj.contains("rivers")) {
+            w.rivers = read_rivers(dir, wj["rivers"].get<std::string>());
+            add_rivers(grid, w.rivers);
+            if (wj.contains("river_cross"))
+                for (auto it = wj["river_cross"].begin(); it != wj["river_cross"].end(); ++it) {
+                    if (it.key().empty() || it.key()[0] == '_') continue;
+                    for (std::size_t k = 0; k < 3 && k < it.value().size(); ++k) river_cross[it.key()][k] = it.value()[k].get<double>();
+                }
+        }
         climb = {{"trail", 1.0}, {"rail", 0.25}, {"river", 0.0}};
         if (wj.contains("terrain_climb"))
             for (auto it = wj["terrain_climb"].begin(); it != wj["terrain_climb"].end(); ++it) {
@@ -204,9 +216,11 @@ WorldDef load_world(const std::string& dir) {
             // climbing it, so the miles are the flat distance plus whatever the way costs beyond a straight run (detour and climbing).
             const auto rate = climb.find(mode_name(e.mode));
             if (grid.ok && straight > 0 && rate != climb.end() && rate->second > 0) {
-                const TerrainPath tp = least_cost_path(grid, na.x, na.y, nb.x, nb.y, rate->second, climb_descent);
+                const TerrainPath tp = least_cost_path(grid, na.x, na.y, nb.x, nb.y, rate->second, climb_descent, river_cross[mode_name(e.mode)].data());
                 e.miles += std::max(0.0, tp.cost - 1.01 * straight);   // the 1% is the grid's own wobble
                 e.path = tp.points;
+                e.river_crossings = tp.crossings;
+                e.river_biggest = tp.biggest;
             }
         }
         e.hazard = je.value("hazard", -1.0);

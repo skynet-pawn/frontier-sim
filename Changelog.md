@@ -7,6 +7,13 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (rivers)
+
+- `c0f4e13` **Real-map layer 2, step 5: rivers.** Natural Earth river lines for the slice (Missouri, the Platte rivers, the Cheyenne, the
+  White, the Niobrara and more). A route that crosses a river pays for the crossing (a ford, a ferry, a bridge for rail), so roads
+  gain a few miles where they cross the North Platte or the Cheyenne. The viewer draws the rivers in blue. The USGS 30 m
+  elevation download was tested and works (one tile in 5 seconds; the slice would be about 4 GB, not yet fetched).
+
 ## 2026-10-18 (final)
 
 - `e43cdc1` **Real-map layer 2, step 4: finer terrain.** The slice's terrain is now built from 110 m tiles (684 tiles, 28 MB downloaded) on a

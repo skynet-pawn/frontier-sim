@@ -44,6 +44,45 @@ TerrainGrid read_terrain(const std::string& dir, const std::string& name) {
     return t;
 }
 
+std::vector<RiverLine> read_rivers(const std::string& dir, const std::string& name) {
+    std::string d = dir;
+    while (!d.empty() && (d.back() == '/' || d.back() == '\\')) d.pop_back();
+    const std::string path = d + "/../../rivers/" + name + "/rivers.json";
+    std::ifstream f(path);
+    if (!f) throw std::runtime_error("rivers '" + name + "': cannot open " + path);
+    const nlohmann::json j = nlohmann::json::parse(f, nullptr, true, true);
+    std::vector<RiverLine> out;
+    for (const auto& jr : j.at("rivers")) {
+        RiverLine r;
+        r.name = jr.value("name", "");
+        r.size = std::clamp(jr.value("size", 1), 1, 3);
+        for (const auto& pt : jr.at("points")) r.points.push_back({pt.at(0).get<double>(), pt.at(1).get<double>()});
+        if (r.points.size() >= 2) out.push_back(std::move(r));
+    }
+    return out;
+}
+
+void add_rivers(TerrainGrid& g, const std::vector<RiverLine>& rivers) {
+    g.river.assign(static_cast<std::size_t>(g.w) * g.h, 0);
+    for (const RiverLine& r : rivers)
+        for (std::size_t i = 1; i < r.points.size(); ++i) {
+            const double ax = r.points[i - 1].first, ay = r.points[i - 1].second, bx = r.points[i].first, by = r.points[i].second;
+            const int steps = std::max(1, static_cast<int>(std::ceil(std::hypot(bx - ax, by - ay) / (g.cell * 0.5))));
+            for (int k = 0; k <= steps; ++k) {
+                const double f = static_cast<double>(k) / steps;
+                const int cx = static_cast<int>(std::floor((ax + (bx - ax) * f - g.x_min) / g.cell));
+                const int cy = static_cast<int>(std::floor((ay + (by - ay) * f - g.y_min) / g.cell));
+                for (int dy = -1; dy <= 1; ++dy)
+                    for (int dx = -1; dx <= 1; ++dx) {
+                        const int x = cx + dx, y = cy + dy;
+                        if (x < 0 || y < 0 || x >= g.w || y >= g.h) continue;
+                        std::uint8_t& cell = g.river[static_cast<std::size_t>(y) * g.w + x];
+                        cell = std::max<std::uint8_t>(cell, static_cast<std::uint8_t>(r.size));
+                    }
+            }
+        }
+}
+
 namespace {
 
 // Douglas-Peucker: drops points that lie within `tol` miles of the line between the kept ones.
@@ -68,7 +107,7 @@ void simplify(const std::vector<std::pair<double, double>>& p, std::size_t lo, s
 }  // namespace
 
 TerrainPath least_cost_path(const TerrainGrid& g, double ax, double ay, double bx, double by, double climb_per_100m, double descent_share,
-                            double margin) {
+                            const double cross[3], double margin) {
     TerrainPath out;
     auto cell_of = [&](double x, double y, int& cx, int& cy) {
         cx = std::clamp(static_cast<int>(std::floor((x - g.x_min) / g.cell)), 0, g.w - 1);
@@ -111,7 +150,11 @@ TerrainPath least_cost_path(const TerrainGrid& g, double ax, double ay, double b
             if (vx < x0 || vx > x1 || vy < y0 || vy > y1) continue;
             const double step = std::hypot(dxs[k], dys[k]) * g.cell;
             const double dh = height(vx, vy) - hu;
-            const double extra = (dh > 0 ? dh : -dh * descent_share) / 100.0 * climb_per_100m;
+            double extra = (dh > 0 ? dh : -dh * descent_share) / 100.0 * climb_per_100m;
+            if (!g.river.empty()) {   // entering a river's band is a crossing; moving along or out of it is free
+                const int into = g.river[static_cast<std::size_t>(vy) * g.w + vx], here = g.river[static_cast<std::size_t>(uy) * g.w + ux];
+                if (into > 0 && here == 0) extra += cross[into - 1];
+            }
             const std::size_t v = id(vx, vy);
             const double nd = d + step + extra;
             if (nd < dist[v]) { dist[v] = nd; from[v] = static_cast<int>(u); open.push({nd + estimate(vx, vy), v}); }
@@ -120,7 +163,13 @@ TerrainPath least_cost_path(const TerrainGrid& g, double ax, double ay, double b
     if (dist[goal] >= 1e17) { out.cost = std::hypot(bx - ax, by - ay); out.points = {{ax, ay}, {bx, by}}; return out; }
     out.cost = dist[goal];
     std::vector<std::pair<double, double>> pts;
+    int prev_river = 0;
     for (int u = static_cast<int>(goal); u >= 0; u = from[static_cast<std::size_t>(u)]) {
+        if (!g.river.empty()) {
+            const int here = g.river[static_cast<std::size_t>(y0 + u / W) * g.w + (x0 + u % W)];
+            if (prev_river > 0 && here == 0) { ++out.crossings; out.biggest = std::max(out.biggest, prev_river); }   // walking back: leaving a band = it was entered going forward
+            prev_river = here > 0 ? std::max(prev_river, here) : 0;
+        }
         pts.push_back({g.x_min + (x0 + u % W + 0.5) * g.cell, g.y_min + (y0 + u / W + 0.5) * g.cell});
     }
     std::reverse(pts.begin(), pts.end());

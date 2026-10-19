@@ -484,6 +484,15 @@ int main(int argc, char** argv) {
             DrawTexturePro(terrain.tex, {0, 0, static_cast<float>(terrain.tex.width), static_cast<float>(terrain.tex.height)},
                            {tl.x, tl.y, terrain.w * cam.zoom, terrain.h * cam.zoom}, {0, 0}, 0, {255, 255, 255, 235});
         }
+        // Rivers, when the world has them: blue lines under the roads, heavier for the bigger rivers.
+        if (show_terrain) {
+            for (const RiverLine& r : w.rivers) {
+                const float thick = r.size >= 3 ? 3.0f : r.size == 2 ? 2.0f : 1.0f;
+                for (std::size_t k = 1; k < r.points.size(); ++k)
+                    DrawLineEx(cam.to_screen(static_cast<float>(r.points[k - 1].first), static_cast<float>(r.points[k - 1].second)),
+                               cam.to_screen(static_cast<float>(r.points[k].first), static_cast<float>(r.points[k].second)), thick, {70, 120, 190, 200});
+            }
+        }
         for (const Edge& e : w.edges) {
             const Node& a = w.nodes[World::idx(e.a)];
             const Node& b = w.nodes[World::idx(e.b)];

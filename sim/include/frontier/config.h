@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "frontier/terrain.h"
 #include "frontier/types.h"
 
 namespace frontier {
@@ -83,6 +84,8 @@ struct EdgeDef {
     long from = LONG_MIN, until = LONG_MAX;
     std::string note;           // why it opens or closes, shown in the event log
     std::vector<std::pair<double, double>> path;   // the way the route runs over the terrain (map miles, a to b); empty = straight
+    int river_crossings = 0;    // rivers on the way (a ford, ferry or bridge each) and the biggest one's size
+    int river_biggest = 0;
 };
 
 // A private interest with money and reach: a railroad, express company or stock association. When robbers
@@ -109,6 +112,7 @@ struct WorldDef {
     std::vector<NodeDef> nodes;
     std::vector<EdgeDef> edges;
     std::vector<InterestDef> interests;
+    std::vector<RiverLine> rivers;   // from data/rivers/NAME when world.json names them
 };
 
 // Every tunable number in the model. Defaults live here; scenario.json

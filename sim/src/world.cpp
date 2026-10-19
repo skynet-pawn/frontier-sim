@@ -35,6 +35,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         if (goods[g].id == "forage") forage_good = static_cast<GoodId>(g);
         if (goods[g].money && money_good < 0) money_good = static_cast<GoodId>(g);
     }
+    rivers = def.rivers;
     for (const RegionDef& r : def.regions) { region_names.push_back(r.name); region_organized.push_back(r.organized); }
     for (const NodeDef& d : def.nodes) {
         Node n;
@@ -110,7 +111,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         e.a = d.a; e.b = d.b; e.mode = d.mode; e.miles = d.miles;
         e.hazard = d.hazard >= 0 ? d.hazard : p.hazard[static_cast<int>(d.mode)];
         e.travel_days = std::max(1.0, std::ceil(d.miles / p.speed[static_cast<int>(d.mode)]));
-        e.from = d.from; e.until = d.until; e.note = d.note; e.path = d.path;
+        e.from = d.from; e.until = d.until; e.note = d.note; e.path = d.path; e.river_crossings = d.river_crossings; e.river_biggest = d.river_biggest;
         const EdgeId id = static_cast<EdgeId>(edges.size());
         nodes[idx(d.a)].edges.push_back(id);
         nodes[idx(d.b)].edges.push_back(id);
