@@ -1,0 +1,35 @@
+{
+ "_note": "Where the sim lets a route cross a river cheaply. A crossing site makes the river's crossing cost fall to cost_factor times the usual within about three miles of the site: a bridge (0.15), a ferry (0.4), a known ford (0.5). Anywhere else on the river a route pays the full cost. Dates are the dates the crossing was usable; the sim applies every site that was still usable in 1874 for the whole run (a bridge built later than 1874 is treated as built), so the dates are recorded but not yet used. Positions are from memory of the sites' places today: exact only where the site is a town.",
+ "crossings": [
+  {
+   "id": "fort_laramie_bridge",
+   "name": "Fort Laramie bridge",
+   "river": "North Platte",
+   "kind": "bridge",
+   "lat": 42.2065,
+   "lon": -104.5545,
+   "from": "1875",
+   "to": null,
+   "cost_factor": 0.15,
+   "what": "A 400-foot iron bridge for the Army, authorised by Congress in January 1874 ($15,000, King Bridge Company) to replace an unreliable government ferry and to serve the Cheyenne-Fort Laramie-Black Hills freight road; built 1875 (the NPS page says 1876)",
+   "source": "https://www.nps.gov/places/000/north-platte-river-crossing.htm and https://cowboystatedaily.com/2024/07/06/400-foot-fort-laramie-bridge-connected-the-west-to-indian-wars-and-a-gold-boom/",
+   "verified": true,
+   "position": "at the town or site named"
+  },
+  {
+   "id": "clarke_bridge",
+   "name": "Clarke's toll bridge",
+   "river": "North Platte",
+   "kind": "bridge",
+   "lat": 41.667,
+   "lon": -103.1,
+   "from": "1876",
+   "to": null,
+   "cost_factor": 0.15,
+   "what": "Henry T. Clarke's toll bridge over the North Platte, finished in 1876, on the Sidney-Black Hills trail",
+   "source": "https://www.hmdb.org/m.asp?m=158997",
+   "verified": true,
+   "position": "approximate (a few miles)"
+  }
+ ]
+}

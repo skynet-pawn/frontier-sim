@@ -163,8 +163,8 @@
    "b": "dodge_city",
    "mode": "rail",
    "name": "Santa Fe reaches Dodge",
-   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
-   "verified": false,
+   "source": "the Santa Fe reached Dodge City in September 1872 (this session's web search)",
+   "verified": true,
    "from": "1872-09-01"
   },
   {
@@ -369,27 +369,27 @@
    "b": "galveston",
    "mode": "rail",
    "name": "Houston and Texas Central reached Austin in 1871; the line runs to the Gulf",
-   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
-   "verified": false,
-   "from": "1871-12-01"
+   "source": "Houston and Texas Central reached Austin Dec 25 or 26, 1871 (this session's web search)",
+   "verified": true,
+   "from": "1871-12-25"
   },
   {
    "a": "fort_worth",
    "b": "galveston",
    "mode": "rail",
    "name": "Texas and Pacific reached Fort Worth in 1876, joining the Gulf line at Dallas",
-   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
-   "verified": false,
-   "from": "1876-07-01"
+   "source": "first Texas and Pacific train reached Fort Worth July 19, 1876 (this session's web search)",
+   "verified": true,
+   "from": "1876-07-19"
   },
   {
    "a": "san_antonio",
    "b": "galveston",
    "mode": "rail",
    "name": "Galveston, Harrisburg and San Antonio Railway reached San Antonio in 1877",
-   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
-   "verified": false,
-   "from": "1877-01-01"
+   "source": "Galveston, Harrisburg and San Antonio reached San Antonio in February 1877 (this session's web search)",
+   "verified": true,
+   "from": "1877-02-01"
   },
   {
    "a": "omaha",

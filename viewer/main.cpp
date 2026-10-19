@@ -492,6 +492,10 @@ int main(int argc, char** argv) {
                     DrawLineEx(cam.to_screen(static_cast<float>(r.points[k - 1].first), static_cast<float>(r.points[k - 1].second)),
                                cam.to_screen(static_cast<float>(r.points[k].first), static_cast<float>(r.points[k].second)), thick, {70, 120, 190, 200});
             }
+            for (const CrossingSite& c : w.crossings) {   // a bridge, ferry or ford: a small mark on the river
+                const Vector2 p = cam.to_screen(static_cast<float>(c.x), static_cast<float>(c.y));
+                DrawRectangle(static_cast<int>(p.x) - 3, static_cast<int>(p.y) - 3, 6, 6, c.kind == "bridge" ? Color{60, 60, 60, 255} : Color{30, 90, 170, 255});
+            }
         }
         for (const Edge& e : w.edges) {
             const Node& a = w.nodes[World::idx(e.a)];

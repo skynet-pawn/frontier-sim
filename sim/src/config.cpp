@@ -104,8 +104,10 @@ WorldDef load_world(const std::string& dir) {
     if (wj.contains("terrain")) {
         grid = read_terrain(dir, wj["terrain"].get<std::string>());
         if (wj.contains("rivers")) {
-            w.rivers = read_rivers(dir, wj["rivers"].get<std::string>());
-            add_rivers(grid, w.rivers);
+            const RiverSet set = read_rivers(dir, wj["rivers"].get<std::string>());
+            w.rivers = set.rivers;
+            w.crossings = set.crossings;
+            add_rivers(grid, set);
             if (wj.contains("river_cross"))
                 for (auto it = wj["river_cross"].begin(); it != wj["river_cross"].end(); ++it) {
                     if (it.key().empty() || it.key()[0] == '_') continue;

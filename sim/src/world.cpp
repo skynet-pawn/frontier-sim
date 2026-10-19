@@ -36,6 +36,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         if (goods[g].money && money_good < 0) money_good = static_cast<GoodId>(g);
     }
     rivers = def.rivers;
+    crossings = def.crossings;
     for (const RegionDef& r : def.regions) { region_names.push_back(r.name); region_organized.push_back(r.organized); }
     for (const NodeDef& d : def.nodes) {
         Node n;

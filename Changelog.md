@@ -7,6 +7,14 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (facts and crossings)
+
+- `dc6f7f4` **Dated facts and river crossings for the whole map.** Sourced dates for 24 of the 31 towns (rail arrivals, founding, forts,
+  cattle seasons) now sit in `data/history/full/places.json` with a verified flag, and four rail dates in the routes were corrected
+  from the sources. A new `crossings.json` records the real fords, ferries and bridges (Hannibal and Omaha bridges, the Fort Laramie
+  bridge, the Red River Station ferry, Doan's Crossing and more); a route crosses a river cheaply near them and pays full
+  price elsewhere. The viewer marks them.
+
 ## 2026-10-19 (the whole map)
 
 - `5262a5a` **The whole map on real ground.** The original 31 towns, from Galveston to Fort Benton and St. Paul, now have real positions on an

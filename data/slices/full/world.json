@@ -1171,21 +1171,21 @@
    "a": "austin",
    "b": "galveston",
    "mode": "rail",
-   "from": "1871-12-01",
+   "from": "1871-12-25",
    "note": "Houston and Texas Central reached Austin in 1871; the line runs to the Gulf"
   },
   {
    "a": "fort_worth",
    "b": "galveston",
    "mode": "rail",
-   "from": "1876-07-01",
+   "from": "1876-07-19",
    "note": "Texas and Pacific reached Fort Worth in 1876, joining the Gulf line at Dallas"
   },
   {
    "a": "san_antonio",
    "b": "galveston",
    "mode": "rail",
-   "from": "1877-01-01",
+   "from": "1877-02-01",
    "note": "Galveston, Harrisburg and San Antonio Railway reached San Antonio in 1877"
   },
   {

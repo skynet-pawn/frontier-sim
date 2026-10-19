@@ -168,6 +168,7 @@ public:
     double ledger[kMoneyFlowCount] = {};   // signed running total per MoneyFlow
     std::vector<double> east_bought_value, east_sold_value;  // dollars per good the East bought / sold (diagnostics)
     std::vector<RiverLine> rivers;           // for drawing; the crossings are already in the routes' miles
+    std::vector<CrossingSite> crossings;     // fords, ferries and bridges (for drawing)
     std::vector<std::string> region_names;   // jurisdictions (territories, states, reserves)
     std::vector<long> region_organized;      // the day a region's county government begins
     bool organized(const Node& n) const { return n.region < 0 || today >= region_organized[static_cast<std::size_t>(n.region)]; }

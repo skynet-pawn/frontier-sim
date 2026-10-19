@@ -113,6 +113,7 @@ struct WorldDef {
     std::vector<EdgeDef> edges;
     std::vector<InterestDef> interests;
     std::vector<RiverLine> rivers;   // from data/rivers/NAME when world.json names them
+    std::vector<CrossingSite> crossings;   // the fords, ferries and bridges recorded there
 };
 
 // Every tunable number in the model. Defaults live here; scenario.json

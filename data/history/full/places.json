@@ -14,6 +14,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The Hannibal Bridge opened: the first permanent rail crossing of the Missouri River (a swing bridge designed by Octave Chanute; replaced 1917)",
+     "date": "1869-07-03",
+     "source": "https://en.wikipedia.org/wiki/Hannibal_Bridge",
+     "verified": true
     }
    ]
   },
@@ -30,6 +36,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Union Pacific ferry (the Union Pacific Transfer company) took trains across the Missouri; the first railroad bridge at Omaha opened March 27, 1872 (11 spans of 250 ft; the UP charged tolls on it through the 1870s and 1880s; wind wrecked its two eastern spans in 1877 per one source, and Omaha briefly went back to ferries)",
+     "date": "1872-03-27",
+     "source": "https://en.wikipedia.org/wiki/Union_Pacific_Missouri_River_Bridge",
+     "verified": true
     }
    ]
   },
@@ -45,6 +57,12 @@
      "what": "position",
      "date": "",
      "source": "memory",
+     "verified": false
+    },
+    {
+     "what": "no dated facts sourced yet",
+     "date": "",
+     "source": "needs research",
      "verified": false
     }
    ]
@@ -62,6 +80,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "no dated facts sourced yet",
+     "date": "",
+     "source": "needs research",
+     "verified": false
     }
    ]
   },
@@ -77,6 +101,12 @@
      "what": "position",
      "date": "",
      "source": "memory; an area of ranch country, not a town",
+     "verified": false
+    },
+    {
+     "what": "no dated facts sourced yet",
+     "date": "",
+     "source": "needs research",
      "verified": false
     }
    ]
@@ -94,6 +124,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The Galveston, Harrisburg and San Antonio railway reached San Antonio (February 1877)",
+     "date": "1877-02",
+     "source": "https://texashistory.unt.edu/ark:/67531/metadc1924244/m2/1/high_res_d/RR_hist-final.pdf",
+     "verified": true
     }
    ]
   },
@@ -110,6 +146,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The Houston and Texas Central reached Austin (December 25 or 26, 1871; sources differ by a day)",
+     "date": "1871-12-25",
+     "source": "https://en.wikipedia.org/wiki/Houston_and_Texas_Central_Railway and https://library.austintexas.gov/ahc/train-tracks-journey-austins-railways",
+     "verified": true
     }
    ]
   },
@@ -126,6 +168,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The first Texas and Pacific train reached Fort Worth (11:23 a.m., July 19, 1876)",
+     "date": "1876-07-19",
+     "source": "Daily Fort Worth Standard, Oct 11, 1876, as quoted in a Fort Worth retrospective found by web search",
+     "verified": true
     }
    ]
   },
@@ -142,6 +190,24 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Post set up as Camp Wilson by Lt. Col. Samuel D. Sturgis and four companies of the 6th Cavalry; renamed Fort Griffin in 1868",
+     "date": "1867-07-31",
+     "source": "https://thc.texas.gov/state-historic-sites/fort-griffin/fort-griffin-history",
+     "verified": true
+    },
+    {
+     "what": "A supply and shipping center for the southern Plains buffalo country, baling hides for Eastern markets",
+     "date": "1870s",
+     "source": "https://thc.texas.gov/state-historic-sites/fort-griffin/fort-griffin-history",
+     "verified": true
+    },
+    {
+     "what": "The Army left; the flag was lowered for the last time May 31, 1881",
+     "date": "1881-05-31",
+     "source": "https://fortwiki.com/Fort_Griffin_(Texas_3)",
+     "verified": true
     }
    ]
   },
@@ -158,6 +224,24 @@
      "date": "",
      "source": "memory; Doan's store at the Red River crossing",
      "verified": false
+    },
+    {
+     "what": "The Western Trail's crossing of the Red River, in Wilbarger County; drivers began crossing there about 1876",
+     "date": "1876",
+     "source": "https://atlas.thc.texas.gov/Details/5487001234 (Texas Historical Commission marker)",
+     "verified": true
+    },
+    {
+     "what": "A trading post established by the Doan family (the marker says 1878; Corwin Doan's own account places his return to the crossing in October 1879, so the date is uncertain)",
+     "date": "1878",
+     "source": "https://www.okgenweb.net/~okjackso/wtgsweb/doans.html and the THC marker",
+     "verified": false
+    },
+    {
+     "what": "Trail driver Andy Adams wrote that at this and the lower Red River crossings more men drowned than on all other rivers together",
+     "date": "",
+     "source": "https://ahgp.org/ok/doans-crossing.html",
+     "verified": true
     }
    ]
   },
@@ -174,6 +258,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Founded as Camp Wichita and renamed for Joshua W. Sill; the founding date differs by source: staked out January 8, 1869 by Sheridan; March 1869 (NPS); August 1, 1869 (the Army)",
+     "date": "1869",
+     "source": "https://en.wikipedia.org/wiki/Fort_Sill and https://www.nps.gov/parkhistory/online_books/soldier/siteb25.htm",
+     "verified": true
     }
    ]
   },
@@ -190,6 +280,18 @@
      "date": "",
      "source": "memory; the Old Tascosa townsite on the Canadian River",
      "verified": false
+    },
+    {
+     "what": "A crossing point on the Canadian River for centuries (named for the quicksand at the crossing); the town settled about 1875-76 (by ex-soldier and blacksmith Henry Kimball per one source); post office approved 1878",
+     "date": "1876",
+     "source": "https://www.hppr.org/post/old-tascosa-lives and https://historynet.com/tascosa-hell-town-texas-panhandle/",
+     "verified": true
+    },
+    {
+     "what": "Supplied almost entirely by freighters from Dodge City; a railroad built on the far side of the Canadian River in 1887 (Amarillo) ended the Tascosa-Dodge trail",
+     "date": "1887",
+     "source": "https://hdgenealogy.org/roots/txochiltree/tascosa.html",
+     "verified": true
     }
    ]
   },
@@ -205,6 +307,18 @@
      "what": "position",
      "date": "",
      "source": "memory",
+     "verified": false
+    },
+    {
+     "what": "Established and named for Senator Alexander T. Caldwell; the 'Border Queen' to Texas drovers",
+     "date": "1871",
+     "source": "https://www.legendsofamerica.com/ks-caldwell/",
+     "verified": true
+    },
+    {
+     "what": "The Santa Fe reached Caldwell (1879 per one source, 1880 per another; the sim uses 1880-06-13 from the original data)",
+     "date": "1879-1880",
+     "source": "https://www.legendsofamerica.com/ks-caldwell/ and https://www.legendsofamerica.com/ks-kansascowtowns/",
      "verified": false
     }
    ]
@@ -222,6 +336,24 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Platted on the 100th meridian; the Santa Fe reached it in September 1872",
+     "date": "1872-09",
+     "source": "https://en.wikipedia.org/wiki/Dodge_City,_Kansas and https://mavericktrails.com/dodge-city.html",
+     "verified": true
+    },
+    {
+     "what": "The Western Trail brought Texas herds to Dodge City from 1874; by spring 1876 the cattle trade had moved west to Dodge from Ellsworth and Wichita",
+     "date": "1876",
+     "source": "https://www.legendsofamerica.com/ks-dodgecity/",
+     "verified": true
+    },
+    {
+     "what": "Kansas extended its cattle quarantine across the state, cutting off the trails (1885; one source says 1884)",
+     "date": "1885",
+     "source": "https://mavericktrails.com/dodge-city.html and https://www.kansasheritage.org/research/sft/sft-dcity.html",
+     "verified": true
     }
    ]
   },
@@ -238,6 +370,18 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Incorporated; the Chisholm Trail ran along the east side of the community from 1867 to 1871; an Arkansas River bridge separated Wichita from the settlement of Delano by about 1870",
+     "date": "1870",
+     "source": "https://en.wikipedia.org/wiki/History_of_Wichita,_Kansas and https://images.nationalcowboymuseum.org/islandora/object/ncm%3A178485",
+     "verified": true
+    },
+    {
+     "what": "The Santa Fe reached Wichita (a line to Newton); about 80,000 head were shipped in 1872",
+     "date": "1872",
+     "source": "https://en.wikipedia.org/wiki/Chisholm_Trail and https://www.kansashistory.gov/p/cowtowns/15598",
+     "verified": true
     }
    ]
   },
@@ -254,6 +398,18 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Joseph McCoy built stockyards after persuading the Kansas Pacific to build a spur; the first load of cattle went east by rail on September 5, 1867; one source counts 440,200 head shipped 1867-1871",
+     "date": "1867-09-05",
+     "source": "https://www.kansashistory.gov/p/cowtowns/15598 and https://en.wikipedia.org/wiki/Abilene,_Kansas",
+     "verified": true
+    },
+    {
+     "what": "Told Texas drovers they were no longer welcome (fear of tick fever and the cowboys' conduct)",
+     "date": "1872",
+     "source": "https://abilenekansas.org/node/117",
+     "verified": true
     }
    ]
   },
@@ -270,6 +426,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The Kansas Pacific designated Ellsworth its preferred cattle depot in 1871; the Ellsworth Cattle Trail (1873) moved the trail west of the Santa Fe's Wichita; it drew most of the trade in the early 1870s",
+     "date": "1871",
+     "source": "https://en.wikipedia.org/wiki/Chisholm_Trail and https://www.legendsofamerica.com/abilene-trail/",
+     "verified": true
     }
    ]
   },
@@ -286,6 +448,18 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Only a Union Pacific section house and water tower in 1867; the Lonergan brothers and Louis Aufdengarten began the first businesses in 1868",
+     "date": "1867",
+     "source": "https://ogallala-ne.gov/visitors/history_of_ogallala/ and https://ilovelakemac.com/?p=564",
+     "verified": true
+    },
+    {
+     "what": "The Texas trail's northern terminus; sources date the boom to 1873, 1875 or 1870 and all say to 1885; 'the Gomorrah of the Plains' (Andy Adams)",
+     "date": "1875-1885",
+     "source": "https://wyomingtalesandtrails.com/cattleogallala.html and https://usgenwebsites.org/negenweb/NEKeith/cowboycapital1.html",
+     "verified": true
     }
    ]
   },
@@ -302,6 +476,24 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Union Pacific tracks entered Cheyenne",
+     "date": "1867-11-13",
+     "source": "https://utahrails.net/up/up-chronology-howard.php",
+     "verified": true
+    },
+    {
+     "what": "Fort D. A. Russell established three miles west of Cheyenne to protect the railroad; first garrisoned by Col. John D. Stevenson with companies of the 30th Infantry",
+     "date": "1867-07-21",
+     "source": "https://en.wikipedia.org/wiki/Fort_D._A._Russell_(Wyoming)",
+     "verified": true
+    },
+    {
+     "what": "Cheyenne and Black Hills Stage, Mail and Express Line began running (formally 1876-1887, known as the Deadwood Stage)",
+     "date": "1876-04",
+     "source": "https://www.niobraracountylibrary.org/historicals/historical-details/?id=316 and related Niobrara County Library pages",
+     "verified": true
     }
    ]
   },
@@ -318,6 +510,24 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Fur-trade post at the Laramie and North Platte rivers",
+     "date": "1834",
+     "source": "https://theclio.com/tour/2506",
+     "verified": true
+    },
+    {
+     "what": "U.S. Army bought the post and made it a supply and communications center",
+     "date": "1849",
+     "source": "https://theclio.com/tour/2506",
+     "verified": true
+    },
+    {
+     "what": "Abandonment ordered 1889-08-31; last troops left 1890-03-02; buildings auctioned April 7 or 9, 1890 (sources disagree) for $1,395 in all; Fort Robinson became the preferred post once rail lines reached the area",
+     "date": "1890",
+     "source": "https://npshistory.com/handbooks/historical/20/hh20p.htm and https://fortwiki.com/Fort_Laramie",
+     "verified": true
     }
    ]
   },
@@ -334,6 +544,30 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Town officially laid out in April 1876 during the gold rush; about 25,000 miners swarmed the surrounding hills",
+     "date": "1876-04",
+     "source": "https://www.britannica.com/print/article/154318 and https://storymaps.arcgis.com/stories/5f96fffe1906484bb04e3ccff2cd3e62",
+     "verified": true
+    },
+    {
+     "what": "Became a county seat (Lawrence County)",
+     "date": "1877",
+     "source": "https://www.britannica.com/print/article/154318",
+     "verified": true
+    },
+    {
+     "what": "Lead, three miles up the gulch, was first settled in 1876 and incorporated in 1877; it is part of this node for now",
+     "date": "1876",
+     "source": "web search result",
+     "verified": true
+    },
+    {
+     "what": "A Deadwood-to-Lead rail line was built 1901-02; the Deadwood Stage ended in 1887 when the railroad put it out of business",
+     "date": "1887",
+     "source": "https://shipwrecklibrary.com/?p=4291",
+     "verified": true
     }
    ]
   },
@@ -350,6 +584,18 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Colonel Nelson Miles founded the Tongue River Cantonment (August 1876; other sources give July 22 or August 27); it became Fort Keogh a mile west in 1878",
+     "date": "1876-08",
+     "source": "https://en.wikipedia.org/wiki/Fort_Keogh and https://en.wikipedia.org/wiki/Miles_City,_Montana",
+     "verified": true
+    },
+    {
+     "what": "The Northern Pacific reached the area",
+     "date": "1881",
+     "source": "https://www.achp.gov/node/9177",
+     "verified": true
     }
    ]
   },
@@ -366,6 +612,18 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The Four Georgians struck gold in Last Chance Gulch on July 14, 1864; the town was formally established October 30, 1864",
+     "date": "1864-07-14",
+     "source": "https://en.wikipedia.org/wiki/Helena,_Montana and https://www.nps.gov/parkhistory/online_books/geology/publications/bul/611/sec18.htm",
+     "verified": true
+    },
+    {
+     "what": "Territorial capital in 1875; the Northern Pacific reached Helena in 1883; about 140 miles from Fort Benton, the head of navigation",
+     "date": "1883",
+     "source": "https://helenacollege.edu/catalog/helenahistory.aspx",
+     "verified": true
     }
    ]
   },
@@ -382,6 +640,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "The steamboat Chippewa reached the post in 1859; head of navigation from 1860; most of the freight for the northwest and Canada unloaded on its levee until a railroad arrived in 1887; the railroads then ended the river traffic",
+     "date": "1859",
+     "source": "https://www.umt.edu/this-is-montana/columns/stories/fort_benton1of2.php and https://www.hmdb.org/m.asp?m=142011",
+     "verified": true
     }
    ]
   },
@@ -398,6 +662,18 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Founded by John Bozeman, D. E. Rouse and W. J. Beall on the gold-rush Bozeman Trail",
+     "date": "1864",
+     "source": "https://sites.rootsweb.com/~mtgalla2/history.html",
+     "verified": true
+    },
+    {
+     "what": "The Northern Pacific finished its line through town",
+     "date": "1883",
+     "source": "https://sites.rootsweb.com/~mtgalla2/history.html",
+     "verified": true
     }
    ]
   },
@@ -414,6 +690,12 @@
      "date": "",
      "source": "memory",
      "verified": false
+    },
+    {
+     "what": "Founded about three miles west of Fort Zarah (1871); reached by the Santa Fe in July 1872",
+     "date": "1872-07",
+     "source": "https://www.britannica.com/place/Great-Bend and https://en.wikipedia.org/wiki/Great_Bend,_Kansas",
+     "verified": true
     }
    ]
   },
@@ -429,6 +711,12 @@
      "what": "position",
      "date": "",
      "source": "memory",
+     "verified": false
+    },
+    {
+     "what": "no dated facts sourced yet",
+     "date": "",
+     "source": "needs research",
      "verified": false
     }
    ]
@@ -446,6 +734,12 @@
      "date": "",
      "source": "memory; a farm district",
      "verified": false
+    },
+    {
+     "what": "Valley settled as farm country to feed the Black Hills camps",
+     "date": "1876",
+     "source": "memory; no source found this session",
+     "verified": false
     }
    ]
   },
@@ -461,6 +755,12 @@
      "what": "position",
      "date": "",
      "source": "memory; a farm district on the Arkansas River",
+     "verified": false
+    },
+    {
+     "what": "no dated facts sourced yet",
+     "date": "",
+     "source": "needs research",
      "verified": false
     }
    ]
@@ -478,6 +778,12 @@
      "date": "",
      "source": "memory; a farm district (the town was founded in 1882)",
      "verified": false
+    },
+    {
+     "what": "Founded by the Northern Pacific's land company (formed March 1882) and named for its president Frederick Billings; platted on the railroad's odd-numbered sections; the older town of Coulson, bypassed by the railroad, stood nearby",
+     "date": "1882-03",
+     "source": "https://kupi.com/en-ae/explore/united-states/billings/history and https://www.nps.gov/museum/exhibits/mabi/billings.html",
+     "verified": true
     }
    ]
   },
@@ -493,6 +799,12 @@
      "what": "position",
      "date": "",
      "source": "memory; an area of range along the Milk River, not a town",
+     "verified": false
+    },
+    {
+     "what": "no dated facts sourced yet",
+     "date": "",
+     "source": "needs research",
      "verified": false
     }
    ]

@@ -44,27 +44,39 @@ TerrainGrid read_terrain(const std::string& dir, const std::string& name) {
     return t;
 }
 
-std::vector<RiverLine> read_rivers(const std::string& dir, const std::string& name) {
+RiverSet read_rivers(const std::string& dir, const std::string& name) {
     std::string d = dir;
     while (!d.empty() && (d.back() == '/' || d.back() == '\\')) d.pop_back();
     const std::string path = d + "/../../rivers/" + name + "/rivers.json";
     std::ifstream f(path);
     if (!f) throw std::runtime_error("rivers '" + name + "': cannot open " + path);
     const nlohmann::json j = nlohmann::json::parse(f, nullptr, true, true);
-    std::vector<RiverLine> out;
+    RiverSet out;
     for (const auto& jr : j.at("rivers")) {
         RiverLine r;
         r.name = jr.value("name", "");
         r.size = std::clamp(jr.value("size", 1), 1, 3);
         for (const auto& pt : jr.at("points")) r.points.push_back({pt.at(0).get<double>(), pt.at(1).get<double>()});
-        if (r.points.size() >= 2) out.push_back(std::move(r));
+        if (r.points.size() >= 2) out.rivers.push_back(std::move(r));
     }
+    if (j.contains("crossings"))
+        for (const auto& jc : j["crossings"]) {
+            CrossingSite c;
+            c.name = jc.value("name", "");
+            c.kind = jc.value("kind", "");
+            c.x = jc.at("x").get<double>();
+            c.y = jc.at("y").get<double>();
+            c.radius = jc.value("radius", 3.0);
+            c.factor = jc.value("factor", 1.0);
+            out.crossings.push_back(std::move(c));
+        }
     return out;
 }
 
-void add_rivers(TerrainGrid& g, const std::vector<RiverLine>& rivers) {
+void add_rivers(TerrainGrid& g, const RiverSet& set) {
     g.river.assign(static_cast<std::size_t>(g.w) * g.h, 0);
-    for (const RiverLine& r : rivers)
+    g.river_factor.assign(static_cast<std::size_t>(g.w) * g.h, 100);
+    for (const RiverLine& r : set.rivers)
         for (std::size_t i = 1; i < r.points.size(); ++i) {
             const double ax = r.points[i - 1].first, ay = r.points[i - 1].second, bx = r.points[i].first, by = r.points[i].second;
             const int steps = std::max(1, static_cast<int>(std::ceil(std::hypot(bx - ax, by - ay) / (g.cell * 0.5))));
@@ -81,6 +93,18 @@ void add_rivers(TerrainGrid& g, const std::vector<RiverLine>& rivers) {
                     }
             }
         }
+    // A crossing site makes the river cheap to cross around it.
+    for (const CrossingSite& c : set.crossings) {
+        const int reach = static_cast<int>(std::ceil(c.radius / g.cell));
+        const int cx = static_cast<int>(std::floor((c.x - g.x_min) / g.cell)), cy = static_cast<int>(std::floor((c.y - g.y_min) / g.cell));
+        for (int dy = -reach; dy <= reach; ++dy)
+            for (int dx = -reach; dx <= reach; ++dx) {
+                const int x = cx + dx, y = cy + dy;
+                if (x < 0 || y < 0 || x >= g.w || y >= g.h || std::hypot(dx * g.cell, dy * g.cell) > c.radius) continue;
+                std::uint8_t& f = g.river_factor[static_cast<std::size_t>(y) * g.w + x];
+                f = std::min<std::uint8_t>(f, static_cast<std::uint8_t>(std::lround(100 * c.factor)));
+            }
+    }
 }
 
 namespace {
@@ -153,7 +177,7 @@ TerrainPath least_cost_path(const TerrainGrid& g, double ax, double ay, double b
             double extra = (dh > 0 ? dh : -dh * descent_share) / 100.0 * climb_per_100m;
             if (!g.river.empty()) {   // entering a river's band is a crossing; moving along or out of it is free
                 const int into = g.river[static_cast<std::size_t>(vy) * g.w + vx], here = g.river[static_cast<std::size_t>(uy) * g.w + ux];
-                if (into > 0 && here == 0) extra += cross[into - 1];
+                if (into > 0 && here == 0) extra += cross[into - 1] * g.river_factor[static_cast<std::size_t>(vy) * g.w + vx] / 100.0;
             }
             const std::size_t v = id(vx, vy);
             const double nd = d + step + extra;
