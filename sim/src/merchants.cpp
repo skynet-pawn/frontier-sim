@@ -76,7 +76,7 @@ void Simulation::order_for_town(NodeId id) {
     }
     std::sort(wants.begin(), wants.end(), [](const Want& a, const Want& b) { return a.cover < b.cover; });
 
-    double budget = std::max(0.0, n.cash) * p.merchant_cash_share - committed;
+    double budget = world_.purse(id) * p.merchant_cash_share - committed;
     for (const Want& w : wants) {
         if (budget <= 0) break;
         const GoodDef& gd = world_.goods[World::idx(w.g)];
@@ -194,7 +194,7 @@ void Simulation::hire_for_order(NodeId id, GoodId g) {
     double best = 0;
     if (!cheapest_source(id, g, load_units, src, best)) return;
     double remaining = n.order_qty[gi];
-    double budget = std::max(0.0, n.cash) * p.merchant_cash_share;
+    double budget = world_.purse(id) * p.merchant_cash_share;
     int loads = 0;
     double hauled = 0;
     while (remaining > 1.0 && budget > 0) {
@@ -233,7 +233,7 @@ double Simulation::dispatch_convoy(NodeId town, NodeId src, GoodId g, double uni
     c.upkeep = p.trader_upkeep;
     c.base_risk_aversion = c.risk_aversion = 1.0;
     c.cash = advance;
-    tn.cash -= advance;  // a transfer inside the economy: the town's money rides with the wagons
+    world_.draw_purse(town, advance);  // a transfer inside the economy: the town's money rides with the wagons
 
     // He hires as many guards as the road's reputation warrants, judged on what the load is worth to the town.
     plan_paths(c, src, scratch_paths_);

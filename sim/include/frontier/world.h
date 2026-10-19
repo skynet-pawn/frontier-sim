@@ -212,6 +212,8 @@ public:
     // `inbound` is freight already on the road to the node: it fills the contract and the open order first, then crowds the shelf.
     // `drain` is what the town will eat before this load arrives, which thins the shelf the load is sold into.
     double quote_sell(NodeId n, GoodId g, double q, double inbound = 0, double drain = 0) const;  // limited by the node's cash and dust
+    double purse(NodeId n) const;                           // cash plus dust: what a camp can pay a supplier with
+    double draw_purse(NodeId n, double amount);             // pays up to `amount` from the purse (cash first, then dust); returns what was paid
     double dust_on_hand(NodeId n) const;                    // value of the gold a camp could pay out in place of cash
     double quote_sell_contract(NodeId n, GoodId g, double q, double inbound = 0) const;  // the part of a sale that a contract or open order pays (certain)
     double order_unit_price(NodeId n, GoodId g, double extra_stock) const;  // per unit for an open order: its offer or the shelf price, whichever is higher

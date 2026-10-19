@@ -217,8 +217,7 @@ void Simulation::finish_contract_convoy(Trader& c) {
         delivered_value_ += value;
         // The town pays on delivery, as far as its cash goes; what it cannot pay is owed and collected with the next load.
         const double due = units * k.price + k.arrears;
-        paid = std::min(due, std::max(0.0, town.cash));
-        town.cash -= paid;
+        paid = world_.draw_purse(k.town, std::min(due, world_.purse(k.town)));
         h.cash += paid;
         k.arrears = due - paid;
         k.delivered += units;

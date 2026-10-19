@@ -261,6 +261,26 @@ double World::quote_buy(NodeId n, GoodId g, double q) const {
     return total;
 }
 
+double World::purse(NodeId n) const {
+    return std::max(0.0, nodes[idx(n)].cash) + dust_on_hand(n);
+}
+
+// A gold camp's wealth is mostly dust. Its orders, freight jobs and standing contracts used to see only the cash, so a
+// camp sitting on its own output looked broke and posted nothing; sales on the shelf already took dust (see `sell`).
+double World::draw_purse(NodeId n, double amount) {
+    Node& node = nodes[idx(n)];
+    const double cash_pay = std::min(amount, std::max(0.0, node.cash));
+    double dust_pay = 0;
+    if (cash_pay < amount && money_good >= 0) {
+        const double face = goods[idx(money_good)].base_cost;
+        dust_pay = std::min(amount - cash_pay, std::max(0.0, node.stock[idx(money_good)]) * face);
+        node.stock[idx(money_good)] -= dust_pay / face;
+        record(MoneyFlow::DustPaid, dust_pay);
+    }
+    node.cash -= cash_pay;
+    return cash_pay + dust_pay;
+}
+
 double World::dust_on_hand(NodeId n) const {
     if (money_good < 0) return 0;
     const Node& node = nodes[idx(n)];
@@ -313,7 +333,7 @@ double World::quote_sell(NodeId n, GoodId g, double q, double inbound, double dr
     q -= under_contract;
     // The town's own open order takes the next units at the offered price, as far as its cash goes.
     const double oprice = order_unit_price(n, g, shelf_extra - drain);
-    const double order_units = oprice > 0 ? std::min({q, order_left, std::max(0.0, node.cash) / oprice}) : 0.0;
+    const double order_units = oprice > 0 ? std::min({q, order_left, purse(n) / oprice}) : 0.0;
     const double order_pay = order_units * oprice;
     q -= order_units;
     double total = 0, stock = node.stock[idx(g)] + shelf_extra - drain + order_units;  // (contract units go to the government store, not the shelf)
@@ -323,7 +343,7 @@ double World::quote_sell(NodeId n, GoodId g, double q, double inbound, double dr
         stock += u;
     }
     // Cash scarcity: a town can't pay more than it has. A camp that mines gold can pay the rest in dust.
-    return contract_pay + order_pay + std::min(total, std::max(0.0, node.cash - order_pay) + dust_on_hand(n));
+    return contract_pay + order_pay + std::min(total, std::max(0.0, purse(n) - order_pay));
 }
 
 double World::buy(NodeId n, GoodId g, double q, double max_spend, double& spent) {
@@ -378,10 +398,10 @@ double World::sell(NodeId n, GoodId g, double q, double& revenue) {
         }
         // The town's open order, paid from its own cash.
         const double oprice = order_unit_price(n, g, 0);
-        const double ou = oprice > 0 ? std::min({q, node.order_qty[idx(g)], std::max(0.0, node.cash) / oprice}) : 0.0;
+        const double ou = oprice > 0 ? std::min({q, node.order_qty[idx(g)], purse(n) / oprice}) : 0.0;
         if (ou > 0) {
             const double pay = ou * oprice;
-            node.cash -= pay;
+            draw_purse(n, pay);
             node.stock[idx(g)] += ou;
             node.last_delivery[idx(g)] = today;
             node.order_qty[idx(g)] -= ou;

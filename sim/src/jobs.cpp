@@ -41,7 +41,7 @@ Simulation::Plan Simulation::plan_job(const Trader& t, const std::vector<PathInf
             if (!pi.ok || static_cast<NodeId>(d) == t.at || dn.fixed_market || dn.order_qty[g] < 1) continue;
             const double price = world_.order_unit_price(static_cast<NodeId>(d), gid, 0);
             if (price <= 0) continue;
-            const double q = std::floor(std::min({load_units, avail, dn.order_qty[g], std::max(0.0, dn.cash) / price}));
+            const double q = std::floor(std::min({load_units, avail, dn.order_qty[g], world_.purse(static_cast<NodeId>(d)) / price}));
             if (q < 1) continue;
             // He is paid the freight rate on the weight and miles, a share of it (the rest of the real rate is his own wagons,
             // wages and feed, which he pays through his upkeep), and more as the town's order goes unfilled: scarcity pays.
@@ -105,9 +105,8 @@ void Simulation::deliver_job(Trader& t) {
     const std::size_t gi = World::idx(t.cargo);
     const double units = t.qty;
     const double due = units * t.job_price;
-    const double paid = std::min(due, std::max(0.0, town.cash));
+    const double paid = world_.draw_purse(t.job_town, std::min(due, world_.purse(t.job_town)));
     const double goods = units * t.job_unit;
-    town.cash -= paid;
     town.stock[gi] += units;
     town.last_delivery[gi] = world_.today;
     t.cash += paid;
