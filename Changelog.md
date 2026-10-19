@@ -7,6 +7,13 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (the whole map)
+
+- `5262a5a` **The whole map on real ground.** The original 31 towns, from Galveston to Fort Benton and St. Paul, now have real positions on an
+  equal-area projection, with terrain from 220 m tiles, 611 river pieces and routes that follow the land and pay for river
+  crossings. Behaviour matches the hand-placed map (traders, robberies, gangs, shortages, population within a few percent). Run
+  it with `--data data/slices/full`. A new `route_probe` dev tool lists every route's miles and crossings. See `docs/full_map_1878.png`.
+
 ## 2026-10-19 (rivers)
 
 - `c0f4e13` **Real-map layer 2, step 5: rivers.** Natural Earth river lines for the slice (Missouri, the Platte rivers, the Cheyenne, the

@@ -1,0 +1,501 @@
+{
+ "_note": "Layer 1 of the real map for the whole span, so far only the 31 places of the original hand-made data/world.json with real positions (latitude and longitude from memory, good to a mile or two for towns). Dated facts for each place will be added region by region, as for the Black Hills (data/history/black_hills). Game numbers live in game.json.",
+ "places": [
+  {
+   "id": "kansas_city",
+   "name": "Kansas City",
+   "kind": "market",
+   "lat": 39.0997,
+   "lon": -94.5786,
+   "region": "missouri",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "omaha",
+   "name": "Omaha",
+   "kind": "market",
+   "lat": 41.2565,
+   "lon": -95.9345,
+   "region": "nebraska",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "st_paul",
+   "name": "St. Paul",
+   "kind": "market",
+   "lat": 44.9537,
+   "lon": -93.09,
+   "region": "minnesota",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "galveston",
+   "name": "Galveston",
+   "kind": "market",
+   "lat": 29.3013,
+   "lon": -94.7977,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "nueces_range",
+   "name": "Nueces Strip",
+   "kind": "range",
+   "lat": 27.8,
+   "lon": -98.2,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; an area of ranch country, not a town",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "san_antonio",
+   "name": "San Antonio",
+   "kind": "town",
+   "lat": 29.4241,
+   "lon": -98.4936,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "austin",
+   "name": "Austin",
+   "kind": "town",
+   "lat": 30.2672,
+   "lon": -97.7431,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "fort_worth",
+   "name": "Fort Worth",
+   "kind": "town",
+   "lat": 32.7555,
+   "lon": -97.3308,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "fort_griffin",
+   "name": "Fort Griffin",
+   "kind": "buffalo town",
+   "lat": 32.9177,
+   "lon": -99.222,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "doans_crossing",
+   "name": "Doan's Crossing",
+   "kind": "crossing",
+   "lat": 34.11,
+   "lon": -99.37,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; Doan's store at the Red River crossing",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "fort_sill",
+   "name": "Fort Sill Agency",
+   "kind": "fort",
+   "lat": 34.662,
+   "lon": -98.404,
+   "region": "indian_territory",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "tascosa",
+   "name": "Tascosa",
+   "kind": "ranch town",
+   "lat": 35.51,
+   "lon": -102.32,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; the Old Tascosa townsite on the Canadian River",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "caldwell",
+   "name": "Caldwell",
+   "kind": "railhead",
+   "lat": 37.0333,
+   "lon": -97.605,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "dodge_city",
+   "name": "Dodge City",
+   "kind": "railhead",
+   "lat": 37.7528,
+   "lon": -100.0171,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "wichita",
+   "name": "Wichita",
+   "kind": "railhead",
+   "lat": 37.6872,
+   "lon": -97.3301,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "abilene",
+   "name": "Abilene",
+   "kind": "railhead",
+   "lat": 38.9172,
+   "lon": -97.2139,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "ellsworth",
+   "name": "Ellsworth",
+   "kind": "railhead",
+   "lat": 38.7295,
+   "lon": -98.2273,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "ogallala",
+   "name": "Ogallala",
+   "kind": "railhead",
+   "lat": 41.128,
+   "lon": -101.7196,
+   "region": "nebraska",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "cheyenne",
+   "name": "Cheyenne",
+   "kind": "railhead",
+   "lat": 41.14,
+   "lon": -104.8202,
+   "region": "wyoming",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "fort_laramie",
+   "name": "Fort Laramie",
+   "kind": "fort",
+   "lat": 42.2036,
+   "lon": -104.553,
+   "region": "wyoming",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "deadwood",
+   "name": "Deadwood",
+   "kind": "mining camp",
+   "lat": 44.3769,
+   "lon": -103.7296,
+   "region": "black_hills",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "miles_city",
+   "name": "Miles City",
+   "kind": "ranch town",
+   "lat": 46.4083,
+   "lon": -105.8406,
+   "region": "montana",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "helena",
+   "name": "Helena",
+   "kind": "mining town",
+   "lat": 46.5891,
+   "lon": -112.0391,
+   "region": "montana",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "fort_benton",
+   "name": "Fort Benton",
+   "kind": "river port",
+   "lat": 47.82,
+   "lon": -110.6667,
+   "region": "montana",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "bozeman",
+   "name": "Bozeman",
+   "kind": "farm town",
+   "lat": 45.677,
+   "lon": -111.0429,
+   "region": "montana",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "great_bend",
+   "name": "Great Bend",
+   "kind": "farm town",
+   "lat": 38.3645,
+   "lon": -98.7648,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "gainesville",
+   "name": "Gainesville",
+   "kind": "farm town",
+   "lat": 33.6259,
+   "lon": -97.1334,
+   "region": "texas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "spearfish_valley",
+   "name": "Spearfish Valley",
+   "kind": "farm district",
+   "lat": 44.4908,
+   "lon": -103.8594,
+   "region": "black_hills",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; a farm district",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "garden_city",
+   "name": "Garden City",
+   "kind": "farm district",
+   "lat": 37.9717,
+   "lon": -100.8727,
+   "region": "kansas",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; a farm district on the Arkansas River",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "billings",
+   "name": "Billings",
+   "kind": "farm district",
+   "lat": 45.7833,
+   "lon": -108.5007,
+   "region": "montana",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; a farm district (the town was founded in 1882)",
+     "verified": false
+    }
+   ]
+  },
+  {
+   "id": "milk_river_range",
+   "name": "Milk River Range",
+   "kind": "range",
+   "lat": 48.4,
+   "lon": -108.5,
+   "region": "montana",
+   "facts": [
+    {
+     "what": "position",
+     "date": "",
+     "source": "memory; an area of range along the Milk River, not a town",
+     "verified": false
+    }
+   ]
+  }
+ ]
+}

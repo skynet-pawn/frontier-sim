@@ -1,0 +1,29 @@
+{
+  "_note": "Prices are 1870s dollars from memory and approximate; verify against sources before calibrating. base_cost is the price at a node holding its normal stock. weight_lb prices freight; load_lb is how much of a trader's carrying capacity a unit uses (cattle walk, so they load light). freight_mult adjusts one mode: stock cars cost far more per head-mile than a drive.",
+  "goods": [
+    { "id": "beef_cattle", "market_depth": 90000, "name": "Beef cattle", "unit": "head", "base_cost": 8.0, "weight_lb": 10, "load_lb": 12,
+      "self_propelled": true, "game_substitute": true, "need_per_person_per_day": 0.001, "food_share": 0.3, "spoilage_per_day": 0.0003, "min_target": 50,
+      "freight_mult": { "rail": 20 } },
+    { "id": "flour", "market_depth": 100000, "name": "Flour", "unit": "cwt", "base_cost": 3.0, "weight_lb": 100,
+      "need_per_person_per_day": 0.013, "food_share": 0.7, "spoilage_per_day": 0.0005, "min_target": 20 },
+    { "id": "tools", "garrison_need": 0.0015, "market_depth": 20000, "name": "Tools", "unit": "set", "base_cost": 4.0, "weight_lb": 10,
+      "need_per_person_per_day": 0.0005, "min_target": 10 },
+    { "id": "whiskey", "market_depth": 100000, "name": "Whiskey", "unit": "gallon", "base_cost": 1.0, "weight_lb": 9,
+      "need_per_person_per_day": 0.012, "min_target": 30 },
+    { "id": "ammunition", "garrison_need": 0.001, "market_depth": 40000, "name": "Ammunition", "unit": "box", "base_cost": 2.5, "weight_lb": 4,
+      "need_per_person_per_day": 0.004, "min_target": 20 },
+    { "id": "hides", "market_depth": 250000, "name": "Buffalo hides", "unit": "hide", "base_cost": 2.5, "weight_lb": 40,
+      "spoilage_per_day": 0.0002, "min_target": 300 },
+    { "id": "gold", "money": true, "market_depth": 300000, "name": "Gold", "unit": "oz", "base_cost": 20.67, "weight_lb": 0.07, "load_lb": 2,
+      "min_target": 200 },
+    { "id": "timber", "market_depth": 30000, "name": "Timber", "unit": "mbf", "base_cost": 12.0, "weight_lb": 2500,
+      "need_per_person_per_day": 0.0004, "min_target": 5 },
+    { "id": "horses", "market_depth": 40000, "name": "Horses", "unit": "head", "base_cost": 45.0, "weight_lb": 20, "load_lb": 15,
+      "self_propelled": true, "garrison_need": 0.0004, "spoilage_per_day": 0.0004, "min_target": 30,
+      "freight_mult": { "rail": 15 } },
+    { "id": "forage", "market_depth": 150000, "name": "Hay and grain", "unit": "cwt", "base_cost": 1.2, "weight_lb": 100,
+      "garrison_need": 0.15, "spoilage_per_day": 0.0008, "min_target": 40 },
+    { "id": "cotton", "market_depth": 400000, "name": "Cotton", "unit": "bale", "base_cost": 55.0, "weight_lb": 500,
+      "spoilage_per_day": 0.0001, "min_target": 20 }
+  ]
+}

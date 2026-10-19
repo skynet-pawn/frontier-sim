@@ -59,16 +59,15 @@ def read_polylines(path):
         idx += 1
 
 
-# the projection (as in make_terrain.py)
-places = json.load(open(os.path.join(ROOT, 'data', 'history', slice_name, 'places.json'), encoding='utf-8'))['places']
-cheyenne = next(p for p in places if p['id'] == 'cheyenne')
-main = json.loads(re.sub(r'^\s*//.*$', '', open(os.path.join(ROOT, 'data', 'world.json'), encoding='utf-8').read(), flags=re.M))
-cx = next(n for n in main['nodes'] if n['id'] == 'cheyenne')
-AX, AY, COS = cx['x'], cx['y'], math.cos(math.radians(41.5))
+# the slice's projection (tools/proj.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import proj
+PROJ = proj.load(ROOT, slice_name)
 
 
 def project(lon, lat):
-    return AX + (lon - cheyenne['lon']) * COS * 69.17, AY + (lat - cheyenne['lat']) * 69.05
+    x, y = PROJ.project(lat, lon)
+    return float(x), float(y)
 
 
 th = json.load(open(os.path.join(ROOT, 'data', 'terrain', slice_name, 'terrain.json'), encoding='utf-8'))

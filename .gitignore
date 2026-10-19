@@ -5,3 +5,4 @@ out/
 *.log
 CMakeUserPresets.json
 build_viewer/
+__pycache__/

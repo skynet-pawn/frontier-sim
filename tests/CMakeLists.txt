@@ -17,3 +17,6 @@ target_compile_definitions(law_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_D
 add_executable(audit_probe audit_probe.cpp)
 target_link_libraries(audit_probe PRIVATE frontier_sim)
 target_compile_definitions(audit_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+add_executable(route_probe route_probe.cpp)
+target_link_libraries(route_probe PRIVATE frontier_sim)
+target_compile_definitions(route_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")

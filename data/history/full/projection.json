@@ -1,0 +1,8 @@
+{
+ "type": "albers",
+ "lat1": 29.5,
+ "lat2": 45.5,
+ "lat0": 37.5,
+ "lon0": -98.0,
+ "_note": "Albers equal-area conic with the standard parallels of the lower 48: distances and areas stay right from South Texas to Montana."
+}

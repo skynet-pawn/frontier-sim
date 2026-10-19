@@ -1,0 +1,99 @@
+{
+ "_note": "The whole span: every node is the original hand-tuned node (copy_from), and the scenario is the original scenario, so only positions, distances, terrain and rivers differ from data/world.json. Edit data/world.json nodes to tune, or add overrides here.",
+ "scenario_from_main": true,
+ "nodes": {
+  "kansas_city": {
+   "copy_from": "kansas_city"
+  },
+  "omaha": {
+   "copy_from": "omaha"
+  },
+  "st_paul": {
+   "copy_from": "st_paul"
+  },
+  "galveston": {
+   "copy_from": "galveston"
+  },
+  "nueces_range": {
+   "copy_from": "nueces_range"
+  },
+  "san_antonio": {
+   "copy_from": "san_antonio"
+  },
+  "austin": {
+   "copy_from": "austin"
+  },
+  "fort_worth": {
+   "copy_from": "fort_worth"
+  },
+  "fort_griffin": {
+   "copy_from": "fort_griffin"
+  },
+  "doans_crossing": {
+   "copy_from": "doans_crossing"
+  },
+  "fort_sill": {
+   "copy_from": "fort_sill"
+  },
+  "tascosa": {
+   "copy_from": "tascosa"
+  },
+  "caldwell": {
+   "copy_from": "caldwell"
+  },
+  "dodge_city": {
+   "copy_from": "dodge_city"
+  },
+  "wichita": {
+   "copy_from": "wichita"
+  },
+  "abilene": {
+   "copy_from": "abilene"
+  },
+  "ellsworth": {
+   "copy_from": "ellsworth"
+  },
+  "ogallala": {
+   "copy_from": "ogallala"
+  },
+  "cheyenne": {
+   "copy_from": "cheyenne"
+  },
+  "fort_laramie": {
+   "copy_from": "fort_laramie"
+  },
+  "deadwood": {
+   "copy_from": "deadwood"
+  },
+  "miles_city": {
+   "copy_from": "miles_city"
+  },
+  "helena": {
+   "copy_from": "helena"
+  },
+  "fort_benton": {
+   "copy_from": "fort_benton"
+  },
+  "bozeman": {
+   "copy_from": "bozeman"
+  },
+  "great_bend": {
+   "copy_from": "great_bend"
+  },
+  "gainesville": {
+   "copy_from": "gainesville"
+  },
+  "spearfish_valley": {
+   "copy_from": "spearfish_valley"
+  },
+  "garden_city": {
+   "copy_from": "garden_city"
+  },
+  "billings": {
+   "copy_from": "billings"
+  },
+  "milk_river_range": {
+   "copy_from": "milk_river_range"
+  }
+ }
+}

@@ -1,0 +1,413 @@
+{
+ "_note": "Routes of the whole span: for now the original hand-placed network. Mode rail or trail or river; miles only where the original gave them (the Missouri steamboat run), otherwise the sim measures them over the terrain.",
+ "routes": [
+  {
+   "a": "nueces_range",
+   "b": "san_antonio",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "san_antonio",
+   "b": "austin",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "austin",
+   "b": "fort_worth",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "san_antonio",
+   "b": "fort_griffin",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "fort_worth",
+   "b": "fort_griffin",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "fort_griffin",
+   "b": "doans_crossing",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "doans_crossing",
+   "b": "tascosa",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "doans_crossing",
+   "b": "dodge_city",
+   "mode": "trail",
+   "name": "Kansas closed the Western Trail to Texas cattle (1885 Texas-fever quarantine)",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "to": "1885-03-01"
+  },
+  {
+   "a": "tascosa",
+   "b": "dodge_city",
+   "mode": "trail",
+   "name": "Kansas closed the Western Trail to Texas cattle (1885 Texas-fever quarantine)",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "to": "1885-03-01"
+  },
+  {
+   "a": "tascosa",
+   "b": "ogallala",
+   "mode": "trail",
+   "name": "drovers rerouted west of the Kansas quarantine line toward Nebraska railheads",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1885-03-01"
+  },
+  {
+   "a": "fort_worth",
+   "b": "fort_sill",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "fort_sill",
+   "b": "caldwell",
+   "mode": "trail",
+   "name": "Kansas closed the Chisholm Trail to Texas cattle (1885 Texas-fever quarantine)",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "to": "1885-03-01"
+  },
+  {
+   "a": "caldwell",
+   "b": "wichita",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "wichita",
+   "b": "abilene",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "abilene",
+   "b": "ellsworth",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "dodge_city",
+   "b": "ogallala",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "kansas_city",
+   "b": "abilene",
+   "mode": "rail",
+   "name": "Kansas Pacific already running",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "kansas_city",
+   "b": "ellsworth",
+   "mode": "rail",
+   "name": "Kansas Pacific already running",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "kansas_city",
+   "b": "wichita",
+   "mode": "rail",
+   "name": "Santa Fe branch",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1872-05-01"
+  },
+  {
+   "a": "kansas_city",
+   "b": "dodge_city",
+   "mode": "rail",
+   "name": "Santa Fe reaches Dodge",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1872-09-01"
+  },
+  {
+   "a": "kansas_city",
+   "b": "caldwell",
+   "mode": "rail",
+   "name": "Santa Fe reaches Caldwell from the north",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1880-06-13"
+  },
+  {
+   "a": "kansas_city",
+   "b": "omaha",
+   "mode": "rail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "omaha",
+   "b": "ogallala",
+   "mode": "rail",
+   "name": "Union Pacific",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "ogallala",
+   "b": "cheyenne",
+   "mode": "rail",
+   "name": "Union Pacific",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "cheyenne",
+   "b": "fort_laramie",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "cheyenne",
+   "b": "deadwood",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "fort_laramie",
+   "b": "deadwood",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "fort_laramie",
+   "b": "miles_city",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "deadwood",
+   "b": "miles_city",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "miles_city",
+   "b": "helena",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "miles_city",
+   "b": "fort_benton",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "miles_city",
+   "b": "milk_river_range",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "helena",
+   "b": "fort_benton",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "fort_benton",
+   "b": "milk_river_range",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "bozeman",
+   "b": "helena",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "spearfish_valley",
+   "b": "deadwood",
+   "mode": "trail",
+   "name": "settlers and freighters open the valley road to the Black Hills camps",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1876-03-01"
+  },
+  {
+   "a": "great_bend",
+   "b": "dodge_city",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "garden_city",
+   "b": "dodge_city",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "kansas_city",
+   "b": "garden_city",
+   "mode": "rail",
+   "name": "Santa Fe line through the Arkansas Valley",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1872-09-01"
+  },
+  {
+   "a": "great_bend",
+   "b": "ellsworth",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "kansas_city",
+   "b": "great_bend",
+   "mode": "rail",
+   "name": "Santa Fe reaches the Arkansas Valley (date approximate)",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1872-07-01"
+  },
+  {
+   "a": "billings",
+   "b": "miles_city",
+   "mode": "rail",
+   "name": "Northern Pacific builds west up the Yellowstone (date approximate)",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1882-03-01"
+  },
+  {
+   "a": "gainesville",
+   "b": "fort_worth",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "gainesville",
+   "b": "fort_sill",
+   "mode": "trail",
+   "name": "hand-placed route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false
+  },
+  {
+   "a": "austin",
+   "b": "galveston",
+   "mode": "rail",
+   "name": "Houston and Texas Central reached Austin in 1871; the line runs to the Gulf",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1871-12-01"
+  },
+  {
+   "a": "fort_worth",
+   "b": "galveston",
+   "mode": "rail",
+   "name": "Texas and Pacific reached Fort Worth in 1876, joining the Gulf line at Dallas",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1876-07-01"
+  },
+  {
+   "a": "san_antonio",
+   "b": "galveston",
+   "mode": "rail",
+   "name": "Galveston, Harrisburg and San Antonio Railway reached San Antonio in 1877",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1877-01-01"
+  },
+  {
+   "a": "omaha",
+   "b": "fort_benton",
+   "mode": "river",
+   "name": "Missouri River steamboat route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "miles": 1800
+  },
+  {
+   "a": "st_paul",
+   "b": "miles_city",
+   "mode": "rail",
+   "name": "Northern Pacific reaches Miles City, undercutting the Missouri River route",
+   "source": "data/world.json (the original hand-placed network; dates as there, unverified unless noted)",
+   "verified": false,
+   "from": "1881-09-01"
+  }
+ ]
+}

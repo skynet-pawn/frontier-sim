@@ -1,0 +1,18 @@
+{
+ "_note": "From the original data/world.json; dates are guesses to verify (see CLAUDE.md).",
+ "regions": {
+  "missouri": {},
+  "nebraska": {},
+  "minnesota": {},
+  "texas": {},
+  "indian_territory": {
+   "organized": "1999-01-01"
+  },
+  "kansas": {},
+  "wyoming": {},
+  "montana": {},
+  "black_hills": {
+   "organized": "1877-01-01"
+  }
+ }
+}
