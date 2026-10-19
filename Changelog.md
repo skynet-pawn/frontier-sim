@@ -7,6 +7,13 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-18 (last)
+
+- `c7e3094` **Real-map layer 2, step 3: routes follow the land.** A road between two towns now takes the cheapest way over the terrain
+  (around a ridge when that costs less than climbing it) instead of a straight line. The viewer draws each road along that way and
+  moves wagons and gangs along it. Miles on the Black Hills slice change by a few percent: the ground between its towns is gentle
+  at this resolution. See `docs/black_hills_paths_1880.png`.
+
 ## 2026-10-18 (latest)
 
 - `17df2cf` **Real-map layer 2, step 2: slope cost.** The sim now reads the slice's terrain: a route's miles include the climbing along it

@@ -138,6 +138,7 @@ struct Edge {
     double miles = 0, hazard = 0, travel_days = 1;
     long from = 0, until = 0;
     std::string note;
+    std::vector<std::pair<double, double>> path;   // the route over the terrain, a to b (empty = a straight line); drawing only
     long blocked_until = LONG_MIN;      // a storm, flood or washout shuts the road until this day (a "road_closure" shock)
     std::string block_cause;
     bool active = false;

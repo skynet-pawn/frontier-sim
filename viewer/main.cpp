@@ -102,14 +102,35 @@ Color node_color(const World& w, std::size_t i, int overlay, GoodId flour) {
     return kind_color(n);
 }
 
+// A point `f` (0 to 1) of the way along an edge, starting from town `from`, following the route over the terrain when the sim
+// gave one and a straight line otherwise.
+Vector2 point_along(const World& w, const Edge& e, NodeId from, double f) {
+    const Node& a = w.nodes[World::idx(e.a)];
+    const Node& b = w.nodes[World::idx(e.b)];
+    f = std::clamp(f, 0.0, 1.0);
+    if (from == e.b) f = 1.0 - f;   // the stored way runs from a to b
+    if (e.path.size() < 2) return {static_cast<float>(a.x + (b.x - a.x) * f), static_cast<float>(a.y + (b.y - a.y) * f)};
+    double total = 0;
+    for (std::size_t i = 1; i < e.path.size(); ++i) total += std::hypot(e.path[i].first - e.path[i - 1].first, e.path[i].second - e.path[i - 1].second);
+    double want = f * total;
+    for (std::size_t i = 1; i < e.path.size(); ++i) {
+        const double seg = std::hypot(e.path[i].first - e.path[i - 1].first, e.path[i].second - e.path[i - 1].second);
+        if (want <= seg || i + 1 == e.path.size()) {
+            const double t = seg > 0 ? std::clamp(want / seg, 0.0, 1.0) : 0.0;
+            return {static_cast<float>(e.path[i - 1].first + (e.path[i].first - e.path[i - 1].first) * t),
+                    static_cast<float>(e.path[i - 1].second + (e.path[i].second - e.path[i - 1].second) * t)};
+        }
+        want -= seg;
+    }
+    return {static_cast<float>(b.x), static_cast<float>(b.y)};
+}
+
 // Where a wagon train is on its road, interpolated along the current leg. False if it is standing in a town.
 bool trader_position(const World& w, const Trader& t, Vector2& out) {
     if (!t.travelling || t.leg >= t.route.size()) return false;
     const Edge& e = w.edges[World::idx(t.route[t.leg])];
-    const Node& a = w.nodes[World::idx(t.at)];
-    const Node& b = w.nodes[World::idx(e.other(t.at))];
     const double f = std::clamp(1.0 - t.days_left / std::max(0.1, e.travel_days), 0.0, 1.0);
-    out = {static_cast<float>(a.x + (b.x - a.x) * f), static_cast<float>(a.y + (b.y - a.y) * f)};
+    out = point_along(w, e, t.at, f);
     return true;
 }
 
@@ -466,19 +487,22 @@ int main(int argc, char** argv) {
             const Node& a = w.nodes[World::idx(e.a)];
             const Node& b = w.nodes[World::idx(e.b)];
             if ((!a.founded && !a.fixed_market) || (!b.founded && !b.fixed_market)) continue;
-            const Vector2 pa = cam.to_screen(static_cast<float>(a.x), static_cast<float>(a.y));
-            const Vector2 pb = cam.to_screen(static_cast<float>(b.x), static_cast<float>(b.y));
-            if (!e.active) { DrawLineEx(pa, pb, 1.0f, {200, 120, 120, 120}); continue; }  // shut: a closed road or one not built yet
+            // The road is drawn along its route over the terrain when it has one, a straight line otherwise.
+            std::vector<Vector2> way;
+            if (e.path.size() >= 2) for (const auto& pt : e.path) way.push_back(cam.to_screen(static_cast<float>(pt.first), static_cast<float>(pt.second)));
+            else way = {cam.to_screen(static_cast<float>(a.x), static_cast<float>(a.y)), cam.to_screen(static_cast<float>(b.x), static_cast<float>(b.y))};
+            if (!e.active) { for (std::size_t k = 1; k < way.size(); ++k) DrawLineEx(way[k - 1], way[k], 1.0f, {200, 120, 120, 120}); continue; }  // shut: a closed road or one not built yet
             const float danger = static_cast<float>(std::clamp(e.robbed_ema / 0.004, 0.0, 1.0));
             const float thick = e.mode == Mode::Rail ? 2.5f : e.mode == Mode::River ? 2.0f : 1.5f;
-            DrawLineEx(pa, pb, thick, lerp(mode_color(e.mode), {200, 30, 20, 255}, danger));
+            for (std::size_t k = 1; k < way.size(); ++k) DrawLineEx(way[k - 1], way[k], thick, lerp(mode_color(e.mode), {200, 30, 20, 255}, danger));
         }
         for (const Gang& g : sim.gangs()) {
             if (!g.active || g.edge < 0) continue;
             const Edge& e = w.edges[World::idx(g.edge)];
             const Node& a = w.nodes[World::idx(e.a)];
             const Node& b = w.nodes[World::idx(e.b)];
-            const Vector2 p = cam.to_screen(static_cast<float>((a.x + b.x) / 2), static_cast<float>((a.y + b.y) / 2));
+            const Vector2 mid = point_along(w, e, e.a, 0.5);
+            const Vector2 p = cam.to_screen(mid.x, mid.y);
             // A small band is a thin orange cross; a large gang a bigger, heavier red one with its size beside it.
             const bool band = sim.is_band_gang(g);
             const float s = band ? 4.0f : 7.0f;

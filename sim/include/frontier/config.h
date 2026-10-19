@@ -82,6 +82,7 @@ struct EdgeDef {
     double hazard = -1;         // daily chance of a mishap; <0 means use the mode default
     long from = LONG_MIN, until = LONG_MAX;
     std::string note;           // why it opens or closes, shown in the event log
+    std::vector<std::pair<double, double>> path;   // the way the route runs over the terrain (map miles, a to b); empty = straight
 };
 
 // A private interest with money and reach: a railroad, express company or stock association. When robbers

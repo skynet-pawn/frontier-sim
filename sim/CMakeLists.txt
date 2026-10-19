@@ -13,6 +13,7 @@ add_library(frontier_sim STATIC
     src/rng.cpp
     src/simulation.cpp
     src/stats.cpp
+    src/terrain.cpp
     src/traders.cpp
     src/world.cpp
 )

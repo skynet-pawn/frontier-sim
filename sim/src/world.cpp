@@ -110,7 +110,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         e.a = d.a; e.b = d.b; e.mode = d.mode; e.miles = d.miles;
         e.hazard = d.hazard >= 0 ? d.hazard : p.hazard[static_cast<int>(d.mode)];
         e.travel_days = std::max(1.0, std::ceil(d.miles / p.speed[static_cast<int>(d.mode)]));
-        e.from = d.from; e.until = d.until; e.note = d.note;
+        e.from = d.from; e.until = d.until; e.note = d.note; e.path = d.path;
         const EdgeId id = static_cast<EdgeId>(edges.size());
         nodes[idx(d.a)].edges.push_back(id);
         nodes[idx(d.b)].edges.push_back(id);
