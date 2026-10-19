@@ -7,6 +7,17 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (mining-camp famine)
+
+- `4be6696` **Gold camps pay for food in dust.** A gold camp's wealth is dust, but its open orders, freight jobs, standing contracts and hired
+  convoys saw only cash, so a camp sitting on its own output looked broke and posted nothing. Found by following Twin Hill (a generated
+  camp) day by day: the strike stake went to eight convoys, the food ran out after about 115 days, and from then on the town had $0 cash
+  and no order open while its mine produced about $800 of gold a day. All of those now draw from cash plus dust. On the 4,694-node
+  world (1 seed) famine episodes fell from 171 to 42, people starved from 40,000 to 18,000, population at the end rose from 1.57M to 2.2M.
+- `783167f` **A strike brings working capital.** `rush_stake_days` (default 0; the generated scenario sets 90) gives a struck camp cash equal to
+  that many days of its food bill. On its own it barely helped (famines 171 to 160); with dust payment it takes famines from 42 to 32.
+- `1e58133` **Hired cattle convoys are drovers.** A town's hired convoy for beef could not buy cattle, because only a drover's outfit may.
+
 ## 2026-10-19 (settlement pace)
 
 - `4182e08` **Settlement pace: founding is selective.** Farm and ranch sites that qualify now wait in line for settlers, who arrive at a set
