@@ -1,6 +1,8 @@
 #include "frontier/config.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <fstream>
 #include <map>
 #include <stdexcept>
@@ -57,6 +59,52 @@ void read_good_map(const json& j, const char* key, const std::vector<GoodDef>& g
 
 }  // namespace
 
+namespace {
+
+// Terrain under a slice (data/terrain/NAME, written by tools/make_terrain.py): a grid of metres above sea level in the sim's own map
+// miles. Optional: a world.json without a "terrain" name behaves exactly as before.
+struct TerrainGrid {
+    bool ok = false;
+    double x_min = 0, y_min = 0, cell = 2;
+    int w = 0, h = 0;
+    std::vector<std::int16_t> m;   // row-major from the south edge
+
+    double at(double x, double y) const {   // bilinear, clamped to the grid
+        const double gx = std::clamp((x - x_min) / cell - 0.5, 0.0, w - 1.001);
+        const double gy = std::clamp((y - y_min) / cell - 0.5, 0.0, h - 1.001);
+        const int x0 = static_cast<int>(gx), y0 = static_cast<int>(gy);
+        const double fx = gx - x0, fy = gy - y0;
+        auto v = [&](int cx, int cy) { return static_cast<double>(m[static_cast<std::size_t>(cy) * w + cx]); };
+        return (v(x0, y0) * (1 - fx) + v(x0 + 1, y0) * fx) * (1 - fy) + (v(x0, y0 + 1) * (1 - fx) + v(x0 + 1, y0 + 1) * fx) * fy;
+    }
+};
+
+TerrainGrid read_terrain(const std::string& dir, const std::string& name) {
+    TerrainGrid t;
+    std::string d = dir;
+    while (!d.empty() && (d.back() == '/' || d.back() == '\\')) d.pop_back();
+    const std::string tdir = d + "/../../terrain/" + name;
+    std::ifstream hf(tdir + "/terrain.json");
+    if (!hf) throw std::runtime_error("terrain '" + name + "': cannot open " + tdir + "/terrain.json");
+    const json hj = json::parse(hf, nullptr, true, true);
+    t.cell = hj.at("cell_miles").get<double>();
+    t.w = hj.at("width").get<int>();
+    t.h = hj.at("height").get<int>();
+    t.x_min = hj.at("x_min").get<double>();
+    t.y_min = hj.at("y_min").get<double>();
+    std::ifstream bf(tdir + "/heights.i16", std::ios::binary);
+    if (!bf) throw std::runtime_error("terrain '" + name + "': cannot open " + tdir + "/heights.i16");
+    std::vector<unsigned char> raw((std::istreambuf_iterator<char>(bf)), std::istreambuf_iterator<char>());
+    if (raw.size() != static_cast<std::size_t>(t.w) * t.h * 2) throw std::runtime_error("terrain '" + name + "': heights.i16 has the wrong size");
+    t.m.resize(static_cast<std::size_t>(t.w) * t.h);
+    for (std::size_t i = 0; i < t.m.size(); ++i)   // little-endian int16, whatever the host
+        t.m[i] = static_cast<std::int16_t>(static_cast<std::uint16_t>(raw[2 * i] | (raw[2 * i + 1] << 8)));
+    t.ok = t.w > 1 && t.h > 1;
+    return t;
+}
+
+}  // namespace
+
 WorldDef load_world(const std::string& dir) {
     WorldDef w;
 
@@ -90,6 +138,21 @@ WorldDef load_world(const std::string& dir) {
     if (wj.contains("terrain_factor"))
         for (auto it = wj["terrain_factor"].begin(); it != wj["terrain_factor"].end(); ++it)
             terrain[it.key()] = it.value().get<double>();
+
+    // Terrain: the world names a terrain grid and says how many extra miles each 100 m of climbing costs per mode.
+    TerrainGrid grid;
+    std::map<std::string, double> climb;
+    double climb_descent = 0.3;   // coming down a steep grade slows a wagon too, but less than going up
+    if (wj.contains("terrain")) {
+        grid = read_terrain(dir, wj["terrain"].get<std::string>());
+        climb = {{"trail", 1.0}, {"rail", 0.25}, {"river", 0.0}};
+        if (wj.contains("terrain_climb"))
+            for (auto it = wj["terrain_climb"].begin(); it != wj["terrain_climb"].end(); ++it) {
+                if (it.key().empty() || it.key()[0] == '_') continue;
+                if (it.key() == "descent") climb_descent = it.value().get<double>();
+                else climb[it.key()] = it.value().get<double>();
+            }
+    }
 
     for (const auto& jn : wj.at("nodes")) {
         NodeDef n;
@@ -180,7 +243,22 @@ WorldDef load_world(const std::string& dir) {
         } else {
             const NodeDef& na = w.nodes[static_cast<std::size_t>(e.a)];
             const NodeDef& nb = w.nodes[static_cast<std::size_t>(e.b)];
-            e.miles = std::hypot(na.x - nb.x, na.y - nb.y) * terrain[mode_name(e.mode)];
+            const double straight = std::hypot(na.x - nb.x, na.y - nb.y);
+            e.miles = straight * terrain[mode_name(e.mode)];
+            // Climbing costs time and teams: add the miles a wagon (or an engine) would lose to the climbing along the straight
+            // line between the towns. It stands in for the real route, which follows the valleys, so it is a floor on the effect.
+            if (grid.ok && straight > 0) {
+                const int steps = std::max(2, static_cast<int>(std::ceil(straight / grid.cell)));
+                double up = 0, down = 0, prev = grid.at(na.x, na.y);
+                for (int i = 1; i <= steps; ++i) {
+                    const double f = static_cast<double>(i) / steps;
+                    const double hgt = grid.at(na.x + (nb.x - na.x) * f, na.y + (nb.y - na.y) * f);
+                    (hgt > prev ? up : down) += std::fabs(hgt - prev);
+                    prev = hgt;
+                }
+                const auto rate = climb.find(mode_name(e.mode));
+                e.miles += (up + climb_descent * down) / 100.0 * (rate == climb.end() ? 0.0 : rate->second);
+            }
         }
         e.hazard = je.value("hazard", -1.0);
         e.from = date_or(je, "from", LONG_MIN);

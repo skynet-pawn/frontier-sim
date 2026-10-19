@@ -627,5 +627,13 @@
    "budget_per_day": 40,
    "dues_rate": 0.01
   }
- ]
+ ],
+ "terrain": "black_hills",
+ "terrain_climb": {
+  "_note": "extra miles a route costs per 100 m of ascent along the straight line between its towns (trail, rail); descent counts for this share",
+  "trail": 1.0,
+  "rail": 0.25,
+  "river": 0.0,
+  "descent": 0.3
+ }
 }

@@ -7,7 +7,13 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
-## 2026-10-19
+## 2026-10-18 (latest)
+
+- `17df2cf` **Real-map layer 2, step 2: slope cost.** The sim now reads the slice's terrain: a route's miles include the climbing along it
+  (1 extra mile per 100 m of ascent on a trail, a quarter of that for rail), so the Black Hills roads are 5 to 12% longer than the
+  plains roads of the same straight length. Worlds without a terrain grid, including the 31-node map, are unchanged.
+
+## 2026-10-18 (late)
 
 - `1e32973` **Jail, a record and the rope.** A band the law catches is no longer simply gone. Where there is a marshal or sheriff its men
   go to jail: days for petty theft, months for hold-ups, longer for a man who has done time, never more than a year; killers or
