@@ -7,6 +7,14 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (procedural towns)
+
+- `d75a2a3` **A 2,000-node map, first pass.** `tools/gen_towns.py` places about 1,970 procedural towns on the real map from rainfall (PRISM),
+  slope, rivers and trade routes: stations along the railroads and roads, farm towns in the river valleys east of the 100th
+  meridian, ranch headquarters on the plains, mining camps in the ranges, with opening dates from a settlement frontier. The world
+  (`data/slices/full2000`, 2,000 nodes, 4,359 routes) runs the full 15 years in 16 minutes with no crash or audit failure. It
+  shows too much famine and lawlessness, which is the next thing to look at. See `docs/towns_placed_full2000.png`.
+
 ## 2026-10-19 (crash fix)
 
 - `7a5a69c` **Crash fix.** A gang that a rival had just driven off its trail (it has no trail until its next review) could crash the sim when a
