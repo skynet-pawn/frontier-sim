@@ -116,8 +116,8 @@
    "from": "1867",
    "to": null,
    "cost_factor": 0.5,
-   "what": "Texas herds reached the Union Pacific at Ogallala across the South Platte (a drover's memoir mentions the crossing; no source found for the ford itself, and the UP bridged it for the railroad)",
-   "source": "a drover's memoir mentioned in a web search of the Great Western Cattle Trail",
+   "what": "Texas herds reached the Union Pacific at Ogallala across the South Platte. Andy Adams's novel The Log of a Cowboy (based on his drives) has chapters 'Ogalalla', 'Swimming the Platte', 'The North Platte' and 'Forty Islands Ford'. Nothing found on where the ford was, and the UP bridged the river for the railroad",
+   "source": "https://americanliterature.com/author/andy-adams/book/the-log-of-a-cowboy/chapter-xvii-ogalalla (chapter list)",
    "verified": false,
    "position": "approximate (a few miles)"
   },
@@ -131,8 +131,8 @@
    "from": "1872",
    "to": null,
    "cost_factor": 0.5,
-   "what": "The Western Trail brought herds across the Arkansas to the Santa Fe at Dodge City (no source found for where the herds crossed)",
-   "source": "no source found",
+   "what": "The Western Trail brought herds across the Arkansas to the Santa Fe at Dodge City. A Dodge City Public Library photograph of 1887 shows a bridge over the river; nothing found on an 1870s ford, ferry or toll bridge or where the herds crossed",
+   "source": "https://dcpl.libraryhost.com/repositories/2/digital_objects/247 (1887 photograph)",
    "verified": false,
    "position": "approximate (a few miles)"
   },
@@ -161,10 +161,25 @@
    "from": "1876",
    "to": null,
    "cost_factor": 0.4,
-   "what": "Fort Keogh and the town of Miles City stand at the Yellowstone and Tongue River junction (no source found for a ferry or ford)",
-   "source": "no source found",
+   "what": "Fort Keogh and Miles City stand at the junction of the Yellowstone and Tongue rivers; steamboats brought the post's construction materials up the Yellowstone (construction from 1877). Nothing found on a ferry or ford",
+   "source": "https://www.ars.usda.gov/plains-area/miles-city-mt/larrl/docs/legacy-of-fort-keogh/ and https://en.wikipedia.org/wiki/Fort_Keogh",
    "verified": false,
    "position": "approximate (a few miles)"
+  },
+  {
+   "id": "waco_bridge",
+   "name": "Waco Suspension Bridge",
+   "river": "Brazos",
+   "kind": "bridge",
+   "lat": 31.558,
+   "lon": -97.127,
+   "from": "1869-11-20",
+   "to": null,
+   "cost_factor": 0.15,
+   "what": "A toll suspension bridge over the Brazos, opened November 20, 1869 per Wikipedia (January 1 or 7, 1870 per others); the Waco Bridge Company, chartered 1866, held a monopoly and allowed no other bridge within five miles for twenty-five years; before it, Chisholm Trail herds forded at Waco, one of the shallow fords; the county bought it and freed it of tolls in 1889",
+   "source": "https://en.wikipedia.org/wiki/Waco_Suspension_Bridge and https://wacohistory.org/items/show/24",
+   "verified": true,
+   "position": "at the site named"
   }
  ]
 }

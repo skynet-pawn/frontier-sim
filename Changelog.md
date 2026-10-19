@@ -7,6 +7,13 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (more facts)
+
+- `00c3e1e` **More sourced facts and the Waco bridge.** A second research pass added dated facts for St. Paul, Galveston, Gainesville, Garden
+  City, the Nueces Strip and the Milk River country, so 30 of 31 towns now carry a sourced fact. One more crossing is recorded (the
+  Waco Suspension Bridge over the Brazos, 1869-70). The Ogallala, Dodge City and Miles City crossings stayed unverified: nothing
+  found.
+
 ## 2026-10-19 (facts and crossings)
 
 - `dc6f7f4` **Dated facts and river crossings for the whole map.** Sourced dates for 24 of the 31 towns (rail arrivals, founding, forts,

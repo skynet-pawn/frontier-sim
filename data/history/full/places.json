@@ -60,10 +60,16 @@
      "verified": false
     },
     {
-     "what": "no dated facts sourced yet",
-     "date": "",
-     "source": "needs research",
-     "verified": false
+     "what": "Minnesota's first railroad, St. Paul to St. Anthony, opened (June 28 or July 2, 1862; sources differ); the line was the reorganised St. Paul and Pacific, and only 210 miles of track existed by 1865",
+     "date": "1862-06-28",
+     "source": "https://www.mnhs.org/mnopedia/search/index/thing/st-paul-and-pacific-railroad and https://www.minnpost.com/mnopedia/2017/01/st-paul-and-pacific-was-pioneering-railroad-minnesota-if-not-very-successful-one-le/",
+     "verified": true
+    },
+    {
+     "what": "St. Paul was the head of navigation on the Mississippi; the Northern Pacific bought the St. Paul and Pacific in December 1870 and reached Moorhead in 1871 (the Chicago connection was not found in these results)",
+     "date": "1870-12",
+     "source": "https://en.wikipedia.org/wiki/Saint_Paul_and_Pacific_Railroad and https://en.wikipedia.org/wiki/Northern_Pacific_Railway",
+     "verified": true
     }
    ]
   },
@@ -82,10 +88,10 @@
      "verified": false
     },
     {
-     "what": "no dated facts sourced yet",
-     "date": "",
-     "source": "needs research",
-     "verified": false
+     "what": "The Galveston, Houston and Henderson Railroad was chartered (February 7, 1853) to carry northeast Texas cotton to Galveston's docks; its tracks reached Houston in 1859; a 10,000-foot trestle across the bay to the island opened in 1860 (freight had been ferried); the causeway was destroyed in the storm of 1867 and damaged in 1875; the company went into receivership in 1867",
+     "date": "1860-02",
+     "source": "https://www.thestoryoftexas.com/artifacts/map-galveston-houston-henderson-railroad/ and https://www.galvnews.com/lifestyle/remembering-the-galveston-houston-and-henderson-railroad/article_055f2384-8eae-11e2-a236-001a4bcf6878.html",
+     "verified": true
     }
    ]
   },
@@ -104,10 +110,10 @@
      "verified": false
     },
     {
-     "what": "no dated facts sourced yet",
-     "date": "",
-     "source": "needs research",
-     "verified": false
+     "what": "The Nueces Strip: cattle raiding and banditry between the Nueces and the Rio Grande; Governor Richard Coke sent Captain Leander McNelly's Rangers (the Sutton-Taylor feud in DeWitt County from March 1874, then the border in Nueces County in 1875); the accounts are partisan and one episode comes from a single source",
+     "date": "1874-1875",
+     "source": "https://en.wikipedia.org/wiki/Leander_H._McNelly",
+     "verified": true
     }
    ]
   },
@@ -646,6 +652,12 @@
      "date": "1859",
      "source": "https://www.umt.edu/this-is-montana/columns/stories/fort_benton1of2.php and https://www.hmdb.org/m.asp?m=142011",
      "verified": true
+    },
+    {
+     "what": "The railroad that ended the steamboat freight in 1887 was James J. Hill's, not the Northern Pacific, per the marker and the National Register text (the excerpt was cut off)",
+     "date": "1887",
+     "source": "https://www.hmdb.org/m.asp?m=142011 and https://npgallery.nps.gov/pdfhost/docs/NRHP/Text/66000431.pdf",
+     "verified": false
     }
    ]
   },
@@ -714,9 +726,15 @@
      "verified": false
     },
     {
-     "what": "no dated facts sourced yet",
-     "date": "",
-     "source": "needs research",
+     "what": "Settled under the Peters Colony (first contract 1841); a supply point for herds going north, flanked by the Chisholm and Shawnee trails",
+     "date": "1841",
+     "source": "https://gainesville.tx.us/301/History-of-Gainesville and https://texastimetravel.com/cities/gainesville/",
+     "verified": true
+    },
+    {
+     "what": "Railroads: the 'Katy' reached Gainesville in 1879 (one source); the Gulf, Colorado and Santa Fe line from Fort Worth to Gainesville was built in 1886 (a marker report). Sources conflict on which came first",
+     "date": "1879-1886",
+     "source": "https://apps.dentoncounty.gov/website/HistoricalMarkers/PDFs/Sanger-and-the-Gulf-Colorado-and-Santa-Fe-Railway-Historical.pdf",
      "verified": false
     }
    ]
@@ -758,10 +776,10 @@
      "verified": false
     },
     {
-     "what": "no dated facts sourced yet",
-     "date": "",
-     "source": "needs research",
-     "verified": false
+     "what": "Founded by the Fulton brothers, the first homesteaders in Finney County, who arrived at the site in February 1878; named for the garden in their yard; trains did not stop at first, so residents handed mail to passing trainmen",
+     "date": "1878-02",
+     "source": "https://sites.rootsweb.com/~ksfinnhp/history/gardencity.html",
+     "verified": true
     }
    ]
   },
@@ -802,10 +820,10 @@
      "verified": false
     },
     {
-     "what": "no dated facts sourced yet",
-     "date": "",
-     "source": "needs research",
-     "verified": false
+     "what": "Fort Assinniboine (not a place on the map yet): the first soldiers arrived May 9, 1879 six miles southwest of Havre, to guard the Milk River valley against Sioux who had crossed into Canada after 1876 and to curb the liquor trade and clashes between the Blackfoot, Cree and Sioux. Nothing found on the open-range cattle or Fort Belknap",
+     "date": "1879-05-09",
+     "source": "https://havredailynews.com/story/2004/05/07/local/a-fort-was-built-125-years-ago/444683.html and https://en.wikipedia.org/wiki/Fort_Assinniboine",
+     "verified": true
     }
    ]
   }
