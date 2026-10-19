@@ -121,6 +121,13 @@ void Simulation::farms_day() {
     const int doy = static_cast<int>(static_cast<double>(world_.today) - jan1);
     const bool harvest = doy >= p.farm_harvest_start && doy < p.farm_harvest_start + p.farm_harvest_days;
 
+    // The pace of settlement, in sites a day, for farms and ranches (0: no limit). Sites that qualify wait in `ready` for their turn.
+    const double run = std::max(1.0, static_cast<double>(sc_.days));
+    const double through = std::clamp(static_cast<double>(world_.today - sc_.start) / run, 0.0, 1.0);
+    const double pace[2] = {(p.farm_pace_start + (p.farm_pace_end - p.farm_pace_start) * through) / 30.0,
+                            (p.ranch_pace_start + (p.ranch_pace_end - p.ranch_pace_start) * through) / 30.0};
+    std::vector<NodeId> ready[2];
+
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
         Node& n = world_.nodes[i];
         const NodeId id = static_cast<NodeId>(i);
@@ -129,6 +136,11 @@ void Simulation::farms_day() {
 
         if (!n.founded) {
             // A site becomes a town when settling it has paid for a few months running.
+            if (!monthly && n.found_streak >= p.found_months && n.strike_chance <= 0 && world_.today >= n.farm_open) {   // already qualified: waiting for its turn
+                const int line = !n.paced ? -1 : n.found_good < 0 ? 0 : (world_.goods[World::idx(n.found_good)].id == "beef_cattle" ? 1 : -1);
+                if (line >= 0 && ((line == 0 && p.farm_pace_start + p.farm_pace_end > 0) || (line == 1 && p.ranch_pace_start + p.ranch_pace_end > 0))) ready[line].push_back(id);
+                continue;
+            }
             if (!monthly || world_.today < n.farm_open) continue;
             if (n.strike_chance > 0) {   // prospectors: a strike, or not, this month
                 if (rng_.chance(n.strike_chance)) {
@@ -145,7 +157,11 @@ void Simulation::farms_day() {
             n.gate_outlet = outlet;
             n.gate_good = crop;
             n.found_streak = n.farm_gate >= p.found_gate_ratio ? n.found_streak + 1 : 0;
-            if (n.found_streak >= p.found_months) found_town(id);
+            if (n.found_streak >= p.found_months) {
+                const int line = !n.paced ? -1 : n.found_good < 0 ? 0 : (world_.goods[World::idx(n.found_good)].id == "beef_cattle" ? 1 : -1);   // farms and ranches wait for their turn
+                if (line >= 0 && ((line == 0 && p.farm_pace_start + p.farm_pace_end > 0) || (line == 1 && p.ranch_pace_start + p.ranch_pace_end > 0))) ready[line].push_back(id);
+                else found_town(id);
+            }
             continue;
         }
         if (n.farm_capacity <= 0 && n.farmers <= 0 && n.farm_store <= 0) continue;
@@ -197,6 +213,24 @@ void Simulation::farms_day() {
         flour = std::min(flour, world_.farm_output(id) * p.stock_cap_days * 2 + 100);  // what the town cannot hold spoils
         if (world_.forage_good >= 0) n.stock[World::idx(world_.forage_good)] += release * p.farm_forage_ratio;
         ship_farm_goods(id, n);
+    }
+
+    // Settlement pace: the settlers who arrive this month take the best-served of the sites that qualify (best gate price times quality first).
+    for (int line = 0; line < 2; ++line) {
+        if (pace[line] <= 0) continue;
+        found_budget_[line] += pace[line];
+        if (ready[line].empty()) { found_budget_[line] = std::min(found_budget_[line], 3.0); continue; }   // unused places do not pile up
+        std::sort(ready[line].begin(), ready[line].end(), [&](NodeId a, NodeId b) {
+            const Node& na = world_.nodes[World::idx(a)];
+            const Node& nb = world_.nodes[World::idx(b)];
+            const double sa = na.farm_gate * na.found_quality, sb = nb.farm_gate * nb.found_quality;
+            return sa != sb ? sa > sb : a < b;
+        });
+        for (NodeId id : ready[line]) {
+            if (found_budget_[line] < 1.0) break;
+            found_town(id);
+            found_budget_[line] -= 1.0;
+        }
     }
 }
 

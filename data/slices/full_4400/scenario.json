@@ -118,6 +118,10 @@
   "gang_form_chance": 0.02,
   "leaver_drifter_fraction": 0.05,
   "gang_encounter_prob": 0.03,
-  "trader_kill_prob": 0.05
+  "trader_kill_prob": 0.05,
+  "farm_pace_start": 2.0,
+  "farm_pace_end": 5.0,
+  "ranch_pace_start": 1.5,
+  "ranch_pace_end": 2.5
  }
 }

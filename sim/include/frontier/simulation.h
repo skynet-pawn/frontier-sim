@@ -554,6 +554,7 @@ private:
     std::vector<Bushwhack> bush_pending_;
     long bushwhacks_ = 0, bush_killed_ = 0, bush_notable_ = 0;
     long bands_jailed_ = 0, bands_hanged_ = 0, men_hanged_ = 0;
+    double found_budget_[2] = {0, 0};   // sites the settlement pace lets us found: farms, ranches (fractions carry over)
     long band_qualified_ = 0, join_tried_ = 0, join_nopartner_ = 0;
     long camp_visits_ = 0, camp_trouble_ = 0, camp_escapes_ = 0, camp_caught_ = 0;
     std::size_t news_cursor_ = 0;              // next log entry to consider for a headline

@@ -214,7 +214,8 @@ if BUILD:
     opts = {sys.argv[i][2:]: sys.argv[i + 1] for i in range(1, len(sys.argv) - 1) if sys.argv[i].startswith('--')}
     COUNT = int(opts.get('count', 4400))          # candidate sites (the original nodes and stations come on top)
     SEED = int(opts.get('seed', 1))
-    START_SHARE = float(opts.get('start-share', 0.35))   # share of early farm and ranch sites already settled in 1874
+    START_FARM = float(opts.get('start-farm', 0.6))      # share of early farm sites already settled in 1874 (the older farm country)
+    START_RANCH = float(opts.get('start-ranch', 0.35))   # ...and of early ranch sites
     rng = np.random.default_rng(SEED)
     out_name = '%s_%d' % (slice_name, COUNT)
 
@@ -332,6 +333,7 @@ if BUILD:
                       {'beef_cattle': 20, 'flour': pop, 'tools': 15, 'whiskey': 30, 'ammunition': 15})
         n.update({'farmers': pop // 2, 'farm_capacity': int(rng.choice([800, 1500, 3000])), 'farm_yield': yld, 'game_capacity': round(250 * float(game[r, c]))})
         n['found_quality'] = round(yld / 0.8, 2)     # a better farm country is worth settling at a lower price
+        n['paced'] = True
         return n
 
     def ranch_site(x, y, reg, lat, r, c):
@@ -342,6 +344,7 @@ if BUILD:
         n['game_capacity'] = round(300 * float(game[r, c]))
         n['found_crop'] = 'beef_cattle'
         n['found_quality'] = round(0.6 + 0.8 * float(ranch_n[r, c]), 2)
+        n['paced'] = True
         if lat > 41.5:
             n['tags'] = ['northern_range']   # the 1886-87 die-out reaches the northern ranges
         return n
@@ -351,6 +354,7 @@ if BUILD:
         n = base_site('hunters camp', x, y, new_name('camp'), reg, 25, 600, 400, {'flour': 40, 'whiskey': 25, 'ammunition': 40})
         n['reserves'] = {'hides': int(g * rng.choice([60000, 120000, 250000]) + 5000)}
         n['production'] = {'hides': {'rate': int(rng.choice([150, 250, 350])), 'labor_pop': int(rng.choice([40, 80, 120]))}}
+        n['game_capacity'] = int(500 * (0.5 + g))     # the herd it hunts, and the meat its hunters eat
         n['found_crop'] = 'hides'
         n['found_quality'] = round(0.7 + 0.8 * g, 2)
         return n
@@ -360,6 +364,7 @@ if BUILD:
         n = base_site('trapping post', x, y, new_name('post'), reg, 12, 300, 300, {'flour': 20, 'whiskey': 15, 'ammunition': 20, 'tools': 4})
         n['reserves'] = {'furs': int(f * rng.choice([5000, 12000, 25000]) + 800)}
         n['production'] = {'furs': {'rate': int(rng.choice([8, 15, 30])), 'labor_pop': int(rng.choice([8, 15, 25]))}}
+        n['game_capacity'] = int(rng.choice([200, 300, 450]))   # deer, elk and small game along the streams
         n['found_crop'] = 'furs'
         n['found_quality'] = round(0.8 + 0.6 * f, 2)
         return n
@@ -369,8 +374,9 @@ if BUILD:
         n = base_site('mining camp', x, y, new_name('camp'), reg, 12, 3000, 300, {'flour': 10, 'whiskey': 20, 'ammunition': 10})
         n['reserves'] = {'gold': int(rng.choice([80000, 200000, 500000]))}
         n['production'] = {'gold': {'rate': int(rng.choice([40, 80, 160])), 'labor_pop': int(rng.choice([60, 120, 250]))}}
+        n['game_capacity'] = int(rng.choice([150, 250, 400]))   # elk and deer in the hills: the miners hunt (Deadwood has 800)
         n['strike_chance'] = round(0.0025 + 0.006 * m, 4)        # per month once the country is open: a richer district is struck sooner
-        n['strike_people'] = int(rng.choice([200, 600, 1500]))
+        n['strike_people'] = int(rng.choice([60, 150, 400], p=[0.5, 0.35, 0.15]))   # most strikes drew a few score or a few hundred, not a Deadwood
         return n
 
     def mill_site(x, y, reg, r, c):
@@ -378,6 +384,7 @@ if BUILD:
         n = base_site('sawmill', x, y, new_name('mill'), reg, 15, 600, 400, {'flour': 25, 'tools': 10, 'whiskey': 15, 'ammunition': 10})
         n['reserves'] = {'timber': int(20000 * (0.4 + f))}
         n['production'] = {'timber': {'rate': int(rng.choice([1, 2, 3])), 'labor_pop': int(rng.choice([15, 25, 40]))}}
+        n['game_capacity'] = int(rng.choice([150, 250, 400]))   # the woods feed the sawyers
         n['found_crop'] = 'timber'
         n['found_quality'] = round(0.8 + 0.8 * f, 2)
         return n
@@ -467,7 +474,7 @@ if BUILD:
                 if cat == 'farm':
                     year = farm_open_year(lon, lat)
                     nd = farm_site(px, py, reg, r, c)
-                    early = year <= 1874 and rng.random() < START_SHARE
+                    early = year <= 1874 and rng.random() < START_FARM
                     add(nd, iso(max(year, 1862)) if year > 1874 else START, 'farm', latent_site=not early)
                     started += early
                     if not early:
@@ -475,7 +482,7 @@ if BUILD:
                 elif cat == 'ranch':
                     year = ranch_open_year(lat)
                     nd = ranch_site(px, py, reg, lat, r, c)
-                    early = year <= 1874 and rng.random() < START_SHARE
+                    early = year <= 1874 and rng.random() < START_RANCH
                     add(nd, iso(year) if year > 1874 else START, 'ranch', latent_site=not early)
                     started += early
                 elif cat == 'hunt':
@@ -587,6 +594,9 @@ if BUILD:
     f = (COUNT * 0.5 + n_stations + n_real) / 31.0     # the traders an expected 2,000-odd towns would carry (as in gen_world.py)
     scenario['traders'] = int(scn['traders'] * f)
     scenario['max_traders'] = int(scn['max_traders'] * f)
+    # Settlers arrive at a pace, not wherever a price pays: farm and ranch sites that qualify wait in line and the best-served go first.
+    scenario.setdefault('params', {}).update({'farm_pace_start': float(opts.get('farm-pace-start', 2.0)), 'farm_pace_end': float(opts.get('farm-pace-end', 5.0)),
+                                              'ranch_pace_start': float(opts.get('ranch-pace-start', 1.5)), 'ranch_pace_end': float(opts.get('ranch-pace-end', 2.5))})
 
     out = os.path.join(ROOT, 'data', 'slices', out_name)
     os.makedirs(out, exist_ok=True)

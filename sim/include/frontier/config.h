@@ -82,6 +82,7 @@ struct NodeDef {
     double found_quality = 1;
     double strike_chance = 0;
     double strike_people = 0;
+    bool paced = false;          // waits in line for the settlement pace (generated farm and ranch sites); the hand-made latent sites do not
 };
 
 struct EdgeDef {
@@ -521,6 +522,12 @@ struct Params {
     double farm_gate_alpha = 0.1;            // how fast the remembered farm-gate price follows the market (monthly)
     double found_gate_ratio = 1.25;          // a site is settled when the remembered gate price is this many break-evens
     int found_months = 3;                    // ...for this many months running
+    // Settlement pace. A price that pays does not by itself bring settlers: they arrive at the pace the railroads' land sales, the
+    // immigrant ships and the Homestead Act allow, and take the best-served land first. With a pace set, a farm site (grain) or a ranch
+    // site (cattle) that qualifies waits in line, and each month this many are founded, best first (the sites with the highest
+    // gate price times quality). The pace runs in a straight line from its starting value to its value on the last day. 0 = no limit.
+    double farm_pace_start = 0, farm_pace_end = 0;
+    double ranch_pace_start = 0, ranch_pace_end = 0;
     double found_cash_per_person = 40;       // savings settlers bring
 };
 

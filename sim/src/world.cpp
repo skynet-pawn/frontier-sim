@@ -68,6 +68,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.found_quality = d.found_quality;
         n.strike_chance = d.strike_chance;
         n.strike_people = d.strike_people;
+        n.paced = d.paced;
         if (!d.climate.empty()) {
             auto it = std::find(zone_names.begin(), zone_names.end(), d.climate);
             if (it == zone_names.end()) { zone_names.push_back(d.climate); it = zone_names.end() - 1; }

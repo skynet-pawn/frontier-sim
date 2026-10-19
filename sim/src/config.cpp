@@ -155,6 +155,7 @@ WorldDef load_world(const std::string& dir) {
         n.found_quality = jn.value("found_quality", 1.0);
         n.strike_chance = jn.value("strike_chance", 0.0);
         n.strike_people = jn.value("strike_people", 0.0);
+        n.paced = jn.value("paced", false);
         if (jn.contains("contracts"))
             for (auto it = jn["contracts"].begin(); it != jn["contracts"].end(); ++it) {
                 ContractDef c;
@@ -390,7 +391,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(farm_surplus_per_farmer); P_I(farm_harvest_start); P_I(farm_harvest_days); P_D(farm_release_rate);
     P_D(farm_forage_ratio); P_D(farm_break_even_share); P_D(farm_marketing_share); P_D(farm_outlet_units); P_D(farm_weather_sd);
     P_D(farm_settle_base); P_D(farm_settle_growth); P_D(farm_leave_rate); P_D(farm_core_share); P_D(farm_gate_cap); P_D(farm_gate_alpha); P_D(found_gate_ratio);
-    P_I(found_months); P_D(found_cash_per_person);
+    P_I(found_months); P_D(found_cash_per_person); P_D(farm_pace_start); P_D(farm_pace_end); P_D(ranch_pace_start); P_D(ranch_pace_end);
 #undef P_D
 #undef P_I
     // Per-mode arrays.

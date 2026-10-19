@@ -73,6 +73,7 @@ struct Node {
     double found_pop = 40;
     GoodId found_good = -1;                 // the good whose net price decides founding this site (-1: grain)
     double found_quality = 1;               // scales that price: good land, plentiful game or timber
+    bool paced = false;                     // waits in line for the settlement pace
     double strike_chance = 0, strike_people = 0;   // a prospecting site: monthly chance of a strike, and the rush it brings
     int found_streak = 0;                   // months the gate price has justified settling
     long founded_day = LONG_MIN;

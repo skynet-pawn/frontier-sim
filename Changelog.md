@@ -7,6 +7,14 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (settlement pace)
+
+- `4182e08` **Settlement pace: founding is selective.** Farm and ranch sites that qualify now wait in line for settlers, who arrive at a set
+  pace (2 to 5 new farm towns a month over the run) and take the best-served land first, so about half the farm sites and a third of
+  the ranch sites become towns instead of nearly all. The hand-made maps are unchanged (no pace is set there). Strikes are smaller and
+  generated camps have game. The result: farm towns and ranches no longer starve; the famine that remains (137) is almost all in
+  mining camps, which are still too fragile. `frontier_batch` shows progress with `FRONTIER_PROGRESS=1`.
+
 ## 2026-10-19 (resource-driven towns)
 
 - `513e5a7` **Towns the sim founds, from resources.** The generator no longer decides which towns exist. It lays out about 4,400 candidate sites

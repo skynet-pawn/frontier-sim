@@ -1,6 +1,8 @@
 #include "frontier/stats.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 
 #include "frontier/date.h"
@@ -59,10 +61,13 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         if (!n.fixed_market) r.pop_start_total += n.population;
     }
 
+    // FRONTIER_PROGRESS=1 prints a line to stderr every 250 simulated days, so a long run shows where it is.
+    const bool progress = std::getenv("FRONTIER_PROGRESS") != nullptr;
     long gang_days = 0, gang_men_days = 0, gang_big_days = 0, sampled_days = 0, band_days = 0;
     double lawless_days = 0;
     for (int d = 0; d < scenario.days; ++d) {
         sim.step();
+        if (progress && d % 250 == 249) std::fprintf(stderr, "seed %llu: day %d of %d, %zu traders\n", static_cast<unsigned long long>(seed), d + 1, scenario.days, sim.traders().size());
         const int tc = static_cast<int>(sim.traders().size());
         r.traders_min = std::min(r.traders_min, tc);
         r.traders_max = std::max(r.traders_max, tc);
