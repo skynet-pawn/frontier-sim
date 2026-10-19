@@ -228,6 +228,7 @@ double Simulation::dispatch_convoy(NodeId town, NodeId src, GoodId g, double uni
     c.id = next_trader_id_++;
     c.at = src;
     c.agent_for = town;
+    c.drover = world_.goods[World::idx(g)].self_propelled;   // cattle walk: only a drover's outfit can buy them (see act_buy)
     c.capacity_lb = p.trader_capacity_lb;
     c.upkeep = p.trader_upkeep;
     c.base_risk_aversion = c.risk_aversion = 1.0;
