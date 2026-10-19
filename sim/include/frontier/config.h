@@ -165,6 +165,7 @@ struct Params {
     double floor_pop = 5;
     double ghost_pop = 25;
     double newcomer_provision_days = 20;     // days of food new arrivals carry with them
+    double rush_stake_days = 0;              // a strike brings a merchant with working capital: this many days of the camp's food bill, at shelf prices (0 = none)
     double rush_provision_days = 60;         // gold-rush argonauts were told to bring a season's supplies
     double emigrant_cash_share = 0.8;        // share of a town's cash that leaves with its departing residents
     double leaver_drifter_fraction = 0.15;   // share of people leaving a bust town who turn to drifting

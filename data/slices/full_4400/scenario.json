@@ -122,6 +122,7 @@
   "farm_pace_start": 2.0,
   "farm_pace_end": 5.0,
   "ranch_pace_start": 1.5,
-  "ranch_pace_end": 2.5
+  "ranch_pace_end": 2.5,
+  "rush_stake_days": 90
  }
 }

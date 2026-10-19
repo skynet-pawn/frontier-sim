@@ -320,8 +320,14 @@ void Simulation::rush_arrives(NodeId id, double people, double cash_per_person, 
     for (std::size_t g = 0; g < world_.goods.size(); ++g)
         if (world_.goods[g].food_share > 0)
             node.stock[g] += people * world_.goods[g].need_per_person_per_day * world_.params.rush_provision_days;
-    node.cash += people * cash_per_person;
-    world_.record(MoneyFlow::Rush, people * cash_per_person);
+    double stake = 0;   // The merchants who follow a strike bring working capital from outside (credit in the East): a camp's miners spend their money on the claim,
+                        // and a storekeeper with credit is what kept the shelves stocked once the first supplies ran out.
+    if (world_.params.rush_stake_days > 0)
+        for (std::size_t g = 0; g < world_.goods.size(); ++g)
+            if (world_.goods[g].food_share > 0)
+                stake += people * world_.goods[g].need_per_person_per_day * world_.mid_price(id, static_cast<GoodId>(g)) * world_.params.rush_stake_days;
+    node.cash += people * cash_per_person + stake;
+    world_.record(MoneyFlow::Rush, people * cash_per_person + stake);
     node.income_ema += people * world_.params.support_income_per_person * 0.8;
     node.capacity = std::max(node.capacity, node.population);
     log_.with({field("node", node.name), field("people", people)});
