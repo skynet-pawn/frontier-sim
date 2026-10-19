@@ -166,8 +166,8 @@ struct Params {
     double camp_min_miles = 15;              // camp distance from the nearest town along its trail
     double camp_max_miles = 50;
     double camp_escape = 0.3;                // share of would-be catches on the road that end with the band reaching its camp
-    double camp_visit_chance = 0.08;         // daily chance a flush gang rides in to spend
-    double camp_visit_cash_per_man = 150;    // cash a man's share must reach before the gang feels flush ($)
+    double camp_visit_chance = 0.015;        // daily chance a gang with money rides in for a bath, a drink and a card game (about every two to three months, as it also needs the cash)
+    double camp_visit_cash_per_man = 30;     // cash a man's share must reach before the gang rides in ($)
     double camp_visit_spend = 0.5;           // share of the gang's cash left in town on a visit
     // Bosses differ in how well they keep their men quiet in town, apart from how well they hold them together: a tenth are
     // careful, a tenth careless, the rest ordinary. The chance a visit ends in trouble (a fight, a shooting) follows the type.
@@ -177,8 +177,18 @@ struct Params {
     double camp_trouble_ordinary = 0.1;
     double camp_trouble_careful = 0.02;
     double camp_trouble_outrage = 1.5;       // outrage the town feels after trouble
-    double camp_visit_catch = 0.05;          // chance lawmen take a band on a visit (three times that after trouble)
-    double camp_found_catch = 0.003;         // daily chance lawmen find a band's camp, times the law around the nearest town
+    double camp_visit_catch = 0.10;          // chance lawmen take a band on a visit (three times that after trouble)
+    // Being found. Lawmen follow a band's tracks only if it leaves some: repeated hold-ups on one trail near its camp (its heat).
+    // Petty thefts in the wilderness leave nothing to follow. Heat fades with a half-life; a band that moves to a new trail starts
+    // over; a camp far up the trail is harder to link to the crimes.
+    double camp_heat_per_fame = 2.0;         // heat added by a deed, per unit of the fame it earns (robbery 1.0, toll 0.3, kill 1.0, fight 0.6)
+    double camp_heat_bush = 0.2;             // heat from waylaying a lone man
+    double camp_heat_halflife = 30;          // days
+    double camp_heat_move = 0.25;            // share of the heat that follows a band to a new trail
+    double camp_notice_ref = 3;              // heat at which a band is fully findable
+    double camp_notice_floor = 0.1;          // how findable a band with no heat still is
+    double camp_far_miles = 40;              // findability falls to 1 / (1 + camp miles / this)
+    double camp_found_catch = 0.01;          // daily chance lawmen find a band's camp, at full heat and in the open, times the law around the nearest town
     double camp_fence_catch = 0.002;         // chance a fence sale of loot is noticed and a band caught
     int crime_source = 1;
     double crime_source_scale = 4.0;         // rescales the whole rule so the 31-node map keeps its calibrated crime
@@ -394,10 +404,17 @@ struct Params {
     double band_law_cap = 2;                 // most the law fund can multiply a band's chance of being caught
     int band_merge_min_robberies = 2;        // a band must have pulled this many jobs without being caught before a gang will have it
     double band_join_chance = 0.5;           // chance, at each ten-day review, that a successful band joins a gang in reach
+    int band_absorb_quiet = 1;               // a band with its jobs behind it may take in a smaller band that has not pulled any yet
     double band_join_range = 150;            // miles between hideouts within which bands and gangs find each other
     double gang_hire_below = 1.0;            // a gang takes in bands only while it is under this share of what its boss can hold
     double band_petty_take = 0.5;            // $ a man a day a band lifts from its hideout town (pilfering, lone travellers, small hold-ups)
     double band_petty_catch = 0.002;         // daily chance lawmen catch a band at its petty work, times 1 plus the town law fund over law_deter_scale
+    // With camps (camp_stages 1) a band lives off the land, so its cash needs are small: ammunition, powder, tobacco. It lifts a
+    // little now and then (a stray horse, a lone traveller, a store's till) but not every day; the real money is hold-ups, and the
+    // real expense a spree in town.
+    double band_upkeep = 0.12;               // $/man/day for a band (larger gangs still pay gang_upkeep)
+    double band_petty_chance = 0.03;         // daily chance a band lifts something small
+    double band_petty_event = 2.0;           // $ a man in such a take
     double band_min_odds = 0.65;            // a raiding party only stops a wagon it expects to beat (soft targets only)
     double law_overmatch = 2;                // a posse or detective party is sized to about this many times the gang's men (the law knows roughly how big a gang is), within what it can pay for
     int gang_party_max = 5;                  // men in one raiding party; a bigger gang works as several parties on the same trail

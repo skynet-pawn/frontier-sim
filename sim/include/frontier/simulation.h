@@ -149,6 +149,9 @@ struct Gang {
     // miles up its trail from that town. The kind is a label for the viewer; nothing in the sim reads it.
     double camp_miles = 0;
     int camp_kind = -1;
+    double heat = 0;             // hold-ups and killings on its current trail lately; what lawmen can follow to the camp
+    bool qualified = false;      // has pulled enough jobs for a gang to take it (counted once, for the funnel)
+    int thefts = 0;              // petty thefts around its camp: small takes that are not hold-ups and add no loot
     int care = 1;                // how well the boss keeps his men quiet in town: 0 careless, 1 ordinary, 2 careful
 };
 
@@ -271,6 +274,9 @@ public:
         return static_cast<std::size_t>(n) < papers_.size() ? papers_[static_cast<std::size_t>(n)] : none;
     }
     long headlines_printed() const { return headlines_printed_; }
+    long band_qualified() const { return band_qualified_; }
+    long join_tried() const { return join_tried_; }
+    long join_nopartner() const { return join_nopartner_; }
     long camp_visits() const { return camp_visits_; }
     long camp_trouble() const { return camp_trouble_; }
     long camp_escapes() const { return camp_escapes_; }
@@ -537,6 +543,7 @@ private:
     std::vector<NodeId> paper_nodes_;
     std::vector<Bushwhack> bush_pending_;
     long bushwhacks_ = 0, bush_killed_ = 0, bush_notable_ = 0;
+    long band_qualified_ = 0, join_tried_ = 0, join_nopartner_ = 0;
     long camp_visits_ = 0, camp_trouble_ = 0, camp_escapes_ = 0, camp_caught_ = 0;
     std::size_t news_cursor_ = 0;              // next log entry to consider for a headline
     long headlines_printed_ = 0;

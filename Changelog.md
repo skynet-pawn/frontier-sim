@@ -7,6 +7,14 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-18 (night)
+
+- `a0edb1a` **More large gangs.** The funnel from small band to large gang was measured and fixed. Bands now live off the land (small
+  cash needs, occasional petty theft, a recreation visit to town every two or three months with a real chance of being caught).
+  Lawmen find a camp by following a trail of hold-ups (its heat), not by luck, and a far camp is harder to link. Most join attempts
+  used to fail for lack of a partner; a successful band can now take in a quiet one. Large gangs on the road went from 0.6 to 1.65
+  at 31 nodes, joins from 70 to 258 a run. Petty thefts are counted and shown in the log.
+
 ## 2026-10-18 (evening)
 
 - `4533a12` **Real-map layer 1: the Cheyenne-Black Hills slice.** A first slice of the real map, reviewed and accepted, 16 places from Omaha to Deadwood, about

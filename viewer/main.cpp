@@ -5,8 +5,9 @@
 // (miles, x east, y north).
 //
 //   frontier_viewer [--data DIR] [--seed N] [--shot FILE --days N]
+//   If DIR is data/slices/NAME and data/terrain/NAME exists, a shaded-relief terrain map is drawn under the towns (T toggles).
 //   space pause/resume   1-5 speed   N one day (paused)   tab overlay   F fit map   click a town or a wagon   wheel zoom
-//   right-drag or middle-drag pan   C carrier filter   L loaded wagons only   X let go of a followed wagon
+//   right-drag or middle-drag pan   T terrain   C carrier filter   L loaded wagons only   X let go of a followed wagon
 //   click a headline to jump to its town   P screenshot   Esc quit
 #include <algorithm>
 #include <cmath>
@@ -298,6 +299,41 @@ int draw_headlines(const Simulation& sim, long log_from, int top) {
     return clicked;
 }
 
+// Terrain under the map: a hillshade picture placed by the grid origin and cell size in terrain.json (written by
+// tools/make_terrain.py). Found next to the data directory as terrain/NAME for a slice at slices/NAME.
+struct Terrain {
+    Texture2D tex{};
+    bool ok = false;
+    float x0 = 0, y0 = 0, w = 0, h = 0;   // the picture's extent in miles
+};
+
+double json_number(const std::string& text, const char* key) {
+    const std::size_t at = text.find(std::string("\"") + key + "\"");
+    if (at == std::string::npos) return 0;
+    return std::atof(text.c_str() + text.find(':', at) + 1);
+}
+
+Terrain load_terrain(const std::string& data) {
+    Terrain t;
+    std::string d = data;
+    while (!d.empty() && (d.back() == '/' || d.back() == '\\')) d.pop_back();
+    const std::size_t cut = d.find_last_of("/\\");
+    const std::string name = cut == std::string::npos ? d : d.substr(cut + 1);
+    const std::string dir = d + "/../../terrain/" + name;
+    std::ifstream f(dir + "/terrain.json");
+    if (!f || !std::ifstream(dir + "/hillshade.png")) return t;
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const double cell = json_number(text, "cell_miles");
+    t.x0 = static_cast<float>(json_number(text, "x_min"));
+    t.y0 = static_cast<float>(json_number(text, "y_min"));
+    t.w = static_cast<float>(json_number(text, "width") * cell);
+    t.h = static_cast<float>(json_number(text, "height") * cell);
+    t.tex = LoadTexture((dir + "/hillshade.png").c_str());
+    SetTextureFilter(t.tex, TEXTURE_FILTER_BILINEAR);
+    t.ok = t.tex.id != 0 && t.w > 0 && t.h > 0;
+    return t;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -325,6 +361,8 @@ int main(int argc, char** argv) {
     InitWindow(1500, 900, "Frontier Sim");
     SetTargetFPS(60);
     SetExitKey(KEY_ESCAPE);
+    const Terrain terrain = load_terrain(data);
+    bool show_terrain = true;
 
     Camera2 cam;
     fit(cam, w);
@@ -348,6 +386,7 @@ int main(int argc, char** argv) {
         if (IsKeyPressed(KEY_F)) fit(cam, w);
         if (IsKeyPressed(KEY_C)) filter.carrier = filter.carrier >= 3 ? -1 : filter.carrier + 1;
         if (IsKeyPressed(KEY_L)) filter.loaded_only = !filter.loaded_only;
+        if (IsKeyPressed(KEY_T)) show_terrain = !show_terrain;
         if (IsKeyPressed(KEY_X)) followed = -1;
         if (IsKeyPressed(KEY_P)) TakeScreenshot("frontier_shot.png");
         if (paused && IsKeyPressed(KEY_N) && w.today < end_day) sim.step();
@@ -418,6 +457,11 @@ int main(int argc, char** argv) {
         // ---- draw
         BeginDrawing();
         ClearBackground({232, 222, 196, 255});
+        if (terrain.ok && show_terrain) {
+            const Vector2 tl = cam.to_screen(terrain.x0, terrain.y0 + terrain.h);   // the picture is north up; y grows north on the map
+            DrawTexturePro(terrain.tex, {0, 0, static_cast<float>(terrain.tex.width), static_cast<float>(terrain.tex.height)},
+                           {tl.x, tl.y, terrain.w * cam.zoom, terrain.h * cam.zoom}, {0, 0}, 0, {255, 255, 255, 235});
+        }
         for (const Edge& e : w.edges) {
             const Node& a = w.nodes[World::idx(e.a)];
             const Node& b = w.nodes[World::idx(e.b)];
