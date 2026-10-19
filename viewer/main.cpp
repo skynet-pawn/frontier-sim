@@ -342,14 +342,15 @@ Terrain load_terrain(const std::string& data) {
     const std::string name = cut == std::string::npos ? d : d.substr(cut + 1);
     const std::string dir = d + "/../../terrain/" + name;
     std::ifstream f(dir + "/terrain.json");
-    if (!f || !std::ifstream(dir + "/hillshade.png")) return t;
+    const std::string pic = std::ifstream(dir + "/hillshade.jpg") ? dir + "/hillshade.jpg" : dir + "/hillshade.png";
+    if (!f || !std::ifstream(pic)) return t;
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     const double cell = json_number(text, "cell_miles");
     t.x0 = static_cast<float>(json_number(text, "x_min"));
     t.y0 = static_cast<float>(json_number(text, "y_min"));
     t.w = static_cast<float>(json_number(text, "width") * cell);
     t.h = static_cast<float>(json_number(text, "height") * cell);
-    t.tex = LoadTexture((dir + "/hillshade.png").c_str());
+    t.tex = LoadTexture(pic.c_str());
     SetTextureFilter(t.tex, TEXTURE_FILTER_BILINEAR);
     t.ok = t.tex.id != 0 && t.w > 0 && t.h > 0;
     return t;

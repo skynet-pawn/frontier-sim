@@ -7,6 +7,13 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-18 (final)
+
+- `e43cdc1` **Real-map layer 2, step 4: finer terrain.** The slice's terrain is now built from 110 m tiles (684 tiles, 28 MB downloaded) on a
+  quarter-mile grid, instead of 450 m tiles on a two-mile grid, with a despike step that removes the few bad pixels in the source.
+  The path search is now A*, so the bigger grid stays fast. Routes come out a few miles longer because the finer ground has more
+  small climbs. See `docs/black_hills_fine_1880.png`.
+
 ## 2026-10-18 (last)
 
 - `c7e3094` **Real-map layer 2, step 3: routes follow the land.** A road between two towns now takes the cheapest way over the terrain

@@ -90,14 +90,19 @@ TerrainPath least_cost_path(const TerrainGrid& g, double ax, double ay, double b
     std::vector<double> dist(static_cast<std::size_t>(W) * H, 1e18);
     std::vector<int> from(static_cast<std::size_t>(W) * H, -1);
     using Item = std::pair<double, std::size_t>;
+    // A*: the straight distance to the goal never overstates the cost left (every step costs at least its length), so the search
+    // heads for the goal instead of flooding the grid. Items are (distance so far + that estimate, cell).
+    const double goal_x = g.x_min + (tx + 0.5) * g.cell, goal_y = g.y_min + (ty + 0.5) * g.cell;
+    auto estimate = [&](int cx, int cy) { return std::hypot(g.x_min + (cx + 0.5) * g.cell - goal_x, g.y_min + (cy + 0.5) * g.cell - goal_y); };
     std::priority_queue<Item, std::vector<Item>, std::greater<Item>> open;
     dist[id(sx, sy)] = 0;
-    open.push({0, id(sx, sy)});
+    open.push({estimate(sx, sy), id(sx, sy)});
     const std::size_t goal = id(tx, ty);
     while (!open.empty()) {
-        const auto [d, u] = open.top();
+        const auto [f, u] = open.top();
         open.pop();
-        if (d > dist[u]) continue;
+        const double d = dist[u];
+        if (f > d + estimate(x0 + static_cast<int>(u % W), y0 + static_cast<int>(u / W)) + 1e-9) continue;   // a stale entry
         if (u == goal) break;
         const int ux = x0 + static_cast<int>(u % W), uy = y0 + static_cast<int>(u / W);
         const double hu = height(ux, uy);
@@ -109,7 +114,7 @@ TerrainPath least_cost_path(const TerrainGrid& g, double ax, double ay, double b
             const double extra = (dh > 0 ? dh : -dh * descent_share) / 100.0 * climb_per_100m;
             const std::size_t v = id(vx, vy);
             const double nd = d + step + extra;
-            if (nd < dist[v]) { dist[v] = nd; from[v] = static_cast<int>(u); open.push({nd, v}); }
+            if (nd < dist[v]) { dist[v] = nd; from[v] = static_cast<int>(u); open.push({nd + estimate(vx, vy), v}); }
         }
     }
     if (dist[goal] >= 1e17) { out.cost = std::hypot(bx - ax, by - ay); out.points = {{ax, ay}, {bx, by}}; return out; }
