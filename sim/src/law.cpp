@@ -55,6 +55,7 @@ void Simulation::try_form_posse(NodeId n) {
     double best = 0, target_dist = 0;
     for (const Gang& g : gangs_) {
         if (!g.active || g.hideout == n || g.robberies == 0) continue;
+        if (g.edge < 0) continue;   // just driven off its trail by a rival: nowhere for a posse to go until its next review
         if (p.fame_stages && nd.region >= 0 && gang_known(g, nd.region) < p.fame_posse_min) continue;   // nobody here has heard of it
         const Edge& e = world_.edges[World::idx(g.edge)];
         const Node& a = world_.nodes[World::idx(e.a)];
@@ -337,7 +338,7 @@ void Simulation::interests_day() {
         double worst = 0;
         for (const auto& v : in.victims) {
             const Gang* g = find_gang(v.first);
-            if (g && g->active && v.second > worst) { worst = v.second; target = g; }
+            if (g && g->active && g->edge >= 0 && v.second > worst) { worst = v.second; target = g; }   // a gang with no trail has nowhere to be hunted
         }
         if (!target) continue;
         const Edge& e = world_.edges[World::idx(target->edge)];

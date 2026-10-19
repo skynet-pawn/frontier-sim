@@ -7,6 +7,12 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (crash fix)
+
+- `7a5a69c` **Crash fix.** A gang that a rival had just driven off its trail (it has no trail until its next review) could crash the sim when a
+  town or a private interest looked for a gang to hunt. Both now skip such gangs. Found by running a 2,000-node world, which the
+  smaller maps never triggered; a memory-checking build named the line.
+
 ## 2026-10-19 (more facts)
 
 - `00c3e1e` **More sourced facts and the Waco bridge.** A second research pass added dated facts for St. Paul, Galveston, Gainesville, Garden

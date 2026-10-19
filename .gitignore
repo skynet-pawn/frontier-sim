@@ -6,3 +6,4 @@ out/
 CMakeUserPresets.json
 build_viewer/
 __pycache__/
+build_asan/
