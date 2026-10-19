@@ -190,6 +190,21 @@ struct Params {
     double camp_far_miles = 40;              // findability falls to 1 / (1 + camp miles / this)
     double camp_found_catch = 0.01;          // daily chance lawmen find a band's camp, at full heat and in the open, times the law around the nearest town
     double camp_fence_catch = 0.002;         // chance a fence sale of loot is noticed and a band caught
+    // Jail. A band the law catches is not simply gone. Where there is law its men go to jail for a term that depends on what
+    // they did (petty theft only: days; hold-ups: months; longer for men with a record, never more than a year: past that a town
+    // hangs them), and killers or a long string of hold-ups risk the rope. They come out with a record, and as hardened men they
+    // form the next bands. Where there is no law there is no jail, and the town runs them out.
+    int jail_stages = 1;
+    double jail_petty_min = 5, jail_petty_max = 30;     // days, band with no hold-up or killing behind it
+    double jail_job_min = 60, jail_job_max = 180;       // days, band that has robbed
+    double jail_repeat_mult = 2.0;                      // times longer for a man with a record
+    double jail_cap_days = 365;                         // the longest a frontier jail holds anyone
+    double jail_marshal_cap = 30;                       // a marshal's lockup holds men for days, not months
+    int jail_hang_jobs = 8;                             // hold-ups after which a caught band risks hanging,
+    int jail_hang_kills = 2;                            // or killings
+    double jail_hang_chance = 0.5;                      // doubled if men in the band have a record
+    double jail_hang_share = 0.4;                       // share of the men hanged, the leader among them; the rest serve a year
+    double ex_con_fights = 10;                          // fights a man with a record counts as having survived (10 makes him a veteran)
     int crime_source = 1;
     double crime_source_scale = 4.0;         // rescales the whole rule so the 31-node map keeps its calibrated crime
     double crime_income_ref = 1.0;           // town income per head per day that counts as rich ($)

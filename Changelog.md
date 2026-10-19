@@ -7,6 +7,14 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19
+
+- `1e32973` **Jail, a record and the rope.** A band the law catches is no longer simply gone. Where there is a marshal or sheriff its men
+  go to jail: days for petty theft, months for hold-ups, longer for a man who has done time, never more than a year; killers or
+  a long string of hold-ups risk hanging. They come out with a record and, as hardened men, form the next bands (a released
+  man counts as a veteran in a fight). Where there is no law the town runs the men out. The frontier sources found are thin
+  and noted in `CLAUDE.md`; the numbers are guesses within them. Large gangs on the road 1.65 to 1.79 at 31 nodes.
+
 ## 2026-10-18 (night)
 
 - `a0edb1a` **More large gangs.** The funnel from small band to large gang was measured and fixed. Bands now live off the land (small

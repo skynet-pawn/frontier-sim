@@ -111,6 +111,7 @@ enum class DrifterFlow {
     TurnedFighter, FighterDecay,                                                                                    // drifters who turn to crime; fighters who give up
     GangRecruited,                                                                                                  // into gangs from nowhere
     GangLosses, GangVanished,                                                                                       // out of gangs for good
+    Jailed, Released, Hanged,                                                                                       // a caught band's men: locked up, let out with a record, hanged
     Count
 };
 const char* drifter_flow_name(DrifterFlow f);
@@ -151,6 +152,8 @@ struct Gang {
     int camp_kind = -1;
     double heat = 0;             // hold-ups and killings on its current trail lately; what lawmen can follow to the camp
     bool qualified = false;      // has pulled enough jobs for a gang to take it (counted once, for the funnel)
+    int record_men = 0;          // of its men, how many have done time
+    int kills = 0;               // men its hold-ups and ambushes have killed
     int thefts = 0;              // petty thefts around its camp: small takes that are not hold-ups and add no loot
     int care = 1;                // how well the boss keeps his men quiet in town: 0 careless, 1 ordinary, 2 careful
 };
@@ -277,6 +280,9 @@ public:
     long band_qualified() const { return band_qualified_; }
     long join_tried() const { return join_tried_; }
     long join_nopartner() const { return join_nopartner_; }
+    long bands_jailed() const { return bands_jailed_; }
+    long bands_hanged() const { return bands_hanged_; }
+    long men_hanged() const { return men_hanged_; }
     long camp_visits() const { return camp_visits_; }
     long camp_trouble() const { return camp_trouble_; }
     long camp_escapes() const { return camp_escapes_; }
@@ -463,7 +469,10 @@ private:
     void gang_deed_edge(Gang& g, EdgeId e, double weight);
     double gang_heat(const Gang& g, EdgeId e) const;
     double law_presence(const Node& n) const;
-    void gang_dissolve(Gang& g, const char* why);
+    void gang_dissolve(Gang& g, const char* why, bool men_handled = false);
+    // Jail (crime.cpp).
+    void gang_arrest(Gang& g);
+    void jail_day();
     // Gang wars and veterans (crime.cpp).
     void gang_add_men(Gang& g, int n, int fights = 0);
     void gang_lose_men(Gang& g, int n);
@@ -483,7 +492,7 @@ private:
     double gang_contact_prob(const Gang& g) const;
     void gang_war(Gang& a, Gang& b, EdgeId e);
     void try_form_gang(NodeId n);
-    void create_gang(NodeId hideout, int men, const char* cause, int cells = 0);
+    void create_gang(NodeId hideout, int men, const char* cause, int cells = 0, int record = 0);
     double gang_edge_score(const Gang& g, EdgeId e) const;
     double grudge_of(const Gang& g, NodeId n) const;
     void try_form_posse(NodeId n);
@@ -543,6 +552,7 @@ private:
     std::vector<NodeId> paper_nodes_;
     std::vector<Bushwhack> bush_pending_;
     long bushwhacks_ = 0, bush_killed_ = 0, bush_notable_ = 0;
+    long bands_jailed_ = 0, bands_hanged_ = 0, men_hanged_ = 0;
     long band_qualified_ = 0, join_tried_ = 0, join_nopartner_ = 0;
     long camp_visits_ = 0, camp_trouble_ = 0, camp_escapes_ = 0, camp_caught_ = 0;
     std::size_t news_cursor_ = 0;              // next log entry to consider for a headline

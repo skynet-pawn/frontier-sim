@@ -78,6 +78,12 @@ bool Simulation::make_headline(const Event& e, Headline& h) const {
     } else if (e.kind == "law_established") {
         h.text = number_of(e, "law") >= 2 ? strf("Sheriff Opens Office at %s", where.c_str()) : strf("%s Hires a Marshal", where.c_str());
         h.weight = 0.6;
+    } else if (e.kind == "band_hanged") {
+        h.text = strf("Road Agents Hanged at %s", where.c_str());
+        h.weight = 1.0;
+    } else if (e.kind == "band_jailed" && !e.minor) {
+        h.text = strf("Highwaymen Jailed at %s", where.c_str());
+        h.weight = 0.6;
     } else if (e.kind == "shortage") {
         h.text = strf("%s Short of Provisions", where.c_str());
         h.weight = 0.6;

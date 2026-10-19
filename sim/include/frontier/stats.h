@@ -39,7 +39,7 @@ struct RunStats {
     int robberies = 0, tolls = 0, robberies_over_1500 = 0, gangs_formed = 0, gangs_disbanded = 0;
     int posses = 0, posse_victories = 0, posse_routs = 0, leaders_killed = 0, leaders_emerged = 0;
     int detective_parties = 0, takeovers = 0, towns_freed = 0, infighting = 0, vigilance = 0;
-    double drifter_flow[16] = {};   // men, whole run (warm-up included)
+    double drifter_flow[24] = {};   // men, whole run (warm-up included)
     long gangs_ended = 0;
     double gang_life_mean = 0;                                  // mean days a gang lasts
     long large_ended = 0;                                       // gangs that ever reached 6 men and broke up, and how: law, money, rivals, quarrels, freighters, other
@@ -47,6 +47,7 @@ struct RunStats {
     int large_end[7] = {};
     int papers_end = 0, papers_founded = 0;
     long bushwhacks = 0, bush_killed = 0, bush_notable = 0;
+    long bands_jailed = 0, bands_hanged = 0, men_hanged = 0;
     long band_qualified = 0, join_tried = 0, join_nopartner = 0;
     long camp_visits = 0, camp_trouble = 0, camp_escapes = 0, camp_caught = 0;
     int cavalry_sent = 0;

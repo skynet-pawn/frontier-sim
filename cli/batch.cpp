@@ -158,6 +158,9 @@ int main(int argc, char** argv) {
         row("  headlines printed (all papers)", runs, [](const RunStats& r) { return static_cast<double>(r.headlines); });
         row("bushwhackings (lone men waylaid) / killed / notable", runs, [](const RunStats& r) { return static_cast<double>(r.bushwhacks); });
         row("  killed", runs, [](const RunStats& r) { return static_cast<double>(r.bush_killed); });
+        row("bands whose men were jailed", runs, [](const RunStats& r) { return static_cast<double>(r.bands_jailed); });
+        row("  bands with men hanged", runs, [](const RunStats& r) { return static_cast<double>(r.bands_hanged); });
+        row("  men hanged", runs, [](const RunStats& r) { return static_cast<double>(r.men_hanged); });
         row("funnel: bands that pulled enough jobs to qualify", runs, [](const RunStats& r) { return static_cast<double>(r.band_qualified); });
         row("  review days they tried to join a gang", runs, [](const RunStats& r) { return static_cast<double>(r.join_tried); });
         row("  ... and found no partner in range with room", runs, [](const RunStats& r) { return static_cast<double>(r.join_nopartner); });

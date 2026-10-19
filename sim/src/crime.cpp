@@ -28,6 +28,7 @@ void Simulation::crime_day() {
     { PhaseTimer t(phase_time_[6]); rebuild_edge_gangs();
     if (p.gang_wars) gang_wars_day(); }
 
+    if (p.jail_stages) jail_day();
     for (std::size_t i = 0; i < world_.nodes.size(); ++i) {
         const Node& n = world_.nodes[i];
         if (p.gang_tiers) {
@@ -130,15 +131,17 @@ NodeId Simulation::nearest_node(EdgeId eid, NodeId near_to) const {
 const char* drifter_flow_name(DrifterFlow f) {
     static const char* const names[] = {"arrived at camps and railheads", "left a dying town", "left the land (farms)", "ruined traders", "fled a vigilance reprisal",
                                         "scattered from a broken gang", "scattered from a quarrelling band", "returned (gang could not form)", "gave up, died or left (decay)",
-                                        "formed a gang", "turned to crime (drifters)", "fighters who gave up or left", "recruited into a gang", "gang men killed or gone", "vanished when a gang broke up"};
+                                        "formed a gang", "turned to crime (drifters)", "fighters who gave up or left", "recruited into a gang", "gang men killed or gone", "vanished when a gang broke up", "jailed when a band was caught", "let out of jail with a record", "hanged"};
     return names[static_cast<std::size_t>(f)];
 }
 
-void Simulation::create_gang(NodeId hideout, int men, const char* cause, int cells) {
+void Simulation::create_gang(NodeId hideout, int men, const char* cause, int cells, int record) {
     Gang g;
     g.id = next_gang_id_++;
     g.men = men;
     g.fights.assign(static_cast<std::size_t>(std::max(0, men)), 0);
+    g.record_men = std::max(0, std::min(record, men));
+    for (int i = 0; i < g.record_men; ++i) g.fights[static_cast<std::size_t>(i)] = static_cast<int>(world_.params.ex_con_fights);   // hardened by time inside
     g.cells = cells > 0 ? cells : 1;
     gang_fix_cells(g);
     // The boss's grip on his men; usually middling, as with the bosses who take over towns (capture.cpp).
@@ -187,13 +190,15 @@ void Simulation::try_form_gang(NodeId n) {
                            money(nd.income_ema).c_str(), money(nd.income_peak).c_str()).c_str());
 }
 
-void Simulation::gang_dissolve(Gang& g, const char* why) {
+void Simulation::gang_dissolve(Gang& g, const char* why, bool men_handled) {
     free_town(g, why);
     g.active = false;
     world_.record(MoneyFlow::GangExit, -g.cash);  // what the gang still holds scatters with its men
     g.cash = 0;
-    scatter_men(g.hideout, g.men * 0.5, DrifterFlow::GangScatter);  // the rest scatter or die
-    note_drifters(DrifterFlow::GangVanished, g.men * 0.5);
+    if (!men_handled) {   // otherwise the caller has put every man somewhere (jail, the rope, out of town)
+        scatter_men(g.hideout, g.men * 0.5, DrifterFlow::GangScatter);  // the rest scatter or die
+        note_drifters(DrifterFlow::GangVanished, g.men * 0.5);
+    }
     ++gangs_ended_;
     if (g.peak >= world_.params.gang_large_men) {   // a larger gang's end, sorted by cause: 0 law, 1 money, 2 rivals, 3 quarrels, 4 armed freighters, 5 other
         const std::string w = why;
@@ -488,6 +493,7 @@ bool Simulation::resolve_encounter(Gang& g, Trader& t, EdgeId eid) {
     t.guards = 0;  // back to the leg's starting town
     if (rng_.chance(p.trader_kill_prob)) {
         retire(t, "killed in a holdup");
+        ++g.kills;
         gang_deed_edge(g, eid, p.fame_kill);
     }
     return true;
@@ -509,10 +515,17 @@ void Simulation::try_form_band(NodeId n) {
     const int most = std::min<int>(p.band_max_men, static_cast<int>(nd.fighters));
     if (most < p.band_min_men) return;
     const int men = p.band_min_men + static_cast<int>(rng_.next_below(static_cast<std::uint64_t>(most - p.band_min_men + 1)));
+    // Men who have done time are among the fighters in the same proportion, and join like the rest.
+    const double share = nd.fighters > 0 ? std::min(1.0, nd.ex_cons / nd.fighters) : 0.0;
+    int record = static_cast<int>(std::floor(men * share));
+    if (rng_.chance(men * share - record)) ++record;
+    record = std::min(record, static_cast<int>(std::floor(nd.ex_cons + 0.5)));
     nd.fighters -= men;
+    nd.ex_cons = std::max(0.0, nd.ex_cons - record);
     note_drifters(DrifterFlow::FormedGang, men);
-    create_gang(n, men, strf("%d men who can fight and have no work band together at %s and pool what they have; %s of cash in town",
-                              men, nd.name.c_str(), money(nd.cash).c_str()).c_str());
+    const std::string record_note = record > 0 ? strf("; %d of them %s done time", record, record == 1 ? "has" : "have") : std::string();
+    create_gang(n, men, strf("%d men who can fight and have no work band together at %s and pool what they have; %s of cash in town%s",
+                              men, nd.name.c_str(), money(nd.cash).c_str(), record_note.c_str()).c_str(), 0, record);
 }
 
 // A raiding party is 3 to 5 men; the gang's cells are how many such parties it can put on the trail. Cells never exceed
@@ -539,6 +552,8 @@ void Simulation::gang_absorb(Gang& host, Gang& other) {
     host.cells += other.cells;
     host.cash += other.cash;
     host.robberies += other.robberies;
+    host.record_men += other.record_men;
+    host.kills += other.kills;
     host.loot += other.loot;
     other.cash = 0;
     other.active = false;
@@ -633,7 +648,8 @@ void Simulation::band_catch_check(Gang& g, EdgeId eid, double base, const char* 
     Node& h = world_.nodes[World::idx(g.hideout)];
     h.cash += g.cash;  // seized and spent locally; keeps the money audit whole
     g.cash = 0;
-    gang_dissolve(g, "caught by lawmen");
+    if (p.jail_stages) gang_arrest(g);
+    else gang_dissolve(g, "caught by lawmen");
 }
 
 // Where a gang really lives. The camp lies a few miles up its trail from the town it trades with, away from anyone who
@@ -686,6 +702,79 @@ double Simulation::gang_town_visit(Gang& g) {
     }
     band_catch_check(g, -1, p.camp_visit_catch * (trouble ? 3.0 : 1.0));
     return spree;
+}
+
+// What happens to a band the law has caught. Where a marshal or sheriff holds an office his lockup takes the men: days for petty
+// theft alone (the usual penalty was a fine and a night or a few days), months for hold-ups, longer for a man with a record,
+// never more than a year, since a frontier jail did not hold anyone longer and a town that could not hang or banish a hard
+// case had little else to do. Killers and men with a long string of hold-ups may hang (the leader among them). Where there is
+// no law there is no jail: the town runs the men out. The men come out with a record and form the next bands.
+void Simulation::gang_arrest(Gang& g) {
+    const Params& p = world_.params;
+    Node& h = world_.nodes[World::idx(g.hideout)];
+    if (h.law <= 0) {   // nobody to lock them up: they are driven out of the country with what they stand in
+        scatter_men(g.hideout, g.men, DrifterFlow::GangScatter);
+        log_.with({field("gang", g.id), field("men", g.men), field("node", h.name)});
+        log_.add(world_.today, EventType::Law, "band_run_out", g.hideout,
+                 strf("The citizens of %s run band #%d (%d men) out of the country", h.name.c_str(), g.id, g.men),
+                 "there is no marshal or sheriff, so no jail; the men scatter", true);
+        gang_dissolve(g, "caught by lawmen", true);
+        return;
+    }
+    const int record = std::min(g.record_men, g.men);
+    const bool petty = g.robberies == 0 && g.kills == 0;
+    const bool capital = g.kills >= p.jail_hang_kills || g.robberies >= p.jail_hang_jobs;
+    const bool hang = capital && rng_.chance(std::min(0.9, p.jail_hang_chance * (record > 0 ? 2.0 : 1.0)));
+    const int hanged = hang ? std::clamp(static_cast<int>(std::lround(g.men * p.jail_hang_share)), 1, g.men) : 0;
+    const int jailed = g.men - hanged;
+    double days = petty ? p.jail_petty_min + (p.jail_petty_max - p.jail_petty_min) * rng_.next_double()
+                        : p.jail_job_min + (p.jail_job_max - p.jail_job_min) * rng_.next_double();
+    if (record > 0) days *= p.jail_repeat_mult;
+    if (hang) days = p.jail_cap_days;                      // the survivors of a hanging serve the year
+    days = std::min(days, h.law == 1 ? p.jail_marshal_cap : p.jail_cap_days);
+    const long day_count = std::max(1L, static_cast<long>(std::lround(days)));
+    if (jailed > 0) {
+        h.jailed.push_back({world_.today + day_count, jailed});
+        note_drifters(DrifterFlow::Jailed, jailed);
+        ++bands_jailed_;
+    }
+    if (hanged > 0) {
+        note_drifters(DrifterFlow::Hanged, hanged);
+        ++bands_hanged_;
+        men_hanged_ += hanged;
+    }
+    log_.with({field("gang", g.id), field("men", g.men), field("jailed", jailed), field("hanged", hanged), field("days", day_count), field("node", h.name)});
+    if (hanged > 0) {
+        const std::string why = g.kills > 0 ? std::string("they had killed") : strf("they had pulled %d hold-ups", g.robberies);
+        log_.add(world_.today, EventType::Law, "band_hanged", g.hideout,
+                 strf("%d of the %d men of band #%d are hanged at %s", hanged, g.men, g.id, h.name.c_str()),
+                 strf("%s; the other %d serve %ld days", why.c_str(), jailed, day_count));
+    } else {
+        const std::string record_note = record > 0 ? std::string(", and some have done time before, so the term is longer") : std::string();
+        const std::string what = petty ? std::string("petty thefts only: a short stretch")
+                                    : g.kills > 0 ? strf("%d hold-ups and %d killings behind them", g.robberies, g.kills) : strf("%d hold-ups behind them", g.robberies);
+        log_.add(world_.today, EventType::Law, "band_jailed", g.hideout,
+                 strf("The law at %s jails band #%d (%d men) for %ld days", h.name.c_str(), g.id, jailed, day_count),
+                 strf("%s%s; %s", what.c_str(), record_note.c_str(),
+                      h.law == 1 ? "a marshal's lockup holds men for days, not months" : "the county jail"),
+                 g.robberies < 3);
+    }
+    gang_dissolve(g, "caught by lawmen", true);
+}
+
+// Men whose term is up walk out with a record and join the fighters in the same town, where the next bands form.
+void Simulation::jail_day() {
+    for (Node& n : world_.nodes) {
+        if (n.jailed.empty()) continue;
+        std::size_t keep = 0;
+        for (std::size_t i = 0; i < n.jailed.size(); ++i) {
+            if (n.jailed[i].first > world_.today) { n.jailed[keep++] = n.jailed[i]; continue; }
+            n.fighters += n.jailed[i].second;
+            n.ex_cons += n.jailed[i].second;
+            note_drifters(DrifterFlow::Released, n.jailed[i].second);
+        }
+        n.jailed.resize(keep);
+    }
 }
 
 // ---------------------------------------------------------------- gang wars, veterans and size
@@ -852,7 +941,7 @@ void Simulation::bushwhack(Gang& g) {
     if (!resident) {   // a stranger: a few people notice
         h.fear += 0.2;
         h.outrage += p.bush_outrage_stranger;
-        if (killed) { ++bush_killed_; gang_deed_edge(g, g.edge, p.fame_kill * 0.3); }
+        if (killed) { ++bush_killed_; ++g.kills; gang_deed_edge(g, g.edge, p.fame_kill * 0.3); }
         return;
     }
     Bushwhack b;
@@ -865,7 +954,7 @@ void Simulation::bushwhack(Gang& g) {
     b.notable = notable;
     b.outrage = notable ? p.bush_notable_outrage : p.bush_outrage_resident * (killed ? 2.0 : 1.0);
     b.gang = rng_.chance(p.bush_seen) ? g.id : -1;
-    if (killed) ++bush_killed_;
+    if (killed) { ++bush_killed_; ++g.kills; }
     if (notable) ++bush_notable_;
     bush_pending_.push_back(b);
 }

@@ -100,6 +100,8 @@ struct Node {
     double fear = 0;             // townspeople's unease after strangers are robbed or killed nearby: small, and it fades
     double outrage = 0;          // local anger over robberies; triggers posses
     double drifters = 0;         // idle men: most find work or move on
+    double ex_cons = 0;          // of the fighters, the men who have done time (they carry a record and fight harder)
+    std::vector<std::pair<long, int>> jailed;   // (release day, men) serving time here
     double fighters = 0;         // the few who turn to crime and can fight: the raw material of bands and gangs
     double peak_pop = 0;
     // Residents who buy from the market. Farmers and ranchers around a town (base_population) grow most of

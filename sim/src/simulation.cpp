@@ -575,6 +575,7 @@ void Simulation::economy_day() {
             note_drifters(DrifterFlow::TurnedFighter, turn);
             note_drifters(DrifterFlow::FighterDecay, n.fighters * p.fighter_decay);
             n.fighters *= 1.0 - p.fighter_decay;
+            n.ex_cons = std::min(n.ex_cons * (1.0 - p.fighter_decay), n.fighters);
         }
 
         update_population(id);

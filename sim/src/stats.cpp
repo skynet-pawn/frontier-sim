@@ -155,6 +155,9 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.headlines = sim.headlines_printed();
     r.bushwhacks = sim.bushwhacks();
     r.bush_killed = sim.bush_killed();
+    r.bands_jailed = sim.bands_jailed();
+    r.bands_hanged = sim.bands_hanged();
+    r.men_hanged = sim.men_hanged();
     r.band_qualified = sim.band_qualified();
     r.join_tried = sim.join_tried();
     r.join_nopartner = sim.join_nopartner();
