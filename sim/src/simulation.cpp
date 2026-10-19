@@ -307,24 +307,27 @@ void Simulation::apply_shocks() {
                      strf("%s: %d roads shut for %d days", sh.name.c_str(), shut, sh.days), sh.cause);
             update_network();
         } else if (sh.kind == "rush") {
-            Node& node = world_.nodes[World::idx(sh.node)];
-            node.population += sh.people;
-            // Argonauts came with a few weeks' supplies; the shortage hits when those run out.
-            for (std::size_t g = 0; g < world_.goods.size(); ++g)
-                if (world_.goods[g].food_share > 0)
-                    node.stock[g] += sh.people * world_.goods[g].need_per_person_per_day * world_.params.rush_provision_days;
-            node.cash += sh.people * sh.cash_per_person;
-            world_.record(MoneyFlow::Rush, sh.people * sh.cash_per_person);
-            // Newcomers arrive on expectations of income that has not shown up yet.
-            node.income_ema += sh.people * world_.params.support_income_per_person * 0.8;
-            node.capacity = std::max(node.capacity, node.population);
-            log_.with({field("node", node.name), field("people", sh.people)});
-            log_.add(world_.today, EventType::Shock, "rush", sh.node,
-                     strf("%s: %s people arrive at %s", sh.name.c_str(), with_commas(sh.people).c_str(),
-                          node.name.c_str()),
-                     sh.cause);
+            rush_arrives(sh.node, sh.people, sh.cash_per_person, sh.name, sh.cause);
         }
     }
+}
+
+// People pour into a camp on news of a strike. They came with a few weeks' supplies and a little money; the shortage hits when the
+// supplies run out, and the income they expected has not shown up yet.
+void Simulation::rush_arrives(NodeId id, double people, double cash_per_person, const std::string& name, const std::string& cause) {
+    Node& node = world_.nodes[World::idx(id)];
+    node.population += people;
+    for (std::size_t g = 0; g < world_.goods.size(); ++g)
+        if (world_.goods[g].food_share > 0)
+            node.stock[g] += people * world_.goods[g].need_per_person_per_day * world_.params.rush_provision_days;
+    node.cash += people * cash_per_person;
+    world_.record(MoneyFlow::Rush, people * cash_per_person);
+    node.income_ema += people * world_.params.support_income_per_person * 0.8;
+    node.capacity = std::max(node.capacity, node.population);
+    log_.with({field("node", node.name), field("people", people)});
+    log_.add(world_.today, EventType::Shock, "rush", id,
+             strf("%s: %s people arrive at %s", name.c_str(), with_commas(people).c_str(), node.name.c_str()),
+             cause);
 }
 
 // ---------------------------------------------------------------- economy

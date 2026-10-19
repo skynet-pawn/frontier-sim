@@ -74,6 +74,14 @@ struct NodeDef {
     // A latent site is only a place on the map: no town until a reason to settle appears (see farms.cpp).
     bool latent = false;
     double found_pop = 40;       // settlers who arrive when the town is founded
+    // What decides a latent site: by default the farm-gate price of grain. A site can name another good (cattle for a ranch, hides for a
+    // hunters' camp, furs for a trapping post, timber for a sawmill) whose net price decides it, scaled by the site's quality (its land,
+    // its game, its timber). A site with a strike_chance is instead found by prospectors: each month after it opens there is that chance
+    // of a strike, and strike_people arrive in a rush.
+    std::string found_crop;
+    double found_quality = 1;
+    double strike_chance = 0;
+    double strike_people = 0;
 };
 
 struct EdgeDef {

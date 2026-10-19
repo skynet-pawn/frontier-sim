@@ -8,8 +8,9 @@ usage: python -I gen_towns.py SLICE WORK_DIR [--preview] [--build] [--count 2000
   and the repo's data/terrain/SLICE, data/rivers/SLICE and data/history/SLICE.
 
 Stage 1: the suitability fields on a coarse grid (2-mile cells) and a picture of them (--preview writes docs/towns_fields_SLICE.png).
-Stage 2 (--build): places towns on the fields (stations along the railroads and roads, farm towns, ranch headquarters, mining camps, trading
-posts), links them into the network and writes data/slices/SLICE_N: a world of N nodes (the original ones plus the new ones).
+Stage 2 (--build --count N): places candidate sites by resource (farm land, grass, game for hides, furs along streams, minerals in the
+mountains, timber) plus the railroad's stations, links them into the network and writes data/slices/SLICE_N. The candidates are latent: the
+sim founds the ones that pay (farms.cpp), so the towns that exist at the end are the run's result, not the generator's.
 """
 import json, math, os, re, sys
 import numpy as np
@@ -202,16 +203,20 @@ if PREVIEW:
     print('wrote', out, sheet.size)
 
 
-# ================================================================ Stage 2: place towns, link them, write the world
+# ================================================================ Stage 2: candidate sites from the resources, the network, the world file
+# Nothing here decides which sites become towns. Every candidate (except the 1874 settlements and the railroad's stations) is a latent
+# site: the sim founds it when its resource pays (the net price of its good against its break-even, scaled by the site's quality) or,
+# for a mining site, when prospectors strike it (a monthly chance weighted by the deposit). See farms.cpp.
 BUILD = '--build' in sys.argv
 if BUILD:
-    import copy, datetime
+    import copy
 
     opts = {sys.argv[i][2:]: sys.argv[i + 1] for i in range(1, len(sys.argv) - 1) if sys.argv[i].startswith('--')}
-    COUNT = int(opts.get('count', 2000))
+    COUNT = int(opts.get('count', 4400))          # candidate sites (the original nodes and stations come on top)
     SEED = int(opts.get('seed', 1))
+    START_SHARE = float(opts.get('start-share', 0.35))   # share of early farm and ranch sites already settled in 1874
     rng = np.random.default_rng(SEED)
-    out_name = '%s%d' % (slice_name, COUNT)
+    out_name = '%s_%d' % (slice_name, COUNT)
 
     base = load_json(os.path.join(ROOT, 'data', 'slices', slice_name, 'world.json'))
     scn = load_json(os.path.join(ROOT, 'data', 'slices', slice_name, 'scenario.json'))
@@ -246,18 +251,20 @@ if BUILD:
     def iso(year, month=1):
         return '%04d-%02d-01' % (year, month)
 
-    pos = np.array([[n['x'], n['y']] for n in nodes], dtype=np.float64)
-    taken = [tuple(p) for p in pos]
+    taken = [(n['x'], n['y']) for n in nodes]
+    taken_arr = np.array(taken, dtype=np.float64)
 
     def near_taken(xm, ym, d):
-        a = np.array(taken)
-        return bool((np.hypot(a[:, 0] - xm, a[:, 1] - ym) < d).any())
+        return bool((np.hypot(taken_arr[:, 0] - xm, taken_arr[:, 1] - ym) < d).any())
+
+    def mark_taken(xm, ym):
+        global taken_arr
+        taken_arr = np.vstack([taken_arr, [xm, ym]])
 
     def poly_len(path):
         return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(path, path[1:]))
 
     def along(path, dist):
-        """The point `dist` miles along a polyline."""
         for a, b in zip(path, path[1:]):
             seg = math.hypot(b[0] - a[0], b[1] - a[1])
             if dist <= seg:
@@ -270,15 +277,20 @@ if BUILD:
     A = ['Cedar', 'Prairie', 'Willow', 'Elm', 'Buffalo', 'Antelope', 'Rock', 'Silver', 'Golden', 'Clear', 'Bitter', 'Salt', 'Sand', 'Red', 'White',
          'Painted', 'Hackberry', 'Cottonwood', 'Plum', 'Sage', 'Pine', 'Oak', 'Spring', 'Antler', 'Eagle', 'Bear', 'Coyote', 'Wolf', 'Pawnee', 'Sioux',
          'Lone', 'Twin', 'Round', 'Flat', 'Long', 'Dry', 'Big', 'Little', 'Mule', 'Elk', 'Beaver', 'Otter', 'Mesquite', 'Pecan', 'Blue', 'Green', 'Stone',
-         'Fort', 'Mill', 'Ford', 'Grand', 'Mound', 'Smoky', 'Medicine', 'Lodgepole', 'Tin', 'Iron', 'Copper', 'Lead', 'Granite']
-    B = ['Creek', 'Springs', 'Crossing', 'Ford', 'Station', 'Bend', 'Grove', 'Butte', 'Flats', 'Hill', 'Wells', 'Fork', 'Junction', 'Bluff', 'Valley',
-         'Point', 'Corners', 'Mills', 'Landing', 'City', 'Camp', 'Gulch', 'Draw', 'Divide', 'Lake', 'Run', 'Siding', 'Holler', 'Basin']
+         'Mill', 'Ford', 'Grand', 'Mound', 'Smoky', 'Medicine', 'Lodgepole', 'Tin', 'Iron', 'Copper', 'Lead', 'Granite', 'Hickory', 'Walnut', 'Juniper',
+         'Aspen', 'Birch', 'Maple', 'Ash', 'Sumac', 'Yucca', 'Cactus', 'Thunder', 'Rattlesnake', 'Badger', 'Prairie Dog', 'Skunk', 'Mink', 'Marten']
+    B = ['Creek', 'Springs', 'Crossing', 'Ford', 'Bend', 'Grove', 'Butte', 'Flats', 'Hill', 'Wells', 'Fork', 'Junction', 'Bluff', 'Valley',
+         'Point', 'Corners', 'Mills', 'Landing', 'City', 'Gulch', 'Draw', 'Divide', 'Lake', 'Run', 'Holler', 'Basin', 'Ranch', 'Station']
     used_names = {n['name'] for n in nodes}
 
-    def new_name(kind):
-        for _ in range(200):
-            if kind == 'mining camp':
+    def new_name(style):
+        for _ in range(300):
+            if style == 'camp':
                 nm = '%s %s' % (A[rng.integers(len(A))], ['Gulch', 'Camp', 'Diggings', 'City', 'Hill', 'Flat'][rng.integers(6)])
+            elif style == 'post':
+                nm = '%s %s' % (A[rng.integers(len(A))], ['Post', 'Trading Post', 'Crossing', 'Landing', 'Forks'][rng.integers(5)])
+            elif style == 'mill':
+                nm = '%s %s' % (A[rng.integers(len(A))], ['Mills', 'Mill', 'Sawmill', 'Pinery', 'Lumber Camp'][rng.integers(5)])
             else:
                 nm = '%s %s' % (A[rng.integers(len(A))], B[rng.integers(len(B))])
             if nm not in used_names:
@@ -287,6 +299,16 @@ if BUILD:
         nm = 'Town %d' % (len(used_names) + 1)
         used_names.add(nm)
         return nm
+
+    # ------------------------------------------------------------ resource potentials (0 to 1), spread over the land by simple rules
+    plains_rain = np.clip((precip - 250.0) / 200.0, 0, 1) * (precip < 1100)
+    game = plains_rain * np.clip(1.0 - rugged / 300.0, 0, 1) * (0.4 + 0.6 * water) * (Hm < 2200) * in_us          # open grassland with water: bison, antelope, deer
+    elev_band = np.clip((Hm - 600.0) / 400.0, 0, 1) * np.clip((3000.0 - Hm) / 600.0, 0, 1)
+    fur = np.exp(-d_river / 3.0) * (0.25 + 0.75 * elev_band) * np.clip((precip - 300.0) / 250.0, 0, 1) * in_us   # beaver, mink and otter along wooded streams
+    mineral = np.clip((rugged - 200.0) / 500.0, 0, 1) * (Hm > 1000) * in_us                                       # the mountains
+    forest = np.clip((precip - 450.0) / 350.0, 0, 1) * np.clip((Hm - 800.0) / 700.0, 0, 1) * np.clip((3000.0 - Hm) / 500.0, 0, 1) * in_us
+    forest = np.maximum(forest, np.clip((precip - 850.0) / 500.0, 0, 1) * (Hm < 800) * in_us * 0.6)              # eastern woodlands (east Texas, Missouri, Minnesota)
+    ranch_n = ranch / max(float(ranch.max()), 1e-9)
 
     # ------------------------------------------------------------ when a place could open (guesses; see CLAUDE.md)
     def farm_open_year(lon, lat):
@@ -298,72 +320,98 @@ if BUILD:
         """The cattle boom: Texas in the 1870s, the northern ranges about 1880."""
         return int(round(1874 + max(0.0, min(1.0, (lat - 31.0) / 17.0)) * 8))
 
-    # ------------------------------------------------------------ templates (the same fields as the original towns)
-    def farm_node(x, y, name, reg, lon, lat):
-        r, c = cell_of(x, y)
-        yld = round(0.55 + 0.45 * float(rain_farm[r, c]), 2)
-        pop = int(rng.choice([40, 70, 120, 200]))
-        return {'id': None, 'region': reg, 'name': name, 'kind': 'farm town', 'x': round(x), 'y': round(y),
-                'base_population': pop // 5, 'farmers': pop // 2, 'farm_capacity': int(rng.choice([800, 1500, 3000])), 'farm_yield': yld,
-                'climate': climate_at(x, y), 'population': pop, 'capacity': int(rng.choice([800, 1500, 3000])), 'cash': 1500,
-                'stock': {'beef_cattle': 20, 'flour': pop, 'tools': 15, 'whiskey': 30, 'ammunition': 15}}
+    # ------------------------------------------------------------ site templates (the same fields as the original towns)
+    def base_site(kind, x, y, name, reg, pop, capacity, cash, stock):
+        return {'id': None, 'region': reg, 'name': name, 'kind': kind, 'x': round(x), 'y': round(y), 'base_population': max(1, pop // 5),
+                'population': pop, 'capacity': capacity, 'cash': cash, 'climate': climate_at(x, y), 'stock': stock}
 
-    def ranch_node(x, y, name, reg, lon, lat):
+    def farm_site(x, y, reg, r, c):
+        pop = int(rng.choice([40, 70, 120, 200]))
+        yld = round(0.55 + 0.45 * float(rain_farm[r, c]), 2)
+        n = base_site('farm town', x, y, new_name('town'), reg, pop, int(rng.choice([800, 1500, 3000])), 1500,
+                      {'beef_cattle': 20, 'flour': pop, 'tools': 15, 'whiskey': 30, 'ammunition': 15})
+        n.update({'farmers': pop // 2, 'farm_capacity': int(rng.choice([800, 1500, 3000])), 'farm_yield': yld, 'game_capacity': round(250 * float(game[r, c]))})
+        n['found_quality'] = round(yld / 0.8, 2)     # a better farm country is worth settling at a lower price
+        return n
+
+    def ranch_site(x, y, reg, lat, r, c):
         pop = int(rng.choice([30, 60, 100, 150]))
-        n = {'id': None, 'region': reg, 'name': name, 'kind': 'ranch town', 'x': round(x), 'y': round(y), 'base_population': pop // 5,
-             'population': pop, 'capacity': int(rng.choice([300, 800, 1500])), 'cash': 1000, 'climate': climate_at(x, y),
-             'stock': {'beef_cattle': 80, 'flour': pop // 2, 'whiskey': 25, 'ammunition': 15},
-             'production': {'beef_cattle': {'rate': int(rng.choice([8, 15, 30])), 'labor_pop': 25}}}
+        n = base_site('ranch town', x, y, new_name('town'), reg, pop, int(rng.choice([300, 800, 1500])), 1000,
+                      {'beef_cattle': 80, 'flour': pop // 2, 'whiskey': 25, 'ammunition': 15})
+        n['production'] = {'beef_cattle': {'rate': int(rng.choice([8, 15, 30])), 'labor_pop': 25}}
+        n['game_capacity'] = round(300 * float(game[r, c]))
+        n['found_crop'] = 'beef_cattle'
+        n['found_quality'] = round(0.6 + 0.8 * float(ranch_n[r, c]), 2)
         if lat > 41.5:
             n['tags'] = ['northern_range']   # the 1886-87 die-out reaches the northern ranges
         return n
 
-    def mining_node(x, y, name, reg, year):
-        reserve = int(rng.choice([80000, 200000, 500000]))
-        return {'id': None, 'region': reg, 'name': name, 'kind': 'mining camp', 'x': round(x), 'y': round(y), 'population': 12, 'capacity': 3000, 'cash': 300,
-                'stock': {'flour': 10, 'whiskey': 20, 'ammunition': 10}, 'reserves': {'gold': reserve},
-                'production': {'gold': {'rate': int(rng.choice([40, 80, 160])), 'labor_pop': int(rng.choice([60, 120, 250])), 'from': iso(year, int(rng.integers(1, 13)))}}}
+    def hunters_site(x, y, reg, r, c):
+        g = float(game[r, c])
+        n = base_site('hunters camp', x, y, new_name('camp'), reg, 25, 600, 400, {'flour': 40, 'whiskey': 25, 'ammunition': 40})
+        n['reserves'] = {'hides': int(g * rng.choice([60000, 120000, 250000]) + 5000)}
+        n['production'] = {'hides': {'rate': int(rng.choice([150, 250, 350])), 'labor_pop': int(rng.choice([40, 80, 120]))}}
+        n['found_crop'] = 'hides'
+        n['found_quality'] = round(0.7 + 0.8 * g, 2)
+        return n
 
-    def depot_node(x, y, name, reg, kind):
+    def fur_site(x, y, reg, r, c):
+        f = float(fur[r, c])
+        n = base_site('trapping post', x, y, new_name('post'), reg, 12, 300, 300, {'flour': 20, 'whiskey': 15, 'ammunition': 20, 'tools': 4})
+        n['reserves'] = {'furs': int(f * rng.choice([5000, 12000, 25000]) + 800)}
+        n['production'] = {'furs': {'rate': int(rng.choice([8, 15, 30])), 'labor_pop': int(rng.choice([8, 15, 25]))}}
+        n['found_crop'] = 'furs'
+        n['found_quality'] = round(0.8 + 0.6 * f, 2)
+        return n
+
+    def mining_site(x, y, reg, r, c):
+        m = float(mineral[r, c])
+        n = base_site('mining camp', x, y, new_name('camp'), reg, 12, 3000, 300, {'flour': 10, 'whiskey': 20, 'ammunition': 10})
+        n['reserves'] = {'gold': int(rng.choice([80000, 200000, 500000]))}
+        n['production'] = {'gold': {'rate': int(rng.choice([40, 80, 160])), 'labor_pop': int(rng.choice([60, 120, 250]))}}
+        n['strike_chance'] = round(0.0025 + 0.006 * m, 4)        # per month once the country is open: a richer district is struck sooner
+        n['strike_people'] = int(rng.choice([200, 600, 1500]))
+        return n
+
+    def mill_site(x, y, reg, r, c):
+        f = float(forest[r, c])
+        n = base_site('sawmill', x, y, new_name('mill'), reg, 15, 600, 400, {'flour': 25, 'tools': 10, 'whiskey': 15, 'ammunition': 10})
+        n['reserves'] = {'timber': int(20000 * (0.4 + f))}
+        n['production'] = {'timber': {'rate': int(rng.choice([1, 2, 3])), 'labor_pop': int(rng.choice([15, 25, 40]))}}
+        n['found_crop'] = 'timber'
+        n['found_quality'] = round(0.8 + 0.8 * f, 2)
+        return n
+
+    def station_site(x, y, reg):
         pop = int(rng.choice([6, 12, 25, 40]))
-        return {'id': None, 'region': reg, 'name': name, 'kind': kind, 'x': round(x), 'y': round(y), 'base_population': pop // 2, 'population': pop,
-                'capacity': 400, 'cash': 500, 'climate': climate_at(x, y), 'stock': {'flour': pop * 2, 'whiskey': 15, 'ammunition': 10, 'beef_cattle': 5}}
+        return base_site('rail station', x, y, new_name('town'), reg, pop, 400, 500, {'flour': pop * 2, 'whiskey': 15, 'ammunition': 10, 'beef_cattle': 5})
 
-    def post_node(x, y, name, reg):
-        pop = int(rng.choice([8, 15, 30]))
-        return {'id': None, 'region': reg, 'name': name, 'kind': 'trading post', 'x': round(x), 'y': round(y), 'base_population': pop // 2, 'population': pop,
-                'capacity': 300, 'cash': 400, 'climate': climate_at(x, y), 'stock': {'flour': pop, 'whiskey': 20, 'ammunition': 15, 'tools': 5}}
+    added = []
 
-    added = []   # (node dict, open date or None, rail edge index and order or None)
-
-    def add(node, open_date, kind_tag):
+    def add(node, open_date, tag, latent_site=True, found_pop=None):
         node['id'] = 'p%04d' % (len(added) + 1)
         node['_open'] = open_date
-        node['_tag'] = kind_tag
+        node['_tag'] = tag
+        if latent_site:   # a place on the map; the sim founds it when it pays
+            node['latent'] = True
+            node['found_pop'] = found_pop if found_pop is not None else max(10, node['population'] // 2)
+            node['farm_open'] = open_date
+            node['population'] = 0
+            node.pop('base_population', None)
+            if 'farm_capacity' not in node:
+                node['farm_capacity'] = 0
         added.append(node)
         nodes.append(node)
-        taken.append((node['x'], node['y']))
+        mark_taken(node['x'], node['y'])
 
-    def latent(node, open_year_date, found_pop):
-        """A place that does not exist yet becomes a town when settling pays after `farm_open`."""
-        node['latent'] = True
-        node['found_pop'] = found_pop
-        node['farm_open'] = open_year_date
-        if 'farm_capacity' not in node:
-            node['farm_capacity'] = 200
-            node['farm_yield'] = 0.7
-        node['population'] = 0
-        node.pop('base_population', None)
-
-    # ------------------------------------------------------------ 1. stations along the railroads (and a chain replaces each rail edge)
-    new_edges = []
+    # ------------------------------------------------------------ 1. the railroad's stations (platted on a schedule, not found by the sim)
     rail_stations = {}
     for ei, e in enumerate(edges):
         if e.get('mode') != 'rail' or poly_len(routes[ei]['path']) < 30:
             continue
         path = routes[ei]['path']
         total = poly_len(path)
-        opened = e.get('from', START)
+        opened = max(e.get('from', START), START)
         chain = []
         d = 11.0
         while d < total - 6.0:
@@ -374,58 +422,36 @@ if BUILD:
             reg = region_at(px, py)
             if reg is None:
                 continue
-            lat, lon = PROJ.unproject(px, py)
-            nd = depot_node(px, py, new_name('depot'), reg, 'rail station')
-            add(nd, max(opened, START), 'station')
-            if opened > START:
-                latent(nd, opened, 30)
+            nd = station_site(px, py, reg)
+            nd['found_quality'] = 2.0     # the railroad platted it: it is settled as soon as the rails arrive
+            if opened <= START:
+                add(nd, START, 'station', latent_site=False)
+            else:
+                add(nd, opened, 'station', latent_site=True, found_pop=30)
+                nd['farm_capacity'] = 200
+                nd['farm_yield'] = 0.7
             chain.append(nd['id'])
         rail_stations[ei] = chain
-    print('rail stations placed:', sum(len(v) for v in rail_stations.values()))
+    n_stations = len(added)
+    print('rail stations placed:', n_stations)
 
-    # ------------------------------------------------------------ 2. stage stations and road ranches along the trails
-    for ei, e in enumerate(edges):
-        if e.get('mode', 'trail') != 'trail' or e.get('miles', 0) == 0 and routes[ei]['miles'] < 45:
-            continue
-        if routes[ei]['miles'] < 45:
-            continue
-        path = routes[ei]['path']
-        total = poly_len(path)
-        opened = e.get('from', START)
-        d = 22.0
-        while d < total - 10.0:
-            px, py = along(path, d)
-            d += 22.0
-            if near_taken(px, py, 12.0):
-                continue
-            reg = region_at(px, py)
-            if reg is None:
-                continue
-            nd = depot_node(px, py, new_name('station'), reg, 'stage station')
-            add(nd, max(opened, START), 'station')
-            if opened > START:
-                latent(nd, opened, 15)
-    print('with stage stations:', len(added))
-
-    # ------------------------------------------------------------ 3. farm towns, ranch headquarters, mining camps and trading posts, by suitability
-    remaining = max(0, COUNT - len(nodes))
-    quota = {'mining': int(remaining * 0.12), 'farm': int(remaining * 0.50), 'ranch': int(remaining * 0.33)}
-    quota['post'] = remaining - sum(quota.values())
-    spacing = {'mining': 14.0, 'farm': 13.0, 'ranch': 18.0, 'post': 28.0}
-    post_score = access * np.maximum(water, 0.2) * in_us * (Hm < 2200) * (d_river_big < 12)
-    score_of = {'mining': mining, 'farm': farm, 'ranch': ranch, 'post': post_score}
+    # ------------------------------------------------------------ 2. candidate sites for each resource, spread over the land
+    shares = {'farm': 0.38, 'ranch': 0.23, 'mining': 0.12, 'fur': 0.10, 'hunt': 0.07, 'mill': 0.10}
+    quota = {k: int(COUNT * v) for k, v in shares.items()}
+    spacing = {'farm': 11.0, 'ranch': 15.0, 'mining': 11.0, 'fur': 14.0, 'hunt': 20.0, 'mill': 15.0}
+    pot = {'farm': farm, 'ranch': ranch, 'mining': mineral, 'fur': fur, 'hunt': game, 'mill': forest}
     placed = {k: 0 for k in quota}
-    for cat in ('mining', 'farm', 'ranch', 'post'):
-        sc = score_of[cat]
-        w = np.where(sc > 0.04, sc ** 1.5, 0.0).ravel()
+    started = 0
+    for cat in ('mining', 'mill', 'fur', 'hunt', 'ranch', 'farm'):
+        sc = pot[cat]
+        w = np.where(sc > 0.03, sc ** 1.2, 0.0).ravel()
         if w.sum() <= 0:
             continue
         w = w / w.sum()
         tries = 0
-        while placed[cat] < quota[cat] and tries < 40:
+        while placed[cat] < quota[cat] and tries < 60:
             tries += 1
-            picks = rng.choice(w.size, size=min(4000, max(200, quota[cat] * 8)), p=w)
-            for flat_i in picks:
+            for flat_i in rng.choice(w.size, size=6000, p=w):
                 if placed[cat] >= quota[cat]:
                     break
                 r, c = divmod(int(flat_i), nx)
@@ -438,69 +464,40 @@ if BUILD:
                     continue
                 lat, lon = PROJ.unproject(px, py)
                 lat, lon = float(lat), float(lon)
-                if cat == 'mining':
-                    year = int(rng.integers(1874, 1887))
-                    nd = mining_node(px, py, new_name('mining camp'), reg, year)
-                    add(nd, iso(year), 'mining')   # a tiny camp from the start; its production and the rush begin on the date
-                elif cat == 'farm':
+                if cat == 'farm':
                     year = farm_open_year(lon, lat)
-                    nd = farm_node(px, py, new_name('farm'), reg, lon, lat)
-                    add(nd, iso(year), 'farm')
-                    if year > 1874:
-                        latent(nd, iso(year), nd['population'] // 2 or 20)
+                    nd = farm_site(px, py, reg, r, c)
+                    early = year <= 1874 and rng.random() < START_SHARE
+                    add(nd, iso(max(year, 1862)) if year > 1874 else START, 'farm', latent_site=not early)
+                    started += early
+                    if not early:
                         nd['farm_capacity'] = int(rng.choice([800, 1500, 3000]))
                 elif cat == 'ranch':
                     year = ranch_open_year(lat)
-                    nd = ranch_node(px, py, new_name('ranch'), reg, lon, lat)
-                    add(nd, iso(year), 'ranch')
-                    if year > 1874:
-                        latent(nd, iso(year), nd['population'] // 2 or 20)
+                    nd = ranch_site(px, py, reg, lat, r, c)
+                    early = year <= 1874 and rng.random() < START_SHARE
+                    add(nd, iso(year) if year > 1874 else START, 'ranch', latent_site=not early)
+                    started += early
+                elif cat == 'hunt':
+                    south = lat < 40.5    # the southern herd was shot out by about 1879, the northern one by about 1883
+                    year = 1874 if south else int(rng.integers(1880, 1884))
+                    add(hunters_site(px, py, reg, r, c), iso(year), 'hunt', found_pop=25)
+                elif cat == 'fur':
+                    add(fur_site(px, py, reg, r, c), iso(int(rng.integers(1874, 1880))), 'fur', found_pop=12)
+                elif cat == 'mining':
+                    add(mining_site(px, py, reg, r, c), iso(int(rng.integers(1874, 1883))), 'mining', found_pop=12)
                 else:
-                    nd = post_node(px, py, new_name('post'), reg)
-                    add(nd, START, 'post')
+                    add(mill_site(px, py, reg, r, c), iso(int(rng.integers(1874, 1884))), 'mill', found_pop=15)
                 placed[cat] += 1
-    # the trading posts under-fill (they need a big river nearby), so the shortfall goes to farm towns and ranch headquarters
-    short = COUNT - len(nodes)
-    if short > 0:
-        for cat, share in (('farm', 0.6), ('ranch', 0.4)):
-            quota[cat] = placed[cat] + int(short * share)
-            sc = score_of[cat]
-            w = np.where(sc > 0.04, sc ** 1.5, 0.0).ravel()
-            w = w / w.sum()
-            for _ in range(40):
-                if placed[cat] >= quota[cat]:
-                    break
-                for flat_i in rng.choice(w.size, size=4000, p=w):
-                    if placed[cat] >= quota[cat]:
-                        break
-                    r, c = divmod(int(flat_i), nx)
-                    px, py = x0 + (c + rng.random()) * COARSE, y0 + (r + rng.random()) * COARSE
-                    if near_taken(px, py, spacing[cat] * 0.8):
-                        continue
-                    reg = region_at(px, py)
-                    if reg is None:
-                        continue
-                    lat, lon = PROJ.unproject(px, py)
-                    lat, lon = float(lat), float(lon)
-                    if cat == 'farm':
-                        year = farm_open_year(lon, lat)
-                        nd = farm_node(px, py, new_name('farm'), reg, lon, lat)
-                    else:
-                        year = ranch_open_year(lat)
-                        nd = ranch_node(px, py, new_name('ranch'), reg, lon, lat)
-                    add(nd, iso(year), cat)
-                    if year > 1874:
-                        latent(nd, iso(year), nd['population'] // 2 or 20)
-                        if cat == 'farm':
-                            nd['farm_capacity'] = int(rng.choice([800, 1500, 3000]))
-                    placed[cat] += 1
-    print('placed:', placed, '-> total nodes', len(nodes))
+    print('candidate sites placed:', placed, '(of which settled at the start: %d)' % started)
+    print('total nodes', len(nodes))
 
-    # ------------------------------------------------------------ 4. the network
+    # ------------------------------------------------------------ 3. the network: every site is linked to its nearest neighbours
     idx_of = {n['id']: i for i, n in enumerate(nodes)}
     P = np.array([[n['x'], n['y']] for n in nodes], dtype=np.float64)
     out_edges = []
     seen = set()
+    deg = np.zeros(len(nodes), dtype=int)
 
     def link(a, b, mode='trail', frm=None, note=''):
         key = (min(a, b), max(a, b), mode)
@@ -515,8 +512,9 @@ if BUILD:
         if note:
             e['note'] = note
         out_edges.append(e)
+        deg[a] += 1
+        deg[b] += 1
 
-    # the original routes: a rail edge with stations becomes a chain
     for ei, e in enumerate(edges):
         a, b = idx_of[e['a']], idx_of[e['b']]
         chain = rail_stations.get(ei)
@@ -525,31 +523,23 @@ if BUILD:
             for u, v in zip(seq, seq[1:]):
                 link(u, v, 'rail', e.get('from'), 'railroad station spacing')
         else:
-            key = (min(a, b), max(a, b), e.get('mode', 'trail'))
-            seen.add(key)
+            seen.add((min(a, b), max(a, b), e.get('mode', 'trail')))
             out_edges.append(e)
+            deg[a] += 1
+            deg[b] += 1
 
-    def open_of(i):
-        return nodes[i].get('_open') or START
-
-    # everything else links to its nearest neighbours
-    new_ids = [idx_of[n['id']] for n in added if n['_tag'] != 'station' or True]
-    for i in new_ids:
-        if any((nodes[i]['id'] in (e['a'], e['b'])) for e in out_edges[:0]):
-            continue
+    # Roads to latent sites are always open (no dates): a site that is not yet a town is just a place on a road, and dated routes would
+    # force the whole route table to be rebuilt every time one opened.
+    order = list(range(n_real, len(nodes)))
+    for i in order:
         d = np.hypot(P[:, 0] - P[i, 0], P[:, 1] - P[i, 1])
         d[i] = 1e9
-        kk = 2 if nodes[i]['_tag'] == 'station' else 3
-        reach = 160 if nodes[i]['_tag'] == 'mining' else 80
-        for j in np.argsort(d)[:kk + 2]:
-            if d[j] > reach and kk == 0:
+        want = 3 if nodes[i]['_tag'] in ('mining', 'fur', 'hunt') else 2
+        reach = 150 if nodes[i]['_tag'] in ('mining', 'fur', 'hunt') else 80
+        for j in np.argsort(d)[:want + 4]:
+            if deg[i] >= want or d[j] > reach:
                 break
-            if d[j] > reach:
-                continue
-            if sum(1 for e in out_edges if nodes[i]['id'] in (e['a'], e['b'])) >= kk + 1:
-                break
-            link(i, int(j), 'trail', max(open_of(i), open_of(int(j))))
-    # components: join every island to the main network by its nearest outside node
+            link(i, int(j), 'trail')
     parent = list(range(len(nodes)))
 
     def find(u):
@@ -560,33 +550,31 @@ if BUILD:
 
     for e in out_edges:
         parent[find(idx_of[e['a']])] = find(idx_of[e['b']])
-    main_root = find(0)
     joins = 0
     for _ in range(len(nodes)):
-        roots = {find(i) for i in range(len(nodes))}
-        if len(roots) == 1:
+        main_root = find(0)
+        outside = [i for i in range(len(nodes)) if find(i) != main_root]
+        if not outside:
             break
+        inside = np.array([find(j) == main_root for j in range(len(nodes))])
         best = None
-        for i in range(len(nodes)):
-            if find(i) == main_root:
-                continue
-            d = np.hypot(P[:, 0] - P[i, 0], P[:, 1] - P[i, 1])
-            mask = np.array([find(j) == main_root for j in range(len(nodes))])
-            d = np.where(mask, d, 1e9)
+        for i in outside:
+            d = np.where(inside, np.hypot(P[:, 0] - P[i, 0], P[:, 1] - P[i, 1]), 1e9)
             j = int(np.argmin(d))
             if best is None or d[j] < best[0]:
                 best = (d[j], i, j)
-        link(best[1], best[2], 'trail', max(open_of(best[1]), open_of(best[2])), 'joins an isolated place to the network')
+        link(best[1], best[2], 'trail', None, 'joins an isolated place to the network')
         parent[find(best[1])] = find(best[2])
         joins += 1
     print('edges:', len(out_edges), '(joined %d islands)' % joins)
 
-    # ------------------------------------------------------------ 5. write the world and the scenario
+    # ------------------------------------------------------------ 4. write the world and the scenario
     for n in nodes:
         n.pop('_open', None)
         n.pop('_tag', None)
     world = dict(base)
-    world['_note'] = 'GENERATED by tools/gen_towns.py from %s (seed %d): the %d original nodes plus procedural towns placed on suitability fields from rainfall (PRISM), slope, rivers and trade routes.' % (slice_name, SEED, n_real)
+    world['_note'] = ('GENERATED by tools/gen_towns.py from %s (seed %d): the %d original nodes plus railroad stations and %d candidate sites placed by '
+                      'resource (farm land, grass, game, furs, minerals, timber). Candidates are latent: the sim founds the ones that pay.') % (slice_name, SEED, n_real, sum(placed.values()))
     world['nodes'] = nodes
     world['edges'] = out_edges
     regs = dict(world.get('regions', {}))
@@ -596,26 +584,19 @@ if BUILD:
     world['regions'] = regs
 
     scenario = copy.deepcopy(scn)
-    f = COUNT / 31.0
+    f = (COUNT * 0.5 + n_stations + n_real) / 31.0     # the traders an expected 2,000-odd towns would carry (as in gen_world.py)
     scenario['traders'] = int(scn['traders'] * f)
     scenario['max_traders'] = int(scn['max_traders'] * f)
-    shocks = list(scenario.get('shocks', []))
-    for nd in added:
-        if nd.get('kind') == 'mining camp' and nd['production']['gold']['from'] > '1874-06-01':
-            shocks.append({'name': 'Rush to %s' % nd['name'], 'kind': 'rush', 'date': nd['production']['gold']['from'], 'node': nd['id'],
-                           'people': int(rng.choice([200, 600, 1500])), 'cash_per_person': 40, 'cause': 'a strike (a procedural camp; the date is a guess)'})
-    scenario['shocks'] = shocks
 
     out = os.path.join(ROOT, 'data', 'slices', out_name)
     os.makedirs(out, exist_ok=True)
-    for fn in ('goods.json',):
-        open(os.path.join(out, fn), 'wb').write(open(os.path.join(ROOT, 'data', 'slices', slice_name, fn), 'rb').read())
+    open(os.path.join(out, 'goods.json'), 'wb').write(open(os.path.join(ROOT, 'data', 'slices', slice_name, 'goods.json'), 'rb').read())
     json.dump(world, open(os.path.join(out, 'world.json'), 'w', encoding='utf-8'))
     json.dump(scenario, open(os.path.join(out, 'scenario.json'), 'w', encoding='utf-8'), indent=1)
     kinds = {}
     for n in nodes:
         kinds[n['kind']] = kinds.get(n['kind'], 0) + 1
-    print('wrote %s: %d nodes, %d edges, %d scenario shocks' % (out, len(nodes), len(out_edges), len(shocks)))
+    print('wrote %s: %d nodes, %d edges' % (out, len(nodes), len(out_edges)))
     print('by kind:', dict(sorted(kinds.items(), key=lambda kv: -kv[1])))
 
     if PREVIEW:
@@ -628,17 +609,16 @@ if BUILD:
 
             def P2(xm, ym):
                 return ((xm - x0) * sx, img.size[1] - (ym - y0) * sy)
-            colors = {'rail station': (30, 30, 30), 'stage station': (120, 60, 20), 'farm town': (20, 140, 40), 'ranch town': (200, 140, 20),
-                      'mining camp': (200, 30, 30), 'trading post': (30, 90, 200)}
+            colors = {'rail station': (30, 30, 30), 'farm town': (20, 140, 40), 'ranch town': (200, 140, 20), 'mining camp': (200, 30, 30),
+                      'trapping post': (30, 90, 200), 'hunters camp': (140, 60, 20), 'sawmill': (110, 40, 150)}
             for n in nodes[n_real:]:
                 px, py = P2(n['x'], n['y'])
-                col = colors.get(n['kind'], (0, 0, 0))
-                dr.ellipse([px - 2.5, py - 2.5, px + 2.5, py + 2.5], fill=col)
+                dr.ellipse([px - 2.5, py - 2.5, px + 2.5, py + 2.5], fill=colors.get(n['kind'], (0, 0, 0)))
             for n in nodes[:n_real]:
                 px, py = P2(n['x'], n['y'])
                 dr.ellipse([px - 5, py - 5, px + 5, py + 5], fill=(255, 255, 255), outline=(0, 0, 0))
             img = img.resize((img.size[0] // 2, img.size[1] // 2), Image.LANCZOS)
-            img.save(os.path.join(ROOT, 'docs', 'towns_placed_%s.png' % out_name))
-            print('wrote docs/towns_placed_%s.png' % out_name)
+            img.save(os.path.join(ROOT, 'docs', 'towns_candidates_%s.png' % out_name))
+            print('wrote docs/towns_candidates_%s.png' % out_name)
         except Exception as ex:   # the picture is a convenience
             print('preview failed:', ex)

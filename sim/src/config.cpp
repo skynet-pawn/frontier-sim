@@ -150,6 +150,11 @@ WorldDef load_world(const std::string& dir) {
         }
         n.latent = jn.value("latent", false);
         n.found_pop = jn.value("found_pop", 40.0);
+        n.found_crop = jn.value("found_crop", "");
+        if (!n.found_crop.empty()) find_good(w.goods, n.found_crop, ctx);   // fail early on a misspelt good
+        n.found_quality = jn.value("found_quality", 1.0);
+        n.strike_chance = jn.value("strike_chance", 0.0);
+        n.strike_people = jn.value("strike_people", 0.0);
         if (jn.contains("contracts"))
             for (auto it = jn["contracts"].begin(); it != jn["contracts"].end(); ++it) {
                 ContractDef c;

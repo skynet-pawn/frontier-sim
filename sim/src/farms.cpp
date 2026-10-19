@@ -105,7 +105,7 @@ void Simulation::found_town(NodeId id) {
     log_.with({field("node", n.name), field("settlers", n.population), field("gate_ratio", n.farm_gate), field("crop", crop), field("outlet", where)});
     log_.add(world_.today, EventType::Population, "town_founded", id,
              strf("%s is founded: %s settlers file claims", n.name.c_str(), with_commas(n.population).c_str()),
-             strf("%s would net a farmer %.1fx his break-even, best sold at %s; a road already reaches the site",
+             strf("%s would net %.1fx its break-even, best sold at %s; a road already reaches the site",
                   crop.c_str(), n.farm_gate, where.c_str()));
 }
 
@@ -130,9 +130,17 @@ void Simulation::farms_day() {
         if (!n.founded) {
             // A site becomes a town when settling it has paid for a few months running.
             if (!monthly || world_.today < n.farm_open) continue;
+            if (n.strike_chance > 0) {   // prospectors: a strike, or not, this month
+                if (rng_.chance(n.strike_chance)) {
+                    found_town(id);
+                    rush_arrives(id, n.strike_people, p.found_cash_per_person, "Strike at " + n.name, "prospectors found paying ground (a random draw weighted by the deposit)");
+                }
+                continue;
+            }
             NodeId outlet = -1;
             GoodId crop = -1;
-            const double gate = farm_gate_ratio(id, outlet, crop);
+            double gate = n.found_good >= 0 ? (crop = n.found_good, crop_gate_ratio(id, crop, outlet)) : farm_gate_ratio(id, outlet, crop);
+            gate *= n.found_quality;   // good land, plentiful game or timber makes the same price worth more
             n.farm_gate = n.farm_gate > 0 ? n.farm_gate + p.farm_gate_alpha * (gate - n.farm_gate) : gate;
             n.gate_outlet = outlet;
             n.gate_good = crop;

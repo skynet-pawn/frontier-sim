@@ -24,6 +24,8 @@
     { "id": "forage", "market_depth": 150000, "name": "Hay and grain", "unit": "cwt", "base_cost": 1.2, "weight_lb": 100,
       "garrison_need": 0.15, "spoilage_per_day": 0.0008, "min_target": 40 },
     { "id": "cotton", "market_depth": 400000, "name": "Cotton", "unit": "bale", "base_cost": 55.0, "weight_lb": 500,
+      "spoilage_per_day": 0.0001, "min_target": 20 },
+    { "id": "furs", "market_depth": 60000, "name": "Pelts", "unit": "pelt", "base_cost": 2.5, "weight_lb": 2,
       "spoilage_per_day": 0.0001, "min_target": 20 }
   ]
 }

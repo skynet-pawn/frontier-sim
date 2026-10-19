@@ -64,6 +64,10 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         n.latent = d.latent;
         n.founded = !d.latent;
         n.found_pop = d.found_pop;
+        n.found_good = d.found_crop.empty() ? -1 : static_cast<GoodId>(std::find_if(goods.begin(), goods.end(), [&](const GoodDef& g) { return g.id == d.found_crop; }) - goods.begin());
+        n.found_quality = d.found_quality;
+        n.strike_chance = d.strike_chance;
+        n.strike_people = d.strike_people;
         if (!d.climate.empty()) {
             auto it = std::find(zone_names.begin(), zone_names.end(), d.climate);
             if (it == zone_names.end()) { zone_names.push_back(d.climate); it = zone_names.end() - 1; }

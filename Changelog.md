@@ -7,6 +7,15 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (resource-driven towns)
+
+- `513e5a7` **Towns the sim founds, from resources.** The generator no longer decides which towns exist. It lays out about 4,400 candidate sites
+  by resource (farm land, grass, game, furs, minerals, timber) plus the railroad's stations, and the sim founds the ones that pay: a
+  farm or ranch when its crop sells well enough, a hunters' camp or trapping post when hides or pelts do, a sawmill when timber can be
+  freighted out, a mining camp when prospectors strike. Camps boom and go to ghost towns as the ore, bison and pelts run out. About
+  1,950 towns with 30 or more people exist at the end. New good: furs. Farm and ranch founding is not selective enough yet, and
+  famine and lawlessness are too high; see `CLAUDE.md`.
+
 ## 2026-10-19 (procedural towns)
 
 - `d75a2a3` **A 2,000-node map, first pass.** `tools/gen_towns.py` places about 1,970 procedural towns on the real map from rainfall (PRISM),

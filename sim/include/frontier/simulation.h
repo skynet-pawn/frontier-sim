@@ -381,6 +381,7 @@ private:
     double crop_gate_ratio(NodeId id, GoodId g, NodeId& outlet);
     double farm_gate_ratio(NodeId id, NodeId& outlet, GoodId& crop);
     void found_town(NodeId id);
+    void rush_arrives(NodeId id, double people, double cash_per_person, const std::string& name, const std::string& cause);
     void ship_farm_goods(NodeId id, Node& n);
 
     // ---- traders (traders.cpp) ----
