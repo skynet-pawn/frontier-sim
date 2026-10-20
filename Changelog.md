@@ -7,6 +7,39 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-20 (checks on lead stages)
+
+- (no code) **Lead stages confirmed on 3 seeds** (famines 3, 3, 3 against 32 to 46 without; starved 2.6k to 4.1k against 15.6k to 18k; traders 5.4k to 5.7k against 1.5k; money $224M to $253M against $128M to $138M). The 3.7 times traders are mostly freight-house outfits following 2.3 times more orders and 27% more towns. A side finding: traders can go into debt for freight billed on departure, and retired traders' debts are written off against the East (+$127M of the $253M, +$40M in the baseline). See CLAUDE.md.
+
+## 2026-10-20 (trader cohorts and the starting crowd)
+
+- (5b6899b, with the notes in this commit) **Trader cohorts.** Each batch run now follows every trader by id and reports, for lone
+  traders at the start, lone traders who entered later, freight-house outfits and eastern firms, the share gone within 1, 2, 3, 5
+  and 10 years (only those old enough to be watched that long) and how they left. Finding: the generated world starts with 9,654
+  lone traders, scaled from the 31-node map's 120 by the expected final town count (about 2,500) when only about 800 towns exist
+  on day 1. They crash to about 1,500 by day 990 (81% of them gone within 5 years), which is where most of the roughly 10,000
+  exits a run come from. Lone traders who enter later fail at about 48% within 5 years, 33% within 3. Starts of 3,900 and 2,000
+  (scratch copies, one seed) crash less but settle at the same 700 to 1,000 lone traders; the late world barely changes (4,300 to
+  5,600 traders, 5 or 6 famines). Overall left / ever is about 65% (51 to 75% is the user's target range). Nobody ever settles
+  rich, and the average profit per trader keeps falling (-1 on day 30, -7 to -14 at the end): the trader problem is next. The
+  generator still writes 9,654; a start near 1,500 is to be confirmed on three seeds. The freight write-off (+$127M of $253M) is
+  left as it is.
+
+## 2026-10-20 (save and reload)
+
+- (cd791d8) **Save and reload.** `Simulation::save_state(path)` and `load_state(path)` write and restore everything that changes while the
+  sim runs (towns, routes' live state, traders, houses, contracts, gangs, posses, news, the random generator and the whole event log),
+  from one field list per struct used for both directions, so they cannot disagree. Definitions still come from the data folder; the
+  route table and trader horizons are rebuilt on load. `tests/save_test.cpp` runs a game straight through and again saved half-way
+  and reloaded: same history hash, same money and byte-identical final snapshots (31 nodes for 3,650 days, the Black Hills slice,
+  and the 4,694-node world for 600 days; from a day-550 snapshot of the big world the run reaches day 1,100 with the same hash as
+  the unbroken run). A snapshot of the big world at day 1,100 is 53 MB. `frontier_cli --save FILE`, `--load FILE`,
+  `--checkpoint-every N PREFIX`; `frontier_batch --load FILE`, `--checkpoint-every N PREFIX`; the viewer takes `--load FILE`.
+- (5b6899b) **Time series.** `frontier_batch --series FILE N` writes one row every N days per seed: traders by kind, houses,
+  gangs, money in circulation, profit per trader, population, towns, towns in shortage, running totals of shortages, famines,
+  starved, robberies, trader exits, orders, jobs, towns founded, ghost towns, and every money flow. One run now shows how the economy
+  moved, not only where it ended.
+
 ## 2026-10-19 (lead stages)
 
 - `76fd8f8` **Lead stages: orders sized from each town's own lead time.** Found by stepping a generated gold camp (Marten Camp) day by day: it
