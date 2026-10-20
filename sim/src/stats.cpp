@@ -39,9 +39,11 @@ void check_invariants(const Simulation& sim, RunStats& out) {
 
 }  // namespace
 
-RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t seed) {
+RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t seed, const RunOptions& opt) {
     scenario.seed = seed;
     Simulation sim(world, scenario);
+    if (!opt.load.empty()) sim.load_state(opt.load);
+    const int done = static_cast<int>(sim.world().today - scenario.start);   // days already behind a loaded snapshot
     RunStats r;
     r.seed = seed;
     r.days = scenario.days;
@@ -63,10 +65,61 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
 
     // FRONTIER_PROGRESS=1 prints a line to stderr every 250 simulated days, so a long run shows where it is.
     const bool progress = std::getenv("FRONTIER_PROGRESS") != nullptr;
+    // Cohorts: every trader is followed by id from the day it is first seen. Convoys are not traders() and are not followed.
+    struct Seen { int group = -1; long first = 0, last = -1; };
+    std::vector<Seen> seen;
+    auto note_trader = [&](const Trader& t, long day, bool initial) {
+        if (t.id < 0) return;
+        if (static_cast<std::size_t>(t.id) >= seen.size()) seen.resize(static_cast<std::size_t>(t.id) + 1024);
+        Seen& s = seen[static_cast<std::size_t>(t.id)];
+        if (s.group < 0) {
+            s.group = t.house >= 0 ? 2 : t.firm ? 3 : initial ? 0 : 1;
+            s.first = day;
+        }
+        s.last = day;
+    };
+    for (const Trader& t : sim.traders()) note_trader(t, done, true);
     long gang_days = 0, gang_men_days = 0, gang_big_days = 0, sampled_days = 0, band_days = 0;
     double lawless_days = 0;
-    for (int d = 0; d < scenario.days; ++d) {
+    for (int d = done; d < scenario.days; ++d) {
         sim.step();
+        for (const Trader& t : sim.traders()) note_trader(t, d + 1, false);
+        if (opt.checkpoint_every > 0 && (d + 1) % opt.checkpoint_every == 0)
+            sim.save_state(opt.checkpoint_prefix + "_s" + std::to_string(seed) + "_d" + std::to_string(d + 1) + ".sav");
+        if (opt.series_every > 0 && (d + 1) % opt.series_every == 0) {
+            SeriesRow s;
+            s.day = d + 1;
+            s.traders = static_cast<int>(sim.traders().size());
+            for (const Trader& t : sim.traders()) {
+                if (t.house >= 0) ++s.house_outfits;
+                else if (t.firm) ++s.firms;
+                else ++s.freelancers;
+            }
+            for (const House& h : sim.houses()) if (h.alive) ++s.houses_open;
+            for (const Gang& g : sim.gangs()) if (g.active) ++s.gangs;
+            s.money = sim.total_money();
+            s.avg_profit = sim.avg_trader_profit();
+            for (const Node& n : sim.world().nodes) {
+                if (n.fixed_market || !n.founded) continue;
+                s.pop += n.population;
+                if (n.population >= 30 && !n.ghost) { ++s.towns; if (n.starving) ++s.towns_short; }
+            }
+            const EventLog& lg = sim.log();
+            s.shortages = static_cast<long>(lg.count_kind("shortage"));
+            s.famines = static_cast<long>(lg.count_kind("famine"));
+            s.starved = sim.starved_logged();
+            s.robberies = static_cast<long>(lg.count_kind("robbery"));
+            s.trader_exits = static_cast<long>(lg.count_kind("trader_exit"));
+            s.settled = static_cast<long>(lg.count_kind("trader_settled"));
+            s.orders = sim.merchant_orders();
+            s.convoys_hired = sim.convoys_hired();
+            s.jobs_delivered = sim.jobs_delivered();
+            s.towns_founded = static_cast<long>(lg.count_kind("town_founded"));
+            s.ghosts = static_cast<long>(lg.count_kind("ghost_town"));
+            const MoneyAudit a = sim.money_audit();
+            for (int f = 0; f < kMoneyFlowCount; ++f) s.flows[f] = a.flows[f];
+            r.series.push_back(s);
+        }
         if (progress && d % 250 == 249) std::fprintf(stderr, "seed %llu: day %d of %d, %zu traders\n", static_cast<unsigned long long>(seed), d + 1, scenario.days, sim.traders().size());
         const int tc = static_cast<int>(sim.traders().size());
         r.traders_min = std::min(r.traders_min, tc);
@@ -123,6 +176,44 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.settled = static_cast<int>(sim.log().count_kind("trader_settled"));
     r.firm_withdrawals = static_cast<int>(sim.log().count_kind("firm_withdrew"));
     r.trader_exits = static_cast<int>(sim.log().count_kind("trader_exit"));
+
+    {
+        // How each trader who left did so, from the log (trader id and cause are fields of the exit events).
+        auto trader_of = [](const Event& e) {
+            for (const Field& f : e.fields) if (f.key == "trader") return std::atoi(f.value.c_str());
+            return -1;
+        };
+        std::vector<char> how(seen.size(), 'o');   // r ruined, k killed, s settled, o other
+        for (const Event& e : sim.log().events()) {
+            if (e.kind != "trader_exit" && e.kind != "trader_settled") continue;
+            const int id = trader_of(e);
+            if (id < 0 || static_cast<std::size_t>(id) >= how.size()) continue;
+            how[static_cast<std::size_t>(id)] = e.kind == "trader_settled" ? 's' : e.cause.rfind("capital exhausted", 0) == 0 ? 'r' : e.cause.rfind("killed", 0) == 0 ? 'k' : 'o';
+        }
+        r.cohorts.resize(4);
+        r.cohorts[0].name = "lone traders at the start";
+        r.cohorts[1].name = "lone traders who entered later";
+        r.cohorts[2].name = "freight-house outfits";
+        r.cohorts[3].name = "eastern firms";
+        const long final_day = scenario.days;
+        for (std::size_t id = 0; id < seen.size(); ++id) {
+            const Seen& s = seen[id];
+            if (s.group < 0) continue;
+            CohortRow& c = r.cohorts[static_cast<std::size_t>(s.group)];
+            ++c.n;
+            const bool left = s.last < final_day;
+            const long exit_day = s.last + 1;
+            if (left) {
+                ++c.left;
+                switch (how[id]) { case 'r': ++c.ruined; break; case 'k': ++c.killed; break; case 's': ++c.settled; break; default: ++c.other; }
+            }
+            for (int h = 0; h < CohortRow::kHorizons; ++h) {
+                if (s.first + CohortRow::horizon_days[h] > final_day) continue;   // not watched that long
+                ++c.seen[h];
+                if (left && exit_day <= s.first + CohortRow::horizon_days[h]) ++c.gone[h];
+            }
+        }
+    }
 
     const EventLog& log = sim.log();
     r.robberies = static_cast<int>(log.count_kind("robbery"));

@@ -2,6 +2,7 @@
 // can be told apart from a fluke or a bug. One run tells you what happened; twenty tell you what tends to.
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -22,7 +23,10 @@ void usage() {
     std::puts("usage: frontier_batch [--seeds N] [--first-seed S] [--days N] [--threads T] [--data DIR]\n"
               "                      [--runs] [--csv FILE]\n"
               "  --runs   print one line per run\n"
-              "  --csv    write one row per run");
+              "  --csv    write one row per run\n"
+              "  --load FILE  continue from a saved state (one seed; event-log totals include the history before it)\n"
+              "  --checkpoint-every N PREFIX  save PREFIX_sSEED_dDAY.sav every N days\n"
+              "  --series FILE N  write one row of the economy's vital signs every N days, per seed, to FILE (CSV)");
 }
 
 std::string find_data_dir() {
@@ -65,7 +69,8 @@ int main(int argc, char** argv) {
     int seeds = 20, days = -1, threads = static_cast<int>(std::thread::hardware_concurrency());
     std::uint64_t first = 1;
     bool print_runs = false;
-    std::string dir, csv;
+    std::string dir, csv, series_file;
+    frontier::RunOptions opt;
 
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -83,6 +88,9 @@ int main(int argc, char** argv) {
         else if (a == "--data") dir = next();
         else if (a == "--csv") csv = next();
         else if (a == "--runs") print_runs = true;
+        else if (a == "--load") opt.load = next();
+        else if (a == "--checkpoint-every") { opt.checkpoint_every = std::atoi(next()); opt.checkpoint_prefix = next(); }
+        else if (a == "--series") { series_file = next(); opt.series_every = std::atoi(next()); }
         else { usage(); return a == "--help" ? 0 : 2; }
     }
     if (dir.empty()) dir = find_data_dir();
@@ -104,7 +112,7 @@ int main(int argc, char** argv) {
         for (int t = 0; t < threads; ++t)
             pool.emplace_back([&]() {
                 for (int j = next_job++; j < seeds; j = next_job++)
-                    runs[static_cast<std::size_t>(j)] = frontier::run_and_collect(world, scenario, first + static_cast<std::uint64_t>(j));
+                    runs[static_cast<std::size_t>(j)] = frontier::run_and_collect(world, scenario, first + static_cast<std::uint64_t>(j), opt);
             });
         for (std::thread& t : pool) t.join();
 
@@ -330,6 +338,37 @@ int main(int argc, char** argv) {
                   << r.posse_victories << ',' << r.posse_routs << ',' << r.detective_parties << ',' << r.takeovers << ',' << r.towns_freed << ',' << r.vigilance << ','
                   << r.famines << ',' << r.ghost_towns << ',' << r.pop_start_total << ',' << r.pop_end_total << ',' << r.money_end << ',' << r.east_buys << ','
                   << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << ',' << r.shortages << ',' << r.shortage_events << ',' << r.shortage_towns << ',' << r.starved << ',' << r.game_taken << ',' << r.game_left << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << ',' << r.jobs_delivered << ',' << r.job_pay << ',' << r.job_lost << ',' << r.gangs_active_mean << ',' << r.gang_size_mean << ',' << r.gang_peak << ',' << r.gang_big_days << ',' << r.gang_wars << ',' << r.gang_mergers << ',' << r.gang_breakdowns << '\n';
+        }
+        // Traders followed by id: of those old enough to have been watched for a year, two, three, five and ten, the share gone by then.
+        for (const RunStats& r : runs) {
+            std::printf("\ntrader cohorts, seed %llu (share gone within 1 / 2 / 3 / 5 / 10 years; n = old enough to be watched that long):\n", static_cast<unsigned long long>(r.seed));
+            for (const frontier::CohortRow& c : r.cohorts) {
+                if (c.n == 0) continue;
+                std::printf("  %-32s %6d ever, %6d left (%d ruined, %d killed, %d settled, %d other)\n    ", c.name.c_str(), c.n, c.left, c.ruined, c.killed, c.settled, c.other);
+                for (int h = 0; h < frontier::CohortRow::kHorizons; ++h) {
+                    if (c.seen[h] == 0) std::printf("   --          ");
+                    else std::printf("  %5.1f%% (n %5d)", 100.0 * c.gone[h] / c.seen[h], c.seen[h]);
+                }
+                std::puts("");
+            }
+        }
+        if (!series_file.empty()) {
+            std::ofstream f(series_file);
+            f << "seed,day,traders,freelancers,house_outfits,firms,houses_open,gangs,money,avg_profit,pop,towns,towns_short,shortages,famines,starved,robberies,trader_exits,settled,orders,convoys_hired,jobs_delivered,towns_founded,ghosts";
+            for (int k = 0; k < frontier::kMoneyFlowCount; ++k) {
+                std::string name = frontier::money_flow_name(static_cast<frontier::MoneyFlow>(k));
+                for (char& c : name) if (!std::isalnum(static_cast<unsigned char>(c))) c = '_';
+                f << ",flow_" << name;
+            }
+            f << '\n';
+            for (const RunStats& r : runs)
+                for (const frontier::SeriesRow& s : r.series) {
+                    f << r.seed << ',' << s.day << ',' << s.traders << ',' << s.freelancers << ',' << s.house_outfits << ',' << s.firms << ',' << s.houses_open << ',' << s.gangs << ','
+                      << s.money << ',' << s.avg_profit << ',' << s.pop << ',' << s.towns << ',' << s.towns_short << ',' << s.shortages << ',' << s.famines << ',' << s.starved << ','
+                      << s.robberies << ',' << s.trader_exits << ',' << s.settled << ',' << s.orders << ',' << s.convoys_hired << ',' << s.jobs_delivered << ',' << s.towns_founded << ',' << s.ghosts;
+                    for (double v : s.flows) f << ',' << v;
+                    f << '\n';
+                }
         }
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());

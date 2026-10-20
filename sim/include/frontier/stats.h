@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "frontier/config.h"
+#include "frontier/world.h"
 
 namespace frontier {
 
@@ -25,8 +26,37 @@ struct TownOutcome {
 
 // Everything the batch runner wants to know about one complete run. Collected by stepping the simulation
 // day by day, so it can also check invariants that only matter along the way.
+// One row of the economy's vital signs on one day, so a single run shows how things changed, not just where they ended.
+// Counts marked "so far" are running totals since day 0 (a loaded snapshot carries them forward).
+struct SeriesRow {
+    long day = 0;                       // days since the scenario start
+    int traders = 0, freelancers = 0, house_outfits = 0, firms = 0, houses_open = 0, gangs = 0;
+    double money = 0;                   // money in circulation
+    double avg_profit = 0;              // smoothed profit per trader per day
+    double pop = 0;                     // people in the frontier towns
+    int towns = 0, towns_short = 0;     // towns of 30 or more people, and those in a food shortage today
+    long shortages = 0, famines = 0;    // episodes so far
+    double starved = 0;                 // people starved so far
+    long robberies = 0, trader_exits = 0, settled = 0, orders = 0, convoys_hired = 0, jobs_delivered = 0, towns_founded = 0, ghosts = 0;
+    double flows[kMoneyFlowCount] = {}; // where money came from and went, so far (see MoneyFlow)
+};
+
+// How one group of traders fared, followed by id from the day each was first seen. For each horizon (1, 2, 3, 5 and 10 years)
+// `seen[h]` counts the members old enough to have been watched that long and `gone[h]` those of them who had left by then, so
+// gone / seen is the share that failed or quit within that time. A trader still trading at the end is censored, not counted as gone.
+struct CohortRow {
+    static constexpr int kHorizons = 5;
+    static constexpr int horizon_days[kHorizons] = {365, 730, 1095, 1825, 3650};
+    std::string name;
+    int n = 0, left = 0;                       // members, and those who left before the run ended
+    int seen[kHorizons] = {}, gone[kHorizons] = {};
+    int ruined = 0, killed = 0, settled = 0, other = 0;   // how the ones who left did so
+};
+
 struct RunStats {
     std::uint64_t seed = 0;
+    std::vector<SeriesRow> series;
+    std::vector<CohortRow> cohorts;
     std::uint64_t hash = 0;
     int days = 0;
 
@@ -96,6 +126,16 @@ struct RunStats {
 };
 
 // Runs the scenario to completion with the given seed and collects statistics.
-RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t seed);
+// How a run is driven beyond "step to the end". `load` names a saved state to continue from (it must come from the same data and
+// seed; the run then covers the days that remain, so counters taken from the event log include the history before the snapshot
+// while ones sampled each day, such as the lowest trader count, cover only the days after it). `checkpoint_every` > 0 saves
+// `checkpoint_prefix`_sSEED_dDAY.sav every that many days. `series_every` > 0 records one SeriesRow that often.
+struct RunOptions {
+    std::string load;
+    int checkpoint_every = 0;
+    std::string checkpoint_prefix;
+    int series_every = 0;
+};
+RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t seed, const RunOptions& opt = {});
 
 }  // namespace frontier
