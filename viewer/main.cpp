@@ -4,7 +4,8 @@
 // presentation layer can replace this file without touching sim/. The map is drawn in the sim's own coordinates
 // (miles, x east, y north).
 //
-//   frontier_viewer [--data DIR] [--seed N] [--shot FILE --days N]
+//   frontier_viewer [--data DIR] [--seed N] [--load SNAPSHOT] [--shot FILE --days N]
+//   --load starts from a state saved by frontier_cli --save (same data folder), so a pre-simulated world opens at once.
 //   If DIR is data/slices/NAME and data/terrain/NAME exists, a shaded-relief terrain map is drawn under the towns (T toggles).
 //   space pause/resume   1-5 speed   N one day (paused)   tab overlay   F fit map   click a town or a wagon   wheel zoom
 //   right-drag or middle-drag pan   T terrain   C carrier filter   L loaded wagons only   X let go of a followed wagon
@@ -373,11 +374,13 @@ int main(int argc, char** argv) {
     std::string data = find_data_dir(), shot;
     std::uint64_t seed = 0;
     bool seed_set = false;
+    std::string load_file;
     int shot_days = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         auto next = [&]() { return i + 1 < argc ? std::string(argv[++i]) : std::string(); };
         if (a == "--data") data = next();
+        else if (a == "--load") load_file = next();
         else if (a == "--seed") { seed = std::strtoull(next().c_str(), nullptr, 10); seed_set = true; }
         else if (a == "--shot") shot = next();
         else if (a == "--days") shot_days = std::atoi(next().c_str());
@@ -386,6 +389,7 @@ int main(int argc, char** argv) {
     Scenario scenario = load_scenario(data, world);
     if (seed_set) scenario.seed = seed;
     Simulation sim(world, scenario);
+    if (!load_file.empty()) sim.load_state(load_file);
     const World& w = sim.world();
     const long end_day = scenario.start + scenario.days;
     const GoodId flour = find_good(w, "flour");

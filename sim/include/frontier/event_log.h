@@ -51,6 +51,8 @@ struct Event {
     Fields fields;
 };
 
+struct StateIo;   // saves and loads the log (save.cpp)
+
 class EventLog {
 public:
     using Sink = std::function<void(const Event&)>;
@@ -73,6 +75,7 @@ public:
     std::uint64_t hash() const { return hash_; }
 
 private:
+    friend struct StateIo;
     std::vector<Event> events_;
     std::size_t counts_[kEventTypeCount] = {};
     std::map<std::string, std::size_t> kind_counts_;

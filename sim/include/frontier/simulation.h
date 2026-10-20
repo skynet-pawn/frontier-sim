@@ -262,6 +262,11 @@ public:
     static const char* phase_name(int i);
     double phase_seconds(int i) const { return phase_time_[i]; }
     void run(int days) { for (int i = 0; i < days; ++i) step(); }
+    // Save the whole running state to a file, and load it back into a simulation built from the same data and scenario
+    // (the world's static definitions come from the data, the changing state from the file). A run saved at day D and
+    // continued matches an unbroken run exactly (tests/save_test.cpp). Load throws on a file from a different world.
+    void save_state(const std::string& path) const;
+    void load_state(const std::string& path);
 
     World& world() { return world_; }
     const World& world() const { return world_; }
@@ -370,6 +375,8 @@ public:
     };
 
 private:
+    template <class Ar> void io_state(Ar& ar);   // every changing member, once, for save and load (save.cpp)
+
     // ---- economy (simulation.cpp) ----
     void update_network();
     void apply_shocks();

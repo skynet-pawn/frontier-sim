@@ -5,6 +5,8 @@
 
 namespace frontier {
 
+struct StateIo;   // saves and loads the generator (save.cpp)
+
 // Seeded PRNG (xoshiro256**). We implement it ourselves instead of using
 // <random> distributions because the standard does not guarantee identical
 // output across compilers, and replayable runs are a project requirement.
@@ -27,6 +29,7 @@ public:
     }
 
 private:
+    friend struct StateIo;
     std::uint64_t s_[4];
 };
 

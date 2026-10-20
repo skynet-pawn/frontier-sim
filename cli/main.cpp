@@ -18,7 +18,10 @@ void usage() {
               "  --quiet        suppress the event log, print only reports and the summary\n"
               "  --report-days  print a town table every N days (0 = only at the end)\n"
               "  --stop N       stop after day N but keep the scenario's length (settlement pace depends on it)\n"
-              "  --watch NAME   print that town's shelves, cash, orders and hunger every day from --watch-from");
+              "  --watch NAME   print that town's shelves, cash, orders and hunger every day from --watch-from\n"
+              "  --save FILE    save the whole state when the run ends (after --stop or the last day)\n"
+              "  --load FILE    start from a saved state instead of day 0 (same data folder; --days/--stop count from day 0)\n"
+              "  --checkpoint-every N PREFIX  save PREFIX_dDAY.sav every N days");
 }
 
 std::string find_data_dir() {
@@ -84,7 +87,8 @@ int main(int argc, char** argv) {
     std::uint64_t seed = 0;
     bool seed_set = false, trace = false, quiet = false;
     int days = -1, report_days = 0, profile_days = 0, stop_day = -1, watch_from = 0;
-    std::string dir, watch_name;
+    std::string dir, watch_name, save_file, load_file, checkpoint_prefix;
+    int checkpoint_every = 0;
 
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -103,6 +107,9 @@ int main(int argc, char** argv) {
         else if (a == "--stop") stop_day = std::atoi(next());
         else if (a == "--watch") watch_name = next();
         else if (a == "--watch-from") watch_from = std::atoi(next());
+        else if (a == "--save") save_file = next();
+        else if (a == "--load") load_file = next();
+        else if (a == "--checkpoint-every") { checkpoint_every = std::atoi(next()); checkpoint_prefix = next(); }
         else if (a == "--trace") trace = true;
         else if (a == "--quiet") quiet = true;
         else { usage(); return a == "--help" ? 0 : 2; }
@@ -116,6 +123,12 @@ int main(int argc, char** argv) {
         if (days >= 0) scenario.days = days;
 
         Simulation sim(world, scenario);
+        int first_day = 1;
+        if (!load_file.empty()) {
+            sim.load_state(load_file);
+            first_day = static_cast<int>(sim.world().today - scenario.start) + 1;
+            std::printf("loaded %s: continuing from %s (day %d)\n", load_file.c_str(), format_date(sim.world().today).c_str(), first_day);
+        }
         sim.trace = trace;
         if (!quiet)
             sim.log().set_sink([&](const Event& e) {
@@ -128,8 +141,13 @@ int main(int argc, char** argv) {
                     static_cast<unsigned long long>(scenario.seed), scenario.days, format_date(scenario.start).c_str(),
                     world.nodes.size(), sim.traders().size());
         const int last_day = stop_day >= 0 ? std::min(stop_day, scenario.days) : scenario.days;
-        for (int d = 1; d <= last_day; ++d) {
+        for (int d = first_day; d <= last_day; ++d) {
             sim.step();
+            if (checkpoint_every > 0 && d % checkpoint_every == 0) {
+                const std::string name = strf("%s_d%d.sav", checkpoint_prefix.c_str(), d);
+                sim.save_state(name);
+                std::printf("checkpoint %s\n", name.c_str());
+            }
             if (!watch_name.empty() && d >= watch_from) print_watch(sim, watch_name, d);
             if (report_days > 0 && d % report_days == 0) print_towns(sim);
             if (profile_days > 0 && d % profile_days == 0) {
@@ -146,6 +164,10 @@ int main(int argc, char** argv) {
             }
         }
         print_towns(sim);
+        if (!save_file.empty()) {
+            sim.save_state(save_file);
+            std::printf("saved %s (day %ld)\n", save_file.c_str(), static_cast<long>(sim.world().today - scenario.start));
+        }
 
         std::puts("\nleaders for hire:");
         for (const Leader& l : sim.leaders())
