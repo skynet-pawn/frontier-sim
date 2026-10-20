@@ -7,6 +7,17 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-19 (lead stages)
+
+- `76fd8f8` **Lead stages: orders sized from each town's own lead time.** Found by stepping a generated gold camp (Marten Camp) day by day: it
+  got food for 60 days, waited 14 days to hire a convoy, and the convoy took 86 days on the road; camps under 150 people never posted an
+  order at all. Merchants now measure how long a town's orders really take (average and spread), track its growth, and size the safety
+  stock, order cycle (one wagon load), hire wait, store reserve, supplier cover, expiry and rush provisions from that. Off by default;
+  on in the generated 4,694-node scenario. 1 seed: famines 32 to 3, people starved 15,620 to 4,110, population 2.21M to 2.53M; but
+  shortage episodes 343 to 611, traders 1,499 to 5,590 and money $128M to $253M (not yet explained). Keep off on the 31-node map
+  (traders -20%). Also holds the gold express (`express_stages`, off: money in circulation grows 4.7 times).
+- `20cc522` **CLI `--stop`, `--watch`, `--watch-from`.** Run to a day and print one town's shelves, cash, dust, orders and hunger daily.
+
 ## 2026-10-19 (mining-camp famine)
 
 - `4be6696` **Gold camps pay for food in dust.** A gold camp's wealth is dust, but its open orders, freight jobs, standing contracts and hired
