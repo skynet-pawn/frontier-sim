@@ -61,6 +61,8 @@ struct RunStats {
     double gangs_active_mean = 0, gang_size_mean = 0;           // per day since the log began: gangs on the road, and men per gang
     long gang_big_days = 0;                                     // gang-days spent at 30 or more men
     int merchant_orders = 0, orders_expired = 0, convoys_hired = 0;
+    int express_sent = 0, express_robbed = 0;
+    double express_oz = 0;
     int contracts_signed = 0, contracts_cancelled = 0;
     int jobs_taken = 0, jobs_delivered = 0;
     double job_pay = 0, job_lost = 0;   // what carriers earned hauling suppliers' goods, and what the road took from suppliers

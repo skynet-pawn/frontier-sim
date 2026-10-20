@@ -34,6 +34,8 @@ struct Trader {
     bool drover = false;         // drovers move cattle only; freighters move everything else
     bool controlled = false;     // driven by an outside controller (a player or a script), not the AI
     NodeId agent_for = -1;       // >= 0: a convoy hired by this town's merchants; it delivers there and disbands
+    long ordered_day = 0;        // the day the town posted the order this load fills (for the lead time it measures)
+    bool express = false;        // an eastern express agent's shipment of gold dust, bound for an eastern market (see express.cpp)
     int contract = -1;           // >= 0: a load for this standing contract, funded by its house (see SupplyContract)
     double contract_units = 0;   // what the load was meant to deliver, to be made good if it is robbed
     int job_town = -1;           // >= 0: hauling the supplier's goods to this town's open order (see jobs.cpp)
@@ -321,6 +323,9 @@ public:
     int merchant_orders() const { return orders_placed_; }
     int orders_expired() const { return orders_expired_; }
     int convoys_hired() const { return convoys_hired_; }
+    int express_sent() const { return express_sent_; }
+    int express_robbed() const { return express_robbed_; }
+    double express_oz() const { return express_oz_; }
     double merchant_delivered() const { return delivered_value_; }
     double merchant_lost() const { return lost_orders_value_; }
     const std::vector<double>& imported_value() const { return imported_value_; }
@@ -418,6 +423,10 @@ private:
     void arrive(Trader& t);
     Receipt sell_cargo(Trader& t, double qty);   // the sale itself, with no check that the outfit is idle
     bool sell_along_the_way(Trader& t);          // true if the whole load went here and the trip is over
+    double lead_days(NodeId n) const;   // travel days from the nearest eastern market (0 if none reaches)
+    struct LeadEstimate { double lead, spread; };
+    LeadEstimate lead_estimate(NodeId n) const;   // days from posting an order to its arrival, and how much that wanders
+    void note_delivery(NodeId town, long ordered_day);
     double tradable_stock(NodeId n, GoodId g) const;   // what traders may buy from a town's shelves
     void ensure_opportunities();
     void retire(Trader& t, const char* why, bool ruined = false);
@@ -430,6 +439,10 @@ private:
     void hire_for_order(NodeId id, GoodId g);
     double dispatch_convoy(NodeId town, NodeId src, GoodId g, double units, double advance, double landed);
     void finish_convoy(Trader& c);
+
+    // ---- gold express (express.cpp) ----
+    void express_day();
+    void finish_express(Trader& c);
 
     // ---- standing supply contracts (contracts.cpp) ----
     void contracts_day();
@@ -538,6 +551,8 @@ private:
     int houses_founded_ = 0, house_recaps_ = 0;
     int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover
     int orders_placed_ = 0, orders_expired_ = 0, convoys_hired_ = 0;
+    int express_sent_ = 0, express_robbed_ = 0;
+    double express_oz_ = 0;
     int jobs_taken_ = 0, jobs_delivered_ = 0;
     double job_pay_ = 0, job_lost_ = 0;
     double delivered_value_ = 0, lost_orders_value_ = 0;

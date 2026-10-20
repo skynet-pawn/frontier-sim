@@ -501,9 +501,19 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
 // What a trader may try to buy from a town's shelves. Storekeepers do not sell the last of what their own
 // customers will eat next fortnight, however high the offer from a richer camp; a poor fort that is outbid
 // would otherwise starve to feed a boom town (and its own garrison would be the first to notice).
+double Simulation::lead_days(NodeId n) const {
+    double lead = 1e9;
+    for (NodeId m : markets_)
+        if (world_.reachable(m, n)) lead = std::min(lead, world_.route_days(m, n));
+    return lead > 1e8 ? 0.0 : lead;
+}
+
 double Simulation::tradable_stock(NodeId n, GoodId g) const {
     const double stock = world_.nodes[World::idx(n)].stock[World::idx(g)];
-    const double reserve = world_.daily_demand(n, g) * world_.params.local_reserve_days;
+    double days = world_.params.local_reserve_days;
+    // A storekeeper far from supply cannot refill in a fortnight: what he sells away now is gone for the whole haul.
+    if (world_.params.lead_stages > 0 && world_.goods[World::idx(g)].food_share > 0) days = std::max(days, lead_estimate(n).lead);
+    const double reserve = world_.daily_demand(n, g) * days;
     return std::max(0.0, stock - reserve) * world_.params.avail_fraction;
 }
 

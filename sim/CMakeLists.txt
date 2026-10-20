@@ -4,6 +4,7 @@ add_library(frontier_sim STATIC
     src/contracts.cpp
     src/crime.cpp
     src/event_log.cpp
+    src/express.cpp
     src/farms.cpp
     src/houses.cpp
     src/jobs.cpp

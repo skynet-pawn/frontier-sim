@@ -54,6 +54,8 @@ struct Node {
     // Unlike a government contract these are paid out of the town's own cash, and the offer rises while nobody fills it.
     std::vector<double> order_qty, order_price, order_first_price;
     std::vector<long> order_posted, order_raised, order_hired;
+    double lead_obs = 0, lead_dev = 0; int lead_n = 0;   // days from posting an order to its delivery, as this town has seen them
+    double growth_rate = 0, pop_mark = 0; long pop_mark_day = 0;   // smoothed daily growth of the town's people, from a monthly mark
     std::vector<std::string> tags;
 
     // Farming and settlement (farms.cpp).

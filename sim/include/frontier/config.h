@@ -165,6 +165,10 @@ struct Params {
     double floor_pop = 5;
     double ghost_pop = 25;
     double newcomer_provision_days = 20;     // days of food new arrivals carry with them
+    int express_stages = 0;                  // 1: eastern express agents buy a gold camp's surplus dust and ship it east (see express.cpp)
+    double express_interval_days = 7;        // how often an agent calls at a camp
+    double express_keep_days = 30;           // days of output the camp keeps as dust to pay its suppliers with
+    double express_min_value = 2000;         // a shipment is worth sending at this much (dollars at the mint price)
     double rush_stake_days = 0;              // a strike brings a merchant with working capital: this many days of the camp's food bill, at shelf prices (0 = none)
     double rush_provision_days = 60;         // gold-rush argonauts were told to bring a season's supplies
     double emigrant_cash_share = 0.8;        // share of a town's cash that leaves with its departing residents
@@ -335,6 +339,16 @@ struct Params {
     int merchant_order_raise_days = 7;       // an unfilled order's offer rises this often...
     double merchant_order_raise = 0.25;      // ...by this much...
     double merchant_order_cap_mult = 3.0;    // ...up to this multiple of the opening offer
+    // Lead-time stage (lead_stages 1): the fixed day counts above (safety, cycle, hire wait, reserve, supplier cover, order
+    // expiry, rush provisions) give way to numbers taken from the town itself: how long its orders have really taken
+    // (an average and a spread), its own growth, and the size of a wagon load. The old values remain as floors.
+    int lead_stages = 0;
+    double lead_prior_mult = 1.15;           // before a town has seen a delivery: the route time times this (roads, loading, guards) plus a review interval
+    double lead_dev_prior = 0.15;            // ...and the spread it expects, as a share of that lead
+    double lead_prior_weight = 2;            // the prior counts as this many deliveries (as risk_prior_weight does for roads)
+    double lead_safety_k = 2;                // safety stock is this many spreads of the lead time
+    double lead_obs_alpha = 0.3;             // how fast the observed lead follows new deliveries
+    double growth_cap_mult = 2;              // a town's orders never assume more than this multiple of today's demand
     int merchant_hire_after_days = 14;       // an order still open after this long: the town hires freighters itself (0 = never)
     int merchant_order_expire_days = 90;     // and is withdrawn after this long unfilled
 

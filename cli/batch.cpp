@@ -185,6 +185,9 @@ int main(int argc, char** argv) {
         row("sales made along the way", runs, [](const RunStats& r) { return double(r.waypoint_sales); });
         row("merchant orders posted", runs, [](const RunStats& r) { return double(r.merchant_orders); });
         row("  town hired its own freighters", runs, [](const RunStats& r) { return double(r.convoys_hired); });
+        row("  gold express shipments sent", runs, [](const RunStats& r) { return double(r.express_sent); });
+        row("    robbed on the road", runs, [](const RunStats& r) { return double(r.express_robbed); });
+        row("    ounces shipped", runs, [](const RunStats& r) { return r.express_oz; });
         row("  withdrawn unfilled", runs, [](const RunStats& r) { return double(r.orders_expired); });
         row("freight jobs delivered", runs, [](const RunStats& r) { return double(r.jobs_delivered); });
         row("  carriers' pay ($M)", runs, [](const RunStats& r) { return r.job_pay / 1e6; });

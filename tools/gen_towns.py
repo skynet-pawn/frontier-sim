@@ -597,7 +597,7 @@ if BUILD:
     # Settlers arrive at a pace, not wherever a price pays: farm and ranch sites that qualify wait in line and the best-served go first.
     scenario.setdefault('params', {}).update({'farm_pace_start': float(opts.get('farm-pace-start', 2.0)), 'farm_pace_end': float(opts.get('farm-pace-end', 5.0)),
                                               'ranch_pace_start': float(opts.get('ranch-pace-start', 1.5)), 'ranch_pace_end': float(opts.get('ranch-pace-end', 2.5)),
-                                              'rush_stake_days': float(opts.get('rush-stake-days', 90.0))})
+                                              'rush_stake_days': float(opts.get('rush-stake-days', 90.0)), 'lead_stages': int(opts.get('lead-stages', 1))})
 
     out = os.path.join(ROOT, 'data', 'slices', out_name)
     os.makedirs(out, exist_ok=True)

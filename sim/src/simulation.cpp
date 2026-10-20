@@ -104,7 +104,7 @@ void Simulation::step() {
     { PhaseTimer t(phase_time_[0]); update_network(); apply_shocks(); apply_campaigns(); }
     { PhaseTimer t(phase_time_[1]); economy_day(); }
     { PhaseTimer t(phase_time_[2]); merchants_day(); }
-    { PhaseTimer t(phase_time_[3]); contracts_day(); }
+    { PhaseTimer t(phase_time_[3]); contracts_day(); express_day(); }
     { PhaseTimer t(phase_time_[4]); houses_day(); }
     { PhaseTimer t(phase_time_[5]); traders_day(); }
     crime_day();
@@ -317,9 +317,15 @@ void Simulation::apply_shocks() {
 void Simulation::rush_arrives(NodeId id, double people, double cash_per_person, const std::string& name, const std::string& cause) {
     Node& node = world_.nodes[World::idx(id)];
     node.population += people;
+    // Argonauts were told to bring a season's supplies: enough to last until the camp's own supply line can deliver.
+    double provision_days = world_.params.rush_provision_days;
+    if (world_.params.lead_stages > 0) {
+        const LeadEstimate est = lead_estimate(id);
+        provision_days = std::max(provision_days, est.lead + world_.params.lead_safety_k * est.spread);
+    }
     for (std::size_t g = 0; g < world_.goods.size(); ++g)
         if (world_.goods[g].food_share > 0)
-            node.stock[g] += people * world_.goods[g].need_per_person_per_day * world_.params.rush_provision_days;
+            node.stock[g] += people * world_.goods[g].need_per_person_per_day * provision_days;
     double stake = 0;   // The merchants who follow a strike bring working capital from outside (credit in the East): a camp's miners spend their money on the claim,
                         // and a storekeeper with credit is what kept the shelves stocked once the first supplies ran out.
     if (world_.params.rush_stake_days > 0)

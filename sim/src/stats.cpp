@@ -241,6 +241,9 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.merchant_delivered = sim.merchant_delivered() + sim.world().order_filled_value;
     r.orders_expired = sim.orders_expired();
     r.convoys_hired = sim.convoys_hired();
+    r.express_sent = sim.express_sent();
+    r.express_robbed = sim.express_robbed();
+    r.express_oz = sim.express_oz();
     r.jobs_taken = sim.jobs_taken();
     r.jobs_delivered = sim.jobs_delivered();
     r.job_pay = sim.job_pay();

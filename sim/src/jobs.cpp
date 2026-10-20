@@ -82,6 +82,7 @@ bool Simulation::act_take_job(Trader& t, const Plan& j) {
     t.qty = units;
     t.unit_cost = spent / units;
     t.job_town = j.dest;
+    t.ordered_day = town.order_posted[gi];
     t.job_src = t.at;
     t.job_debt = spent;
     t.job_unit = spent / units;
@@ -109,6 +110,7 @@ void Simulation::deliver_job(Trader& t) {
     const double goods = units * t.job_unit;
     town.stock[gi] += units;
     town.last_delivery[gi] = world_.today;
+    note_delivery(t.job_town, t.ordered_day);
     t.cash += paid;
     world_.order_filled_value += paid;
     world_.order_filled_units += units;
