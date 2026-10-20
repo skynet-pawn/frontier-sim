@@ -1,4 +1,5 @@
 // Headless runner: loads data/, runs the simulation, prints the event log and a summary.
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -15,7 +16,9 @@ void usage() {
     std::puts("usage: frontier_cli [--seed N] [--days N] [--data DIR] [--trace] [--quiet] [--report-days N]\n"
               "  --trace        also print minor events and every trade\n"
               "  --quiet        suppress the event log, print only reports and the summary\n"
-              "  --report-days  print a town table every N days (0 = only at the end)");
+              "  --report-days  print a town table every N days (0 = only at the end)\n"
+              "  --stop N       stop after day N but keep the scenario's length (settlement pace depends on it)\n"
+              "  --watch NAME   print that town's shelves, cash, orders and hunger every day from --watch-from");
 }
 
 std::string find_data_dir() {
@@ -51,14 +54,37 @@ void print_towns(const frontier::Simulation& sim) {
     }
 }
 
+// One line a day for one town: who lives there, what is on the shelf against what is eaten, what the town can pay
+// with, and what it has asked for. Used to step to a famine and see the ins and outs.
+void print_watch(const frontier::Simulation& sim, const std::string& name, int d) {
+    using namespace frontier;
+    const World& w = sim.world();
+    for (std::size_t i = 0; i < w.nodes.size(); ++i) {
+        const Node& n = w.nodes[i];
+        if (n.name != name) continue;
+        const NodeId id = static_cast<NodeId>(i);
+        std::printf("WATCH %s d%d pop %.0f hunger %.2f depriv %.2f cash %.0f dust %.0f income %.0f", format_date(w.today).c_str(), d,
+                    n.population, n.hunger, n.deprivation, n.cash, w.dust_on_hand(id), n.income_ema);
+        for (std::size_t g = 0; g < w.goods.size(); ++g) {
+            const GoodId gid = static_cast<GoodId>(g);
+            const double dem = w.daily_demand(id, gid);
+            if (w.goods[g].food_share <= 0 || dem <= 0) continue;
+            std::printf(" | %s stock %.1f need/d %.2f cover %.1fd price %.2f order %.0f@%.2f", w.goods[g].id.c_str(), n.stock[g], dem,
+                        n.stock[g] / dem, w.mid_price(id, gid), n.order_qty[g], n.order_price[g]);
+        }
+        std::puts("");
+        return;
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     using namespace frontier;
     std::uint64_t seed = 0;
     bool seed_set = false, trace = false, quiet = false;
-    int days = -1, report_days = 0, profile_days = 0;
-    std::string dir;
+    int days = -1, report_days = 0, profile_days = 0, stop_day = -1, watch_from = 0;
+    std::string dir, watch_name;
 
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -74,6 +100,9 @@ int main(int argc, char** argv) {
         else if (a == "--data") dir = next();
         else if (a == "--report-days") report_days = std::atoi(next());
         else if (a == "--profile") profile_days = std::atoi(next());
+        else if (a == "--stop") stop_day = std::atoi(next());
+        else if (a == "--watch") watch_name = next();
+        else if (a == "--watch-from") watch_from = std::atoi(next());
         else if (a == "--trace") trace = true;
         else if (a == "--quiet") quiet = true;
         else { usage(); return a == "--help" ? 0 : 2; }
@@ -98,8 +127,10 @@ int main(int argc, char** argv) {
         std::printf("Frontier Sim: seed %llu, %d days from %s, %zu nodes, %zu traders\n",
                     static_cast<unsigned long long>(scenario.seed), scenario.days, format_date(scenario.start).c_str(),
                     world.nodes.size(), sim.traders().size());
-        for (int d = 1; d <= scenario.days; ++d) {
+        const int last_day = stop_day >= 0 ? std::min(stop_day, scenario.days) : scenario.days;
+        for (int d = 1; d <= last_day; ++d) {
             sim.step();
+            if (!watch_name.empty() && d >= watch_from) print_watch(sim, watch_name, d);
             if (report_days > 0 && d % report_days == 0) print_towns(sim);
             if (profile_days > 0 && d % profile_days == 0) {
                 // Seconds per day in each phase since the last line, so growth with the run shows up.
