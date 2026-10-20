@@ -340,7 +340,18 @@ Terrain load_terrain(const std::string& data) {
     while (!d.empty() && (d.back() == '/' || d.back() == '\\')) d.pop_back();
     const std::size_t cut = d.find_last_of("/\\");
     const std::string name = cut == std::string::npos ? d : d.substr(cut + 1);
-    const std::string dir = d + "/../../terrain/" + name;
+    // The world names its own grid ("terrain": "full"), which may differ from the folder name (slices/full_4400 uses "full").
+    std::string grid = name;
+    {
+        std::ifstream wf(d + "/world.json");
+        const std::string wt((std::istreambuf_iterator<char>(wf)), std::istreambuf_iterator<char>());
+        const std::size_t k = wt.find("\"terrain\": \"");
+        if (k != std::string::npos) {
+            const std::size_t b0 = k + 12, e0 = wt.find('"', b0);
+            if (e0 != std::string::npos) grid = wt.substr(b0, e0 - b0);
+        }
+    }
+    const std::string dir = d + "/../../terrain/" + grid;
     std::ifstream f(dir + "/terrain.json");
     const std::string pic = std::ifstream(dir + "/hillshade.jpg") ? dir + "/hillshade.jpg" : dir + "/hillshade.png";
     if (!f || !std::ifstream(pic)) return t;
@@ -462,9 +473,12 @@ int main(int argc, char** argv) {
 
         // ---- simulate
         if (!paused && w.today < end_day) {
-            accum += GetFrameTime() * speeds[speed];
-            for (int steps = 0; accum >= 1.0 && steps < 40 && w.today < end_day; ++steps, accum -= 1.0) sim.step();
-            if (accum > 40) accum = 0;
+            // A big world costs more than a frame to step, so run days only while a time budget lasts and never save up a
+            // backlog: otherwise a slow frame brings more days due, which makes the next frame slower still.
+            accum += std::min(GetFrameTime(), 0.1f) * speeds[speed];
+            const double t0 = GetTime();
+            while (accum >= 1.0 && w.today < end_day && GetTime() - t0 < 0.04) { sim.step(); accum -= 1.0; }
+            accum = std::min(accum, 1.0);
         }
 
         // A followed wagon keeps the camera on it; if it dies or leaves the road in a town, follow it to the town.
