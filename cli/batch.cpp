@@ -339,6 +339,25 @@ int main(int argc, char** argv) {
                   << r.famines << ',' << r.ghost_towns << ',' << r.pop_start_total << ',' << r.pop_end_total << ',' << r.money_end << ',' << r.east_buys << ','
                   << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << ',' << r.shortages << ',' << r.shortage_events << ',' << r.shortage_towns << ',' << r.starved << ',' << r.game_taken << ',' << r.game_left << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << ',' << r.jobs_delivered << ',' << r.job_pay << ',' << r.job_lost << ',' << r.gangs_active_mean << ',' << r.gang_size_mean << ',' << r.gang_peak << ',' << r.gang_big_days << ',' << r.gang_wars << ',' << r.gang_mergers << ',' << r.gang_breakdowns << '\n';
         }
+        // Where a trader's money goes: per sale, what comes in against what was paid, split by kind of outfit, good and year.
+        for (const RunStats& r : runs) {
+            const auto& tb = r.trade_book;
+            auto line = [](const char* name, const frontier::TradeAcc& a) {
+                if (a.sales == 0 && a.loads == 0 && a.jobs == 0 && a.upkeep == 0) return;
+                const double loads = a.loads ? a.loads : 1;
+                const double net = a.revenue + a.job_pay - a.goods_bought - a.freight - a.upkeep - a.guards - a.visits;
+                std::printf("  %-18s loads %7ld | per load: bought %6.0f freight %5.0f revenue %6.0f (unsold or lost %5.0f) | jobs %6ld at %4.0f | upkeep %5.0f guards %4.0f visits %5.0f | net cash %7.0f (total %9.0f)\n",
+                            name, a.loads, a.goods_bought / loads, a.freight / loads, a.revenue / loads, (a.goods_bought + a.freight - a.basis_sold) / loads,
+                            a.jobs, a.jobs ? a.job_pay / a.jobs : 0.0, a.upkeep / loads, a.guards / loads, a.visits / loads, net / loads, net);
+            };
+            std::printf("\ntrade ledger, seed %llu (dollars per load bought; margin = revenue minus what the goods and freight cost)\n", static_cast<unsigned long long>(r.seed));
+            const char* names[] = {"lone traders", "freight-house outfits", "eastern firms", "town convoys"};
+            for (int c = 0; c < frontier::TradeBook::ClassCount; ++c) line(names[c], tb.cls[c]);
+            std::puts("  lone traders by year of the run:");
+            for (std::size_t y = 0; y < tb.lone_by_year.size(); ++y) line(("year " + std::to_string(y + 1)).c_str(), tb.lone_by_year[y]);
+            std::puts("  lone traders by good:");
+            for (std::size_t g = 0; g < tb.lone_by_good.size() && g < r.good_names.size(); ++g) line(r.good_names[g].c_str(), tb.lone_by_good[g]);
+        }
         // Traders followed by id: of those old enough to have been watched for a year, two, three, five and ten, the share gone by then.
         for (const RunStats& r : runs) {
             std::printf("\ntrader cohorts, seed %llu (share gone within 1 / 2 / 3 / 5 / 10 years; n = old enough to be watched that long):\n", static_cast<unsigned long long>(r.seed));

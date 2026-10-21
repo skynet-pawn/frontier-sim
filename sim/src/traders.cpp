@@ -68,6 +68,14 @@ void Simulation::traders_day() {
     }
 }
 
+// What a party spends at each town it stops in (see arrive()). Planning ignored it for a long time, so every trip looked better
+// than it was; with plan_stop_costs the planner sees the same cost the trader will pay.
+double Simulation::stop_cost(int guards, int legs, double cargo_value) const {
+    const Params& p = world_.params;
+    if (!p.plan_stop_costs) return 0.0;
+    return legs * (p.visit_spend + guards * p.guard_visit_spend + cargo_value * p.visit_spend_value_rate);
+}
+
 double Simulation::daily_cost(const Trader& t, int guards) const {
     return t.upkeep + guards * world_.params.guard_wage;
 }
@@ -82,6 +90,19 @@ double Simulation::defense(int guards) const {
     const double g2 = p.assumed_gang_men * p.assumed_gang_men;
     const double d = p.trader_base_defenders + p.guard_strength * guards;
     return g2 / (g2 + d * d);
+}
+
+void Simulation::book(const Trader& t, GoodId g, const TradeAcc& d) {
+    const int c = t.agent_for >= 0 ? TradeBook::Convoy : t.house >= 0 ? TradeBook::House : t.firm ? TradeBook::Firm : TradeBook::Lone;
+    book_.cls[c] += d;
+    if (c != TradeBook::Lone) return;
+    if (g >= 0) {
+        if (book_.lone_by_good.size() < world_.goods.size()) book_.lone_by_good.resize(world_.goods.size());
+        book_.lone_by_good[World::idx(g)] += d;
+    }
+    const std::size_t y = static_cast<std::size_t>(std::max<long>(0, (world_.today - sc_.start) / 365));
+    if (book_.lone_by_year.size() <= y) book_.lone_by_year.resize(y + 1);
+    book_.lone_by_year[y] += d;
 }
 
 void Simulation::settle_trader(Trader& t) {
@@ -122,8 +143,14 @@ void Simulation::step_trader(Trader& t) {
     // Wages, feed and supplies are money spent in the economy: on the road it is spent at the next stop,
     // and an idle trader spends it where he waits.
     const double cost = daily_cost(t, t.travelling ? t.guards : 0);
+    {
+        TradeAcc d;
+        d.upkeep = t.upkeep;
+        d.guards = cost - t.upkeep;
+        book(t, -1, d);
+    }
     t.cash -= cost;
-    profit_today_ -= cost;
+    if (!(p.books_stages && t.agent_for >= 0)) profit_today_ -= cost;   // a town pays its convoy's running costs, not a trader
     t.recent_profit *= 1.0 - p.story_fade;
     if (t.travelling) {
         t.pending_spend += cost;
@@ -211,9 +238,10 @@ void Simulation::arrive(Trader& t) {
     Node& n = world_.nodes[World::idx(t.at)];
     // Teamsters, guards and drovers spend money wherever they stop. Towns live off this traffic.
     const double spend = p.visit_spend + t.guards * p.guard_visit_spend +
-                         (t.cargo >= 0 ? t.qty * t.unit_cost * p.visit_spend_value_rate : 0.0);
+                         (t.cargo >= 0 && !(p.books_stages && t.job_town >= 0) ? t.qty * t.unit_cost * p.visit_spend_value_rate : 0.0);   // a carrier does not own the supplier's goods
     t.cash -= spend;
-    profit_today_ -= spend;
+    { TradeAcc d; d.visits = spend; book(t, -1, d); }
+    if (!(p.books_stages && t.agent_for >= 0)) profit_today_ -= spend;
     if (!n.fixed_market) {
         n.cash += spend + t.pending_spend;
         n.inflow_today += spend + t.pending_spend;
@@ -297,6 +325,7 @@ void Simulation::plan_paths(const Trader& t, NodeId from, std::vector<PathInfo>&
         PathInfo& pi = out[d];
         if (!world_.route(from, static_cast<NodeId>(d), scratch_route_)) continue;
         pi.ok = true;
+        pi.legs = static_cast<int>(scratch_route_.size());
         for (EdgeId eid : scratch_route_) {
             const Edge& e = world_.edges[World::idx(eid)];
             pi.days += e.travel_days;
@@ -338,7 +367,7 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
         const double freight = world_.freight_unit_cost(t.cargo, pi.miles) * t.qty;
         for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
             const double loss = loss_fraction(pi, defense(k) / d0);
-            const double util = (1 - loss) * revenue - freight - daily_cost(t, k) * pi.days -
+            const double util = (1 - loss) * revenue - freight - daily_cost(t, k) * pi.days - stop_cost(k, pi.legs, t.unit_cost * t.qty + freight) -
                                 (effective_risk(t) - 1) * loss * (t.unit_cost * t.qty + freight) + look(d);
             if (!best.valid || util > best.utility) best = {util, static_cast<NodeId>(d), t.cargo, t.qty, k, true};
         }
@@ -485,7 +514,7 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
                                                           world_.quote_sell(static_cast<NodeId>(d), gid, q, inb, drain) * noise[d]);
                 const double freight = freight_unit * q;
                 for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
-                    const double reserve = daily_cost(t, k) * pi.days;
+                    const double reserve = daily_cost(t, k) * pi.days + stop_cost(k, pi.legs, cost + freight);
                     if (cost + freight + reserve > t.cash) continue;  // cannot afford this lot with this many guards
                     const double loss = loss_fraction(pi, defense(k) / d0);
                     const double util = (1 - loss) * revenue - cost - freight - reserve -
@@ -612,6 +641,7 @@ ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
         }
         const double freight = world_.freight_unit_cost(t.cargo, miles) * t.qty;
         t.cash -= freight;
+        { TradeAcc d; d.freight = freight; book(t, t.cargo, d); }
         world_.record(MoneyFlow::Freight, -freight);
         t.unit_cost += freight / t.qty;
     }
@@ -641,6 +671,7 @@ Receipt Simulation::act_buy(Trader& t, GoodId g, double qty, double max_spend) {
     const double units = qty > 0 ? world_.buy(t.at, g, qty, max_spend, spent) : 0.0;
     if (units <= 0) { r.result = ActionResult::NothingForSale; return r; }
     t.cash -= spent;
+    { TradeAcc d; d.goods_bought = spent; d.loads = 1; book(t, g, d); }
     bought_value_[t.firm ? 1 : 0][World::idx(g)] += spent;
     if (g == world_.flour_good) flour_bought_at_[World::idx(t.at)] += spent;
     t.cargo = g;
@@ -670,6 +701,7 @@ Receipt Simulation::sell_cargo(Trader& t, double qty) {
     if (sold <= 0) { r.result = ActionResult::NoMoney; return r; }  // the town has no cash to pay with
     const double profit = revenue - sold * t.unit_cost;
     t.cash += revenue;
+    { TradeAcc d; d.revenue = revenue; d.basis_sold = sold * t.unit_cost; d.sales = 1; book(t, t.cargo, d); }
     profit_today_ += profit;
     // A freighter's good run is told as one story however many legs it took: the haul in and the haul back
     // count together, and the tally fades so only quick earners talk.
@@ -766,7 +798,7 @@ void Simulation::decide(Trader& t) {
         const PathInfo& pi = scratch_paths_[World::idx(buy.dest)];
         const double freight_unit = world_.freight_unit_cost(buy.good, pi.miles);
         // Keep back enough to pay the freight and the trip's running costs.
-        const double max_spend = t.cash - daily_cost(t, buy.guards) * pi.days - freight_unit * buy.qty;
+        const double max_spend = t.cash - daily_cost(t, buy.guards) * pi.days - stop_cost(buy.guards, pi.legs, world_.quote_buy(t.at, buy.good, buy.qty) + freight_unit * buy.qty) - freight_unit * buy.qty;
         if (max_spend > 0 && act_buy(t, buy.good, buy.qty, max_spend).result == ActionResult::Ok) {
             act_travel(t, buy.dest, buy.guards);
             return;

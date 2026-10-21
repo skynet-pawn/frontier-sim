@@ -342,6 +342,8 @@ struct Params {
     // Lead-time stage (lead_stages 1): the fixed day counts above (safety, cycle, hire wait, reserve, supplier cover, order
     // expiry, rush provisions) give way to numbers taken from the town itself: how long its orders have really taken
     // (an average and a spread), its own growth, and the size of a wagon load. The old values remain as floors.
+    int books_stages = 0;                    // 1: town-hired convoys stay out of the traders' profit total, and a carrier hauling a supplier's goods pays no stop spending on their value
+    int plan_stop_costs = 0;                 // 1: a trader counts the spending at each town stop (visit_spend and its value rate) when he judges a trip
     int lead_stages = 0;
     double lead_prior_mult = 1.15;           // before a town has seen a delivery: the route time times this (roads, loading, guards) plus a review interval
     double lead_dev_prior = 0.15;            // ...and the spread it expects, as a share of that lead

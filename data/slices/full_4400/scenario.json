@@ -4,7 +4,7 @@
  "start": "1874-01-01",
  "log_from": "1875-01-01",
  "days": 4400,
- "traders": 9654,
+ "traders": 1500,
  "max_traders": 120677,
  "capital_min": 1000,
  "capital_max": 4000,
@@ -124,6 +124,8 @@
   "ranch_pace_start": 1.5,
   "ranch_pace_end": 2.5,
   "rush_stake_days": 90,
-  "lead_stages": 1
+  "lead_stages": 1,
+  "plan_stop_costs": 1,
+  "books_stages": 1
  }
 }

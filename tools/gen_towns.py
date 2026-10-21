@@ -592,12 +592,15 @@ if BUILD:
 
     scenario = copy.deepcopy(scn)
     f = (COUNT * 0.5 + n_stations + n_real) / 31.0     # the traders an expected 2,000-odd towns would carry (as in gen_world.py)
-    scenario['traders'] = int(scn['traders'] * f)
+    # The starting crowd is sized for the towns that exist on day 1 (about 800), not the expected final count: the market carries
+    # only 700 to 1,000 lone traders, and a start of 9,654 crashed to 1,500 within three years (see CLAUDE.md, trader cohorts).
+    scenario['traders'] = int(opts.get('start-traders', 1500))
     scenario['max_traders'] = int(scn['max_traders'] * f)
     # Settlers arrive at a pace, not wherever a price pays: farm and ranch sites that qualify wait in line and the best-served go first.
     scenario.setdefault('params', {}).update({'farm_pace_start': float(opts.get('farm-pace-start', 2.0)), 'farm_pace_end': float(opts.get('farm-pace-end', 5.0)),
                                               'ranch_pace_start': float(opts.get('ranch-pace-start', 1.5)), 'ranch_pace_end': float(opts.get('ranch-pace-end', 2.5)),
-                                              'rush_stake_days': float(opts.get('rush-stake-days', 90.0)), 'lead_stages': int(opts.get('lead-stages', 1))})
+                                              'rush_stake_days': float(opts.get('rush-stake-days', 90.0)), 'lead_stages': int(opts.get('lead-stages', 1)),
+                                              'plan_stop_costs': int(opts.get('plan-stop-costs', 1)), 'books_stages': int(opts.get('books-stages', 1))})
 
     out = os.path.join(ROOT, 'data', 'slices', out_name)
     os.makedirs(out, exist_ok=True)

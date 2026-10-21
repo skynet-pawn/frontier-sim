@@ -159,6 +159,8 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         }
     }
 
+    r.trade_book = sim.trade_book();
+    for (const GoodDef& g : sim.world().goods) r.good_names.push_back(g.id);
     r.hash = sim.log().hash();
     r.traders_end = static_cast<int>(sim.traders().size());
     int drovers = 0;

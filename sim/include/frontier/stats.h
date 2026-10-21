@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "frontier/config.h"
+#include "frontier/simulation.h"
 #include "frontier/world.h"
 
 namespace frontier {
@@ -57,6 +58,8 @@ struct RunStats {
     std::uint64_t seed = 0;
     std::vector<SeriesRow> series;
     std::vector<CohortRow> cohorts;
+    TradeBook trade_book;                      // what traders earned and spent, by kind, good and year (see simulation.h)
+    std::vector<std::string> good_names;
     std::uint64_t hash = 0;
     int days = 0;
 

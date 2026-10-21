@@ -54,7 +54,7 @@ Simulation::Plan Simulation::plan_job(const Trader& t, const std::vector<PathInf
             const double pay = pay_unit * q;
             for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
                 const double loss = std::min(0.95, pi.gang_risk * defense(k) / d0 + pi.hazard_risk);
-                const double util = (1 - loss) * pay - daily_cost(t, k) * pi.days - (effective_risk(t) - 1) * loss * pay + look(d);
+                const double util = (1 - loss) * pay - daily_cost(t, k) * pi.days - stop_cost(k, pi.legs, p.books_stages ? 0.0 : q * goods_unit) - (effective_risk(t) - 1) * loss * pay + look(d);
                 if (!best.valid || util > best.utility) {
                     best = {util, static_cast<NodeId>(d), gid, q, k, true};
                     best.pay_unit = pay_unit;
@@ -116,6 +116,7 @@ void Simulation::deliver_job(Trader& t) {
     world_.order_filled_units += units;
     imported_value_[World::idx(t.job_town)] += goods;
     const double pay = paid - goods;
+    { TradeAcc d; d.job_pay = pay; d.jobs = 1; book(t, t.cargo, d); }
     profit_today_ += pay;
     t.recent_profit += pay;  // a good haul is a story, as a good trade is
     if (t.recent_profit > p.story_profit_threshold) {

@@ -65,6 +65,26 @@ struct Trader {
     bool travelling = false;
 };
 
+// What traders earned and spent, summed over the days stepped in this process (not saved: after a load it counts from the load).
+// Read as: gross margin = revenue - basis_sold (basis = goods and freight paid for what was sold); what was bought but never sold
+// was robbed, lost or still on the wagon. Upkeep and guard wages are paid whether or not he trades; visits are what the party spends at each town it stops in.
+struct TradeAcc {
+    double revenue = 0, basis_sold = 0, goods_bought = 0, freight = 0, upkeep = 0, guards = 0, visits = 0, job_pay = 0;
+    long sales = 0, loads = 0, jobs = 0;   // sales made, loads bought, freight jobs delivered
+    TradeAcc& operator+=(const TradeAcc& o) {
+        revenue += o.revenue; basis_sold += o.basis_sold; goods_bought += o.goods_bought; freight += o.freight;
+        upkeep += o.upkeep; guards += o.guards; visits += o.visits; job_pay += o.job_pay;
+        sales += o.sales; loads += o.loads; jobs += o.jobs;
+        return *this;
+    }
+};
+struct TradeBook {
+    enum Class { Lone, House, Firm, Convoy, ClassCount };   // lone freelancers, freight-house outfits, eastern firms, town-hired convoys
+    TradeAcc cls[ClassCount];
+    std::vector<TradeAcc> lone_by_good;   // lone freelancers only, by good
+    std::vector<TradeAcc> lone_by_year;   // lone freelancers only, by year of the run
+};
+
 // A freight house: a trader who got rich enough to stop driving and run other men's wagons (the Russell, Majors
 // & Waddell pattern, or an eastern firm's western agency). One owner's capital is spread over many outfits that
 // he sends out on the strength of what he knows, so one holdup costs him a load and a driver, not his business.
@@ -308,6 +328,7 @@ public:
     const std::vector<Leader>& leaders() const { return leaders_; }
     const std::vector<Interest>& interests() const { return interests_; }
     double avg_trader_profit() const { return avg_profit_ema_; }
+    const TradeBook& trade_book() const { return book_; }
     double total_money() const;
     MoneyAudit money_audit() const;
 
@@ -363,6 +384,7 @@ public:
         double miles[kModeCount] = {0, 0, 0};
         double gang_risk = 0;      // perceived chance of robbery per cargo-day, summed over the route
         double hazard_risk = 0;    // expected cargo fraction lost to mishaps
+        int legs = 0;              // town stops on the way (the party spends money at each)
     };
     struct Plan {
         double utility = 0;
@@ -403,6 +425,7 @@ private:
     double spot_uncertainty(NodeId d, GoodId g, double q) const;
     double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;
     double daily_cost(const Trader& t, int guards) const;
+    double stop_cost(int guards, int legs, double cargo_value) const;   // spending at the stops of a trip, as the planner sees it (0 unless plan_stop_costs)
     void traders_day();
     // The cause chain of a food shortage, per food (shelf cover, open order, freight on the road, trader drain, last delivery).
     std::string supply_chain(NodeId id, double civilians, Fields& fields) const;
@@ -599,6 +622,8 @@ private:
     std::vector<double> bought_value_[2];
     std::vector<double> flour_bought_at_;
     int weather_year_ = -1;
+    TradeBook book_;
+    void book(const Trader& t, GoodId g, const TradeAcc& d);   // add to the trader's class, and for lone traders to the good and the year
     double profit_today_ = 0;                   // realized trader profit, net of upkeep, for the join rate
 
     std::vector<double> opportunity_[2];        // [freighter, drover]: best standard-load profit at each node
