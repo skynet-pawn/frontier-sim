@@ -5,12 +5,13 @@
 // do, so another presentation layer can replace this file without touching sim/. The map is drawn in the sim's own
 // coordinates (miles, x east, y north).
 //
-//   frontier_viewer [--data DIR] [--seed N] [--load SNAPSHOT] [--play TOWN] [--shot FILE --days N]
+//   frontier_viewer [--data DIR] [--seed N] [--load SNAPSHOT] [--play TOWN] [--ground TOWN] [--shot FILE --days N]
 //   --load starts from a state saved by frontier_cli --save (same data folder), so a pre-simulated world opens at once.
 //   If DIR is data/slices/NAME and data/terrain/NAME exists, a shaded-relief terrain map is drawn under the towns (T toggles).
 //   space pause/resume   1-5 speed   N one day (paused)   tab overlay   F fit map   click a town or a wagon   wheel zoom
 //   right-drag or middle-drag pan   T terrain   C carrier filter   L loaded wagons only   X let go of a followed wagon
 //   click a headline to jump to its town   P screenshot   B price board   Esc quit
+//   V on a selected town (or --ground TOWN): the ground view, at about RimWorld scale, walking a drifter around the town (M returns).
 //   Play mode: select a town, G starts you there as a freight wagon (shift-G as a drover). Pick a good, click a destination
 //   town on the map, hire guards, set off. The world waits while you decide and runs while you travel; W waits a day.
 #include <algorithm>
@@ -18,6 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -29,6 +31,20 @@
 using namespace frontier;
 
 namespace {
+
+// A real typeface instead of raylib's built-in bitmap font. Loaded once at start; falls back to the built-in if the file is missing.
+Font g_font{};
+bool g_font_ok = false;
+
+void Text(const char* s, int x, int y, int size, Color c) {
+    if (g_font_ok) DrawTextEx(g_font, s, {static_cast<float>(x), static_cast<float>(y)}, static_cast<float>(size), 0, c);
+    else DrawText(s, x, y, size, c);
+}
+
+int TextWidth(const char* s, int size) {
+    return g_font_ok ? static_cast<int>(MeasureTextEx(g_font, s, static_cast<float>(size), 0).x) : MeasureText(s, size);
+}
+
 
 std::string find_data_dir() {
     for (const char* c : {"data", "../data", "../../data", "../../../data", "../../../../data"}) {
@@ -182,7 +198,7 @@ std::vector<std::string> wrap(const std::string& s, int size, int width) {
     auto flush_word = [&]() {
         if (word.empty()) return;
         const std::string t = cur.empty() ? word : cur + " " + word;
-        if (!cur.empty() && MeasureText(t.c_str(), size) > width) { lines.push_back(cur); cur = word; }
+        if (!cur.empty() && TextWidth(t.c_str(), size) > width) { lines.push_back(cur); cur = word; }
         else cur = t;
         word.clear();
     };
@@ -210,13 +226,20 @@ void panel(int x, int y, int w, int h) {
     DrawRectangleLines(x, y, w, h, {120, 100, 70, 255});
 }
 
+// One row of a table. A proportional font cannot be lined up with spaces, so each cell is placed at its own pixel offset
+// from x: `at` is the cell's left edge, or its right edge when `right` is set (numbers).
+struct Cell { std::string s; int at; bool right; };
+void cells(int x, int y, int size, Color c, std::initializer_list<Cell> row) {
+    for (const Cell& k : row) Text(k.s.c_str(), x + k.at - (k.right ? TextWidth(k.s.c_str(), size) : 0), y, size, c);
+}
+
 void draw_town_panel(const Simulation& sim, std::size_t i) {
     const World& w = sim.world();
     const Node& n = w.nodes[i];
     const int x = GetScreenWidth() - 330, y = 40;
     panel(x, y, 320, 560);
     int ty = y + 8;
-    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { DrawText(s.c_str(), x + 10, ty, 15, c); ty += 19; };
+    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { Text(s.c_str(), x + 10, ty, 15, c); ty += 19; };
     line(n.name + "  (" + n.kind + ")", {20, 20, 20, 255});
     if (n.fixed_market) { line("an eastern market: prices are fixed"); return; }
     char b[160];
@@ -233,15 +256,19 @@ void draw_town_panel(const Simulation& sim, std::size_t i) {
     }
     if (n.captor >= 0) { std::snprintf(b, sizeof b, "ruled by gang #%d (takes %.0f%%)", n.captor, n.toll * 100); line(b, {170, 30, 30, 255}); }
     ty += 4;
-    line("good        shelf     price   on order", {90, 70, 40, 255});
+    cells(x + 10, ty, 14, {90, 70, 40, 255}, {{"good", 0, false}, {"shelf", 135, true}, {"price", 205, true}, {"on order", 220, false}});
+    ty += 18;
     for (const char* id : {"flour", "beef_cattle", "tools", "whiskey", "ammunition", "gold"}) {
         const GoodId g = find_good(w, id);
         if (g < 0) continue;
         const std::size_t gi = static_cast<std::size_t>(g);
         char order[40] = "";
         if (n.order_qty[gi] >= 1) std::snprintf(order, sizeof order, "%.0f @ $%.2f", n.order_qty[gi], n.order_price[gi]);
-        std::snprintf(b, sizeof b, "%-11s %7.0f  $%6.2f   %s", w.goods[gi].name.substr(0, 11).c_str(), n.stock[gi], w.mid_price(static_cast<NodeId>(i), g), order);
-        line(b);
+        char shelf[24], price[24];
+        std::snprintf(shelf, sizeof shelf, "%.0f", n.stock[gi]);
+        std::snprintf(price, sizeof price, "$%.2f", w.mid_price(static_cast<NodeId>(i), g));
+        cells(x + 10, ty, 14, {40, 30, 20, 255}, {{w.goods[gi].name, 0, false}, {shelf, 135, true}, {price, 205, true}, {order, 220, false}});
+        ty += 18;
     }
     // Outlaws who trade here and where they really live.
     {
@@ -269,7 +296,7 @@ void draw_town_panel(const Simulation& sim, std::size_t i) {
         int shown = 0;
         for (std::size_t k = shelf.size(); k-- > 0 && shown < 7; ++shown) {
             const auto lines = wrap(format_date(shelf[k]->day) + "  " + shelf[k]->text, 12, 300);
-            for (const std::string& l : lines) { DrawText(l.c_str(), x + 10, ty, 12, {40, 30, 20, 255}); ty += 14; }
+            for (const std::string& l : lines) { Text(l.c_str(), x + 10, ty, 12, {40, 30, 20, 255}); ty += 14; }
             ty += 2;
         }
     } else {
@@ -337,7 +364,7 @@ bool button(Rectangle r, const char* label, bool enabled = true) {
     const bool hot = enabled && CheckCollisionPointRec(GetMousePosition(), r);
     DrawRectangleRec(r, !enabled ? Color{225, 215, 195, 255} : hot ? Color{235, 215, 165, 255} : Color{240, 228, 195, 255});
     DrawRectangleLinesEx(r, 1, enabled ? Color{120, 100, 70, 255} : Color{190, 180, 160, 255});
-    DrawText(label, static_cast<int>(r.x) + 6, static_cast<int>(r.y) + 4, 13, enabled ? Color{40, 30, 20, 255} : Color{150, 140, 125, 255});
+    Text(label, static_cast<int>(r.x) + 6, static_cast<int>(r.y) + 4, 13, enabled ? Color{40, 30, 20, 255} : Color{150, 140, 125, 255});
     return hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 }
 
@@ -348,7 +375,7 @@ void draw_player_panel(Simulation& sim, Player& p, bool& wait) {
     panel(static_cast<int>(R.x), static_cast<int>(R.y), static_cast<int>(R.width), static_cast<int>(R.height));
     const int x = static_cast<int>(R.x) + 10;
     int ty = static_cast<int>(R.y) + 8;
-    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}, int size = 14) { DrawText(s.c_str(), x, ty, size, c); ty += size + 4; };
+    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}, int size = 14) { Text(s.c_str(), x, ty, size, c); ty += size + 4; };
     Trader* t = player_trader(sim, p);
     if (!t) {
         p.dead = true;
@@ -398,7 +425,8 @@ void draw_player_panel(Simulation& sim, Player& p, bool& wait) {
         }
         ty += 28;
     } else {
-        line("good               price   shelf   est. profit", {90, 70, 40, 255}, 13);
+        cells(x, ty, 13, {90, 70, 40, 255}, {{"good", 0, false}, {"price", 215, true}, {"shelf", 275, true}, {"est. profit", 350, true}});
+        ty += 17;
         for (std::size_t gi = 0; gi < w.goods.size(); ++gi) {
             const GoodDef& g = w.goods[gi];
             const double stock = here.fixed_market ? 1e9 : here.stock[gi];   // an eastern market never runs out
@@ -416,13 +444,14 @@ void draw_player_panel(Simulation& sim, Player& p, bool& wait) {
             }
             char shelf[16];
             if (here.fixed_market) std::snprintf(shelf, sizeof shelf, "plenty"); else std::snprintf(shelf, sizeof shelf, "%.0f", stock);
-            std::snprintf(b, sizeof b, "%-16s %6.2f %7s   %s", g.name.substr(0, 16).c_str(), cost / std::max(1.0, units), shelf, est.c_str());
+            char price[24];
+            std::snprintf(price, sizeof price, "%.2f", cost / std::max(1.0, units));
             const Rectangle row{static_cast<float>(x - 4), static_cast<float>(ty - 1), R.width - 12, 17};
             const bool sel = p.sel == static_cast<GoodId>(gi);
             if (sel) DrawRectangleRec(row, {230, 210, 160, 255});
             else if (CheckCollisionPointRec(GetMousePosition(), row)) DrawRectangleRec(row, {240, 228, 200, 255});
             if (CheckCollisionPointRec(GetMousePosition(), row) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) p.sel = static_cast<GoodId>(gi);
-            DrawText(b, x, ty, 13, {40, 30, 20, 255});
+            cells(x, ty, 13, {40, 30, 20, 255}, {{g.name, 0, false}, {price, 215, true}, {shelf, 275, true}, {est, 350, true}});
             ty += 17;
         }
         if (button({static_cast<float>(x), static_cast<float>(ty + 4), 150, 22}, "Buy a full load", p.sel >= 0)) {
@@ -438,7 +467,7 @@ void draw_player_panel(Simulation& sim, Player& p, bool& wait) {
     }
     // Guards, then off.
     std::snprintf(b, sizeof b, "guards: %d  ($%.1f a day)", p.guards, w.params.guard_wage * p.guards);
-    DrawText(b, x, ty + 3, 13, {40, 30, 20, 255});
+    Text(b, x, ty + 3, 13, {40, 30, 20, 255});
     if (button({static_cast<float>(x + 190), static_cast<float>(ty), 26, 22}, "-", p.guards > 0)) p.guards = std::max(0, p.guards - w.params.guard_step);
     if (button({static_cast<float>(x + 222), static_cast<float>(ty), 26, 22}, "+", p.guards < w.params.max_guards)) p.guards = std::min(w.params.max_guards, p.guards + w.params.guard_step);
     ty += 28;
@@ -461,15 +490,19 @@ void draw_price_board(const World& w) {
     if (order.size() > 16) order.resize(16);
     const GoodId flour = find_good(w, "flour"), beef = find_good(w, "beef_cattle");
     const int x = 210, y = 40, rows = static_cast<int>(order.size());
-    panel(x, y, 430, 40 + rows * 17);
-    DrawText("PRICE BOARD (B)      town         pop    flour   beef  hunger", x + 8, y + 6, 13, {90, 70, 40, 255});
-    int ty = y + 26;
+    panel(x, y, 430, 58 + rows * 17);
+    Text("PRICE BOARD (B)", x + 8, y + 6, 13, {20, 20, 20, 255});
+    cells(x + 8, y + 24, 13, {90, 70, 40, 255}, {{"town", 0, false}, {"pop", 235, true}, {"flour", 295, true}, {"beef", 355, true}, {"hunger", 412, true}});
+    int ty = y + 42;
     for (std::size_t i : order) {
         const Node& n = w.nodes[i];
         char b[160];
-        std::snprintf(b, sizeof b, "%-18s %7.0f  %6.2f %7.2f   %.2f", n.name.substr(0, 18).c_str(), n.population,
-                      flour >= 0 ? w.mid_price(static_cast<NodeId>(i), flour) : 0.0, beef >= 0 ? w.mid_price(static_cast<NodeId>(i), beef) : 0.0, n.hunger);
-        DrawText(b, x + 8, ty, 13, n.starving ? Color{170, 30, 30, 255} : Color{40, 30, 20, 255});
+        char pop[24], fl[24], bf[24], hu[24];
+        std::snprintf(pop, sizeof pop, "%.0f", n.population);
+        std::snprintf(fl, sizeof fl, "%.2f", flour >= 0 ? w.mid_price(static_cast<NodeId>(i), flour) : 0.0);
+        std::snprintf(bf, sizeof bf, "%.2f", beef >= 0 ? w.mid_price(static_cast<NodeId>(i), beef) : 0.0);
+        std::snprintf(hu, sizeof hu, "%.2f", n.hunger);
+        cells(x + 8, ty, 13, n.starving ? Color{170, 30, 30, 255} : Color{40, 30, 20, 255}, {{n.name, 0, false}, {pop, 235, true}, {fl, 295, true}, {bf, 355, true}, {hu, 412, true}});
         ty += 17;
     }
 }
@@ -478,7 +511,7 @@ void draw_trader_panel(const World& w, const Trader& t) {
     const int x = GetScreenWidth() - 330, y = 40;
     panel(x, y, 320, 250);
     int ty = y + 8;
-    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { DrawText(s.c_str(), x + 10, ty, 15, c); ty += 19; };
+    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { Text(s.c_str(), x + 10, ty, 15, c); ty += 19; };
     char b[200];
     std::snprintf(b, sizeof b, "%s #%d%s", kCarrierNames[carrier_kind(t)], t.id, t.drover ? " (drover)" : "");
     line(b, trader_color(t));
@@ -504,10 +537,10 @@ void draw_trader_panel(const World& w, const Trader& t) {
         cur = e.other(cur);
         path += (path.empty() ? "" : " > ") + w.nodes[World::idx(cur)].name;
     }
-    if (!path.empty()) for (const std::string& l : wrap("ahead: " + path, 14, 296)) { DrawText(l.c_str(), x + 10, ty, 14, {40, 30, 20, 255}); ty += 16; }
+    if (!path.empty()) for (const std::string& l : wrap("ahead: " + path, 14, 296)) { Text(l.c_str(), x + 10, ty, 14, {40, 30, 20, 255}); ty += 16; }
     std::snprintf(b, sizeof b, "fear of the road ahead %.4f", fear_ahead);
     line(b);
-    DrawText("click empty ground or press X to let go", x + 10, y + 232, 12, {110, 100, 90, 255});
+    Text("click empty ground or press X to let go", x + 10, y + 232, 12, {110, 100, 90, 255});
 }
 
 // The big stories, newest first, wrapped. Click one to jump the map to its town.
@@ -516,7 +549,7 @@ int draw_headlines(const Simulation& sim, long log_from, int top) {
     const int x = GetScreenWidth() - 330, h = GetScreenHeight() - top - 10;
     if (h < 60) return -1;
     panel(x, top, 320, h);
-    DrawText("HEADLINES", x + 10, top + 6, 14, {90, 70, 40, 255});
+    Text("HEADLINES", x + 10, top + 6, 14, {90, 70, 40, 255});
     int ty = top + 26, clicked = -1;
     const auto& events = sim.log().events();
     for (std::size_t i = events.size(); i-- > 0 && ty < top + h - 30;) {
@@ -528,10 +561,10 @@ int draw_headlines(const Simulation& sim, long log_from, int top) {
         const Rectangle r{static_cast<float>(x + 4), static_cast<float>(ty - 2), 312.0f, static_cast<float>(eh)};
         const bool hot = e.node >= 0 && CheckCollisionPointRec(GetMousePosition(), r);
         if (hot) { DrawRectangleRec(r, {230, 215, 180, 255}); if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) clicked = e.node; }
-        DrawText(format_date(e.day).c_str(), x + 10, ty, 12, {110, 90, 60, 255});
+        Text(format_date(e.day).c_str(), x + 10, ty, 12, {110, 90, 60, 255});
         int ly = ty + 14;
         for (std::size_t k = 0; k < lines.size() && k < 3; ++k, ly += 15)
-            DrawText(lines[k].c_str(), x + 10, ly, 13, event_color(e.type));
+            Text(lines[k].c_str(), x + 10, ly, 13, event_color(e.type));
         ty += eh + 2;
     }
     return clicked;
@@ -543,6 +576,8 @@ struct Terrain {
     Texture2D tex{};
     bool ok = false;
     float x0 = 0, y0 = 0, w = 0, h = 0;   // the picture's extent in miles
+    Color* px = nullptr;                  // the picture's pixels on the CPU, so the ground view can take its colour from it
+    int iw = 0, ih = 0;
 };
 
 double json_number(const std::string& text, const char* key) {
@@ -578,10 +613,681 @@ Terrain load_terrain(const std::string& data) {
     t.y0 = static_cast<float>(json_number(text, "y_min"));
     t.w = static_cast<float>(json_number(text, "width") * cell);
     t.h = static_cast<float>(json_number(text, "height") * cell);
-    t.tex = LoadTexture(pic.c_str());
+    Image img = LoadImage(pic.c_str());
+    if (img.data) { t.px = LoadImageColors(img); t.iw = img.width; t.ih = img.height; t.tex = LoadTextureFromImage(img); UnloadImage(img); }
     SetTextureFilter(t.tex, TEXTURE_FILTER_BILINEAR);
     t.ok = t.tex.id != 0 && t.w > 0 && t.h > 0;
     return t;
+}
+
+// ---------------------------------------------------------------- ground view: the world at the scale it will be played
+//
+// The map above is the "world map"; this is the "local map", at about the scale of RimWorld: a person is a couple of feet
+// across, a wagon about 12 feet, a screen shows roughly 200 feet. Time runs the same way too: a game day is about 17 real
+// minutes at speed 1 (1,000 seconds, as in RimWorld), and the simulation steps once per game day. At this scale nobody
+// crosses the map on foot (a day's walk is about 3 miles at this clock), so the trip between towns is the world map's job
+// and this view is for a town, a camp or a stretch of road. Nothing drawn here decides an outcome: streets and buildings are
+// laid out from the town's size and id, wagons shown are the ones the sim says are standing in town.
+
+float g_ground_zoom = 9.0f;   // pixels per foot to start at (--zoom)
+std::string g_ground_shot;   // with --shot, the ground view saves one frame and returns
+constexpr double kFeet = 5280.0;   // feet in a mile
+
+std::uint64_t mix64(std::uint64_t z) {
+    z += 0x9e3779b97f4a7c15ULL;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31);
+}
+std::uint64_t hash3(std::uint64_t a, std::int64_t b, std::int64_t c) {
+    return mix64(a * 0x100000001b3ULL ^ mix64(static_cast<std::uint64_t>(b) * 31 + mix64(static_cast<std::uint64_t>(c))));
+}
+double unit_of(std::uint64_t h) { return static_cast<double>(h >> 11) / 9007199254740992.0; }
+
+// A tileable greyscale-to-colour noise picture (value noise, summed octaves), drawn repeated over the ground.
+Texture2D make_noise(int n, int cells, std::uint64_t seed, Color lo, Color hi, unsigned char alpha) {
+    std::vector<float> lat(static_cast<std::size_t>(cells * cells));
+    for (int i = 0; i < cells * cells; ++i) lat[static_cast<std::size_t>(i)] = static_cast<float>(unit_of(mix64(seed + static_cast<std::uint64_t>(i))));
+    std::vector<Color> px(static_cast<std::size_t>(n * n));
+    for (int y = 0; y < n; ++y)
+        for (int x = 0; x < n; ++x) {
+            float v = 0, amp = 0.6f, norm = 0;
+            for (int o = 0; o < 3; ++o) {
+                const int c = cells << o;
+                const float fx = static_cast<float>(x) / n * c, fy = static_cast<float>(y) / n * c;
+                const int ix = static_cast<int>(fx), iy = static_cast<int>(fy);
+                const float tx = fx - ix, ty = fy - iy;
+                auto at = [&](int a, int b) {   // the lattice of this octave, hashed so the octaves differ and the picture wraps
+                    return static_cast<float>(unit_of(mix64(seed + static_cast<std::uint64_t>(o) * 7919 + static_cast<std::uint64_t>((a % c) * c + (b % c)))));
+                };
+                const float a = at(ix, iy) * (1 - tx) + at(ix + 1, iy) * tx;
+                const float b = at(ix, iy + 1) * (1 - tx) + at(ix + 1, iy + 1) * tx;
+                v += (a * (1 - ty) + b * ty) * amp;
+                norm += amp;
+                amp *= 0.5f;
+            }
+            Color c = lerp(lo, hi, v / norm);
+            c.a = alpha;
+            px[static_cast<std::size_t>(y * n + x)] = c;
+        }
+    Image img{px.data(), n, n, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    Texture2D t = LoadTextureFromImage(img);   // copies the pixels
+    SetTextureWrap(t, TEXTURE_WRAP_REPEAT);
+    SetTextureFilter(t, TEXTURE_FILTER_BILINEAR);
+    return t;
+}
+
+Color terrain_color(const Terrain& t, double x, double y) {
+    if (!t.ok || !t.px) return {128, 144, 84, 255};
+    const int ix = std::clamp(static_cast<int>((x - t.x0) / t.w * t.iw), 0, t.iw - 1);
+    const int iy = std::clamp(static_cast<int>((t.y0 + t.h - y) / t.h * t.ih), 0, t.ih - 1);
+    return lerp(t.px[static_cast<std::size_t>(iy * t.iw + ix)], {150, 158, 96, 255}, 0.45f);   // the hillshade is dark; ground at this scale is sunlit grass
+}
+
+struct GroundCam {
+    double cx = 0, cy = 0;   // miles
+    float pxft = 9.0f;       // pixels per foot: 7 to 10 is about RimWorld's default zoom
+    Vector2 to_screen(double x, double y) const {
+        return {GetScreenWidth() * 0.5f + static_cast<float>((x - cx) * kFeet) * pxft, GetScreenHeight() * 0.5f - static_cast<float>((y - cy) * kFeet) * pxft};
+    }
+    Vector2 to_world(Vector2 s) const {
+        return {static_cast<float>(cx + (s.x - GetScreenWidth() * 0.5f) / pxft / kFeet), static_cast<float>(cy - (s.y - GetScreenHeight() * 0.5f) / pxft / kFeet)};
+    }
+};
+
+// The part of a segment (a to b, in pixels) inside the screen, as parameters; false if none (Liang-Barsky).
+bool clip_to_screen(Vector2 a, Vector2 b, float margin, float& t0, float& t1) {
+    t0 = 0; t1 = 1;
+    const float dx = b.x - a.x, dy = b.y - a.y;
+    const float p[4] = {-dx, dx, -dy, dy};
+    const float q[4] = {a.x + margin, GetScreenWidth() + margin - a.x, a.y + margin, GetScreenHeight() + margin - a.y};
+    for (int i = 0; i < 4; ++i) {
+        if (p[i] == 0) { if (q[i] < 0) return false; continue; }
+        const float r = q[i] / p[i];
+        if (p[i] < 0) { if (r > t1) return false; t0 = std::max(t0, r); }
+        else { if (r < t0) return false; t1 = std::min(t1, r); }
+    }
+    return true;
+}
+
+void ground_road(const GroundCam& cam, Vector2 a, Vector2 b, Mode mode, int road) {
+    float t0, t1;
+    if (!clip_to_screen(a, b, 60, t0, t1)) return;
+    const Vector2 p0{a.x + (b.x - a.x) * t0, a.y + (b.y - a.y) * t0}, p1{a.x + (b.x - a.x) * t1, a.y + (b.y - a.y) * t1};
+    const float len = std::hypot(b.x - a.x, b.y - a.y);
+    if (len < 0.01f) return;
+    const Vector2 d{(b.x - a.x) / len, (b.y - a.y) / len}, nrm{-d.y, d.x};
+    const float f = cam.pxft;
+    if (mode == Mode::Rail) {
+        DrawLineEx(p0, p1, 11 * f, {112, 106, 98, 255});   // ballast
+        const float step = 2.2f * f;
+        if (f >= 3.5f) {
+            const float run = std::hypot(p1.x - p0.x, p1.y - p0.y);
+            const float phase = std::fmod(t0 * len, step);   // ties stay put on the ground as the segment is clipped
+            for (float s = step - phase; s < run; s += step) {
+                const Vector2 c{p0.x + d.x * s, p0.y + d.y * s};
+                DrawLineEx({c.x - nrm.x * 4.2f * f, c.y - nrm.y * 4.2f * f}, {c.x + nrm.x * 4.2f * f, c.y + nrm.y * 4.2f * f}, 0.9f * f, {74, 52, 36, 255});
+            }
+        }
+        for (int side = -1; side <= 1; side += 2)
+            DrawLineEx({p0.x + nrm.x * 2.35f * f * side, p0.y + nrm.y * 2.35f * f * side}, {p1.x + nrm.x * 2.35f * f * side, p1.y + nrm.y * 2.35f * f * side}, 0.45f * f, {170, 170, 176, 255});
+        return;
+    }
+    // A worn trail is two ruts, a wagon road a packed band, a graded road a wider, smoother one.
+    const float width = (road >= 2 ? 22.0f : road == 1 ? 15.0f : 9.0f) * f;
+    const Color dust = road >= 2 ? Color{186, 162, 124, 255} : road == 1 ? Color{174, 148, 110, 255} : Color{160, 136, 100, 255};
+    DrawLineEx(p0, p1, width, dust);
+    if (road <= 1)
+        for (int side = -1; side <= 1; side += 2)
+            DrawLineEx({p0.x + nrm.x * width * 0.28f * side, p0.y + nrm.y * width * 0.28f * side}, {p1.x + nrm.x * width * 0.28f * side, p1.y + nrm.y * width * 0.28f * side}, std::max(1.0f, width * 0.09f), {128, 106, 76, 255});
+}
+
+// A covered wagon seen from above, drawn along `deg` (screen degrees, clockwise).
+void draw_wagon(Vector2 c, float deg, float f, Color tint, bool loaded) {
+    auto box = [&](float dx, float dy, float w, float h, Color col) {   // dx along the wagon, dy across it, in feet
+        const float r = deg * 3.14159265f / 180;
+        const Vector2 o{c.x + (std::cos(r) * dx - std::sin(r) * dy) * f, c.y + (std::sin(r) * dx + std::cos(r) * dy) * f};
+        DrawRectanglePro({o.x, o.y, w * f, h * f}, {w * f / 2, h * f / 2}, deg, col);
+    };
+    box(1.2f, 1.2f, 12, 6, {0, 0, 0, 50});                              // shadow
+    for (float dx : {-3.5f, 3.5f}) for (float dy : {-3.2f, 3.2f}) box(dx, dy, 2.6f, 0.5f, {40, 30, 24, 255});   // wheels
+    box(0, 0, 12, 5, {112, 82, 52, 255});                              // bed
+    box(-0.4f, 0, 9.6f, 4.4f, loaded ? Color{232, 222, 196, 255} : Color{205, 198, 178, 255});   // canvas
+    box(-0.4f, 0, 9.6f, 0.5f, tint);                                   // a stripe for the kind of outfit
+    for (int i = 0; i < 2; ++i) {                                      // a pair of oxen
+        box(10 + i * 4.5f, -1.0f, 3.6f, 1.7f, {96, 70, 48, 255});
+        box(10 + i * 4.5f, 1.0f, 3.6f, 1.7f, {110, 82, 58, 255});
+    }
+    box(7.5f, 0, 6, 0.3f, {70, 52, 36, 255});                          // tongue
+}
+
+struct Look { Color shirt{70, 82, 110, 255}, hat{92, 66, 44, 255}; bool hat_on = true; float scale = 1.0f; };
+
+void draw_person(Vector2 c, float deg, float f, double stride, const Look& look = Look{}) {
+    f *= look.scale;
+    const float r = deg * 3.14159265f / 180;
+    DrawEllipse(static_cast<int>(c.x + 0.9f * f), static_cast<int>(c.y + 1.0f * f), 1.5f * f, 1.1f * f, {0, 0, 0, 60});
+    DrawRectanglePro({c.x, c.y, 1.2f * f, 2.5f * f}, {0.6f * f, 1.25f * f}, deg + 90, look.shirt);                // shoulders
+    const float sw = static_cast<float>(std::sin(stride)) * 0.5f * f;                                           // arms swing a little
+    DrawCircleV({c.x + std::cos(r) * sw, c.y + std::sin(r) * sw}, 0.45f * f, {196, 150, 116, 255});
+    if (look.hat_on) {
+        DrawCircleV(c, 1.35f * f, look.hat);                                                                      // hat brim
+        DrawCircleV(c, 0.8f * f, lerp(look.hat, {0, 0, 0, 255}, 0.25f));                                         // crown
+    } else {
+        DrawCircleV(c, 0.85f * f, look.hat);                                                                      // bare head: hair or a bonnet
+    }
+}
+
+// ---- the people of a town. They walk the streets the town was laid out with (so they never cross a house), stop to loiter,
+// turn at corners, and thin out at night. Who they are comes from the town: soldiers at a post, miners in a camp, hands on a
+// ranch. How many comes from its size. Nothing about them reaches the sim.
+struct Folk {
+    int street = 0;            // 0 is the main street, otherwise the cross street's index
+    double u = 0, v = 0;       // feet along the street and across it
+    double dir = 1, speed = 5, pause = 0, stride = 0;
+    double bound = 100;        // how far along this street it may walk
+    std::uint64_t h = 0;
+    const char* role = "townsman";
+    Look look;
+};
+
+struct Building { double lx, ly, w, d; Color c; bool big; };
+
+// A piece of river near the town, in miles, with half its width (water and bank) in feet. Streets stop at the water and
+// houses keep off the bank: a town sits beside its river, not in it.
+struct RiverSeg { double ax, ay, bx, by, half; };
+
+// Feet of dry ground between a point (miles) and the nearest bank; negative in the water.
+double river_clearance(const std::vector<RiverSeg>& rs, double x, double y) {
+    double best = 1e9;
+    for (const RiverSeg& r : rs) {
+        const double dx = r.bx - r.ax, dy = r.by - r.ay, len2 = dx * dx + dy * dy;
+        const double t = len2 > 0 ? std::clamp(((x - r.ax) * dx + (y - r.ay) * dy) / len2, 0.0, 1.0) : 0.0;
+        best = std::min(best, std::hypot(x - (r.ax + dx * t), y - (r.ay + dy * t)) * kFeet - r.half);
+    }
+    return best;
+}
+
+// The town's streets and buildings, from its size and id: a main street toward its busiest road, cross streets, houses
+// thinning outward. Local feet: x along the main street, y across it.
+void ground_town(const Node& n, std::size_t idx, double theta, const std::vector<RiverSeg>& rivers, std::vector<Building>& out) {
+    out.clear();
+    const std::uint64_t id = mix64(static_cast<std::uint64_t>(idx) * 2654435761ULL + 17);
+    const double pop = n.fixed_market ? 9000.0 : std::max(30.0, n.population);
+    const double L = 220 + std::sqrt(pop) * 18;
+    const bool tents = n.kind.find("camp") != std::string::npos || n.kind == "range";
+    const double thin = n.ghost ? 0.35 : 1.0;
+    const Color wood[] = {{128, 104, 78, 255}, {112, 92, 70, 255}, {146, 118, 84, 255}, {96, 82, 66, 255}, {160, 150, 132, 255}, {122, 70, 52, 255}};
+    const Color tent[] = {{226, 216, 190, 255}, {210, 200, 172, 255}, {196, 186, 160, 255}};
+    auto colour = [&](std::uint64_t h) {
+        Color c = tents ? tent[h % 3] : wood[h % 6];
+        if (n.ghost) c = lerp(c, {110, 108, 104, 255}, 0.6f);
+        return c;
+    };
+    const int ns = static_cast<int>(L / 30);
+    for (int k = -ns; k <= ns; ++k)
+        for (int s = -1; s <= 1; s += 2) {
+            const std::uint64_t h = hash3(id, k * 2 + (s > 0), 1);
+            if (unit_of(h) >= 0.85 * thin * (1.0 - 0.65 * std::abs(k) / std::max(1, ns))) continue;
+            const bool big = unit_of(mix64(h + 1)) < 0.12 && !tents;
+            const double bw = (big ? 26 : 18) + unit_of(mix64(h + 2)) * 6, bd = (big ? 32 : 20) + unit_of(mix64(h + 3)) * 12;
+            out.push_back({k * 30.0, s * (17 + bd / 2), bw, bd, colour(mix64(h + 4)), big});
+        }
+    const int nc = std::max(1, ns / 6);
+    for (int j = -nc; j <= nc; ++j) {
+        if (j == 0) continue;
+        const double reach = (0.9 * L * (1.0 - static_cast<double>(std::abs(j)) / (nc + 1))) * 0.6 + 80;
+        const int slots = static_cast<int>(reach / 26);
+        for (int s = -1; s <= 1; s += 2)
+            for (int m = 1; m <= slots; ++m)
+                for (int side = -1; side <= 1; side += 2) {
+                    const std::uint64_t h = hash3(id ^ 0xabcdef, j * 1000 + m * 2 + (side > 0), s + 5);
+                    if (unit_of(h) >= 0.7 * thin * (1.0 - 0.5 * m / std::max(1, slots))) continue;
+                    const double bw = 14 + unit_of(mix64(h + 2)) * 6, bd = 14 + unit_of(mix64(h + 3)) * 6;
+                    out.push_back({j * 180.0 + side * (12 + bw / 2), s * (40 + m * 26.0), bd, bw, colour(mix64(h + 4)), false});
+                }
+    }
+    const double c = std::cos(theta), s = std::sin(theta);   // keep houses off the water
+    out.erase(std::remove_if(out.begin(), out.end(), [&](const Building& b) {
+        return river_clearance(rivers, n.x + (b.lx * c - b.ly * s) / kFeet, n.y + (b.lx * s + b.ly * c) / kFeet) < 22;
+    }), out.end());
+}
+
+void draw_town_ground(const Node& n, const GroundCam& cam, double theta, const std::vector<RiverSeg>& rivers, const std::vector<Building>& bs) {
+    const double c = std::cos(theta), s = std::sin(theta);
+    const float f = cam.pxft;
+    auto at = [&](double lx, double ly) {
+        return cam.to_screen(n.x + (lx * c - ly * s) / kFeet, n.y + (lx * s + ly * c) / kFeet);
+    };
+    const double pop = n.fixed_market ? 9000.0 : std::max(30.0, n.population);
+    const double L = 220 + std::sqrt(pop) * 18;
+    const int ns = static_cast<int>(L / 30), nc = std::max(1, ns / 6);
+    const Color street{176, 152, 116, 255};
+    // Streets are laid in 30-foot pieces so none is drawn over the water.
+    auto lay = [&](double x0, double y0, double x1, double y1, double width) {
+        const double len = std::hypot(x1 - x0, y1 - y0);
+        const int pieces = std::max(1, static_cast<int>(len / 30));
+        for (int i = 0; i < pieces; ++i) {
+            const double a = static_cast<double>(i) / pieces, b = static_cast<double>(i + 1) / pieces;
+            const double mx = x0 + (x1 - x0) * (a + b) / 2, my = y0 + (y1 - y0) * (a + b) / 2;
+            if (river_clearance(rivers, n.x + (mx * c - my * s) / kFeet, n.y + (mx * s + my * c) / kFeet) < 0) continue;
+            DrawLineEx(at(x0 + (x1 - x0) * a, y0 + (y1 - y0) * a), at(x0 + (x1 - x0) * (b + 0.02), y0 + (y1 - y0) * (b + 0.02)), width * f, street);
+        }
+    };
+    lay(-L - 40, 0, L + 40, 0, 34);                                                   // main street
+    for (int j = -nc; j <= nc; ++j) {
+        if (j == 0) continue;
+        const double reach = (0.9 * L * (1.0 - static_cast<double>(std::abs(j)) / (nc + 1))) * 0.6 + 80;
+        lay(j * 180.0, -reach - 40, j * 180.0, reach + 40, 22);
+    }
+    const float deg = static_cast<float>(-theta * 180.0 / 3.14159265);
+    for (const Building& b : bs) {
+        const Vector2 p = at(b.lx, b.ly);
+        if (p.x < -80 || p.y < -80 || p.x > GetScreenWidth() + 80 || p.y > GetScreenHeight() + 80) continue;
+        DrawRectanglePro({p.x + 0.9f * f, p.y + 1.1f * f, static_cast<float>(b.w) * f, static_cast<float>(b.d) * f}, {static_cast<float>(b.w) * f / 2, static_cast<float>(b.d) * f / 2}, deg, {0, 0, 0, 55});
+        DrawRectanglePro({p.x, p.y, static_cast<float>(b.w) * f, static_cast<float>(b.d) * f}, {static_cast<float>(b.w) * f / 2, static_cast<float>(b.d) * f / 2}, deg, b.c);
+        DrawRectanglePro({p.x, p.y, static_cast<float>(b.w) * f, 1.4f * f}, {static_cast<float>(b.w) * f / 2, 0.7f * f}, deg, lerp(b.c, {255, 255, 255, 255}, 0.22f));   // ridge
+    }
+    if (n.kind == "fort") {   // a stockade square beside the street, with a flagpole
+        const double cx = 0, cy = 230, half = 150;
+        const Vector2 q[4] = {at(cx - half, cy - half), at(cx + half, cy - half), at(cx + half, cy + half), at(cx - half, cy + half)};
+        for (int i = 0; i < 4; ++i) DrawLineEx(q[i], q[(i + 1) % 4], 2.2f * f, {86, 62, 40, 255});
+        for (int i = 0; i < 4; ++i) DrawCircleV(q[i], 5 * f, {96, 70, 46, 255});
+        const Vector2 pole = at(cx, cy);
+        DrawLineEx(pole, {pole.x, pole.y - 22 * f}, 0.5f * f, {60, 50, 40, 255});
+        DrawRectangleV({pole.x, pole.y - 22 * f}, {7 * f, 4 * f}, {170, 40, 40, 255});
+    }
+}
+
+double town_length(const Node& n) { return 220 + std::sqrt(n.fixed_market ? 9000.0 : std::max(30.0, n.population)) * 18; }
+
+double street_reach(const Node& n, int street) {   // how far from the main street a cross street runs (feet)
+    const double L = town_length(n);
+    const int nc = std::max(1, static_cast<int>(L / 30) / 6);
+    return street == 0 ? L : (0.9 * L * (1.0 - static_cast<double>(std::abs(street)) / (nc + 1))) * 0.6 + 80;
+}
+
+void make_folk(const Node& n, std::size_t idx, std::vector<Folk>& out) {
+    out.clear();
+    if (n.ghost) return;
+    const std::uint64_t id = mix64(static_cast<std::uint64_t>(idx) * 40503ULL + 99);
+    const double pop = n.fixed_market ? 9000.0 : std::max(30.0, n.population);
+    const int count = std::clamp(static_cast<int>(std::sqrt(pop) * 2.4), 4, 160);
+    const int nc = std::max(1, static_cast<int>(town_length(n) / 30) / 6);
+    const bool camp = n.kind.find("camp") != std::string::npos || n.kind.find("mining") != std::string::npos;
+    const bool ranchy = n.kind == "ranch town" || n.kind == "range" || n.kind == "farm town" || n.kind == "farm district";
+    const Color shirts[] = {{92, 104, 140, 255}, {140, 96, 80, 255}, {96, 120, 92, 255}, {150, 140, 110, 255}, {110, 100, 120, 255}, {80, 80, 84, 255}, {160, 150, 140, 255}};
+    const Color hats[] = {{92, 66, 44, 255}, {58, 48, 40, 255}, {120, 100, 74, 255}, {150, 130, 92, 255}};
+    const Color hair[] = {{60, 40, 26, 255}, {150, 110, 60, 255}, {200, 190, 170, 255}, {34, 28, 24, 255}};
+    for (int i = 0; i < count; ++i) {
+        Folk f;
+        f.h = mix64(id + static_cast<std::uint64_t>(i) * 7919);
+        const double r = unit_of(f.h), q = unit_of(mix64(f.h + 1));
+        // Most walk the main street; the rest turn up a cross street.
+        if (q < 0.6) { f.street = 0; f.bound = town_length(n); f.u = (unit_of(mix64(f.h + 2)) - unit_of(mix64(f.h + 22))) * f.bound * 0.9; }   // thickest toward the middle
+        else {
+            int j = static_cast<int>(unit_of(mix64(f.h + 3)) * (2 * nc)) - nc;
+            if (j >= 0) ++j;                                    // skip 0
+            f.street = j; f.bound = street_reach(n, j); f.u = (unit_of(mix64(f.h + 2)) * 2 - 1) * f.bound * 0.8;
+        }
+        f.v = (unit_of(mix64(f.h + 4)) * 2 - 1) * (f.street == 0 ? 11.0 : 7.0);
+        f.dir = unit_of(mix64(f.h + 5)) < 0.5 ? -1 : 1;
+        f.speed = 3.8 + unit_of(mix64(f.h + 6)) * 2.6;
+        f.pause = unit_of(mix64(f.h + 7)) < 0.4 ? unit_of(mix64(f.h + 8)) * 10 : 0;
+        f.look.shirt = shirts[mix64(f.h + 9) % 7];
+        f.look.hat = hats[mix64(f.h + 10) % 4];
+        const double kind = unit_of(mix64(f.h + 11));
+        if (n.garrison > 0 && kind < std::min(0.5, n.garrison / 80.0)) { f.role = "soldier"; f.look.shirt = {52, 66, 110, 255}; f.look.hat = {40, 50, 90, 255}; }
+        else if (camp && kind < 0.7) { f.role = "miner"; f.look.shirt = {120, 100, 80, 255}; f.look.hat = {88, 76, 62, 255}; }
+        else if (ranchy && kind < 0.55) { f.role = "hand"; f.look.hat = {176, 152, 104, 255}; }
+        else if (n.kind == "railhead" && kind < 0.25) { f.role = "railman"; f.look.shirt = {54, 54, 62, 255}; f.look.hat = {40, 40, 46, 255}; }
+        else if (kind < 0.16) { f.role = "child"; f.look.scale = 0.62f; f.look.hat_on = false; f.look.hat = hair[mix64(f.h + 12) % 4]; f.speed *= 1.2; }
+        else if (kind < 0.42) { f.role = "woman"; f.look.hat_on = false; f.look.hat = unit_of(mix64(f.h + 13)) < 0.4 ? Color{214, 206, 188, 255} : hair[mix64(f.h + 12) % 4]; f.look.shirt = {120, 92, 112, 255}; }
+        else if (r < 0.2) f.look.hat_on = false;
+        out.push_back(f);
+    }
+}
+
+// Runs the ground view until the player goes back to the map (returns false) or closes the window (returns true).
+bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long end_day) {
+    const World& w = sim.world();
+    const Texture2D patches = make_noise(256, 6, 11, {86, 110, 54, 255}, {176, 170, 106, 255}, 110);
+    const Texture2D grain = make_noise(256, 48, 29, {50, 64, 34, 255}, {206, 204, 156, 255}, 70);
+    GroundCam cam;
+    cam.pxft = g_ground_zoom;
+    const Node& home = w.nodes[World::idx(start_at)];
+    // Step off the main street, as a stranger arriving at the edge of town would.
+    double me_x = home.x, me_y = home.y - 60.0 / kFeet;
+    cam.cx = me_x; cam.cy = me_y;
+    double dest_x = me_x, dest_y = me_y, heading = 0, stride = 0;
+    bool walking = false, show_town = false;
+    double clock = 7 * 60;               // minutes since midnight; the drifter arrives at seven in the morning
+    const double day_seconds = 1000.0;   // real seconds in a game day at speed 1 (RimWorld's pace)
+    const double rates[] = {1, 2, 3, 6};
+    int speed = 0;
+    bool paused = false;
+    int shot_frames = 0;
+    std::vector<Building> buildings;
+    std::vector<RiverSeg> near_rivers;
+    std::vector<Folk> folk;
+    std::vector<std::pair<Vector2, std::string>> labels;   // who is who, shown for the person under the mouse
+    NodeId built_for = -1;
+    double theta = 0;
+    // Per-edge bounding boxes (miles), so the roads near the player can be found without walking every path.
+    struct Box { double x0, y0, x1, y1; };
+    std::vector<Box> ebox(w.edges.size()), rbox(w.rivers.size());
+    for (std::size_t i = 0; i < w.edges.size(); ++i) {
+        const Edge& e = w.edges[i];
+        const Node& a = w.nodes[World::idx(e.a)];
+        const Node& b = w.nodes[World::idx(e.b)];
+        Box bx{std::min(a.x, b.x), std::min(a.y, b.y), std::max(a.x, b.x), std::max(a.y, b.y)};
+        for (const auto& pt : e.path) { bx.x0 = std::min(bx.x0, pt.first); bx.x1 = std::max(bx.x1, pt.first); bx.y0 = std::min(bx.y0, pt.second); bx.y1 = std::max(bx.y1, pt.second); }
+        ebox[i] = bx;
+    }
+    for (std::size_t i = 0; i < w.rivers.size(); ++i) {
+        Box bx{1e18, 1e18, -1e18, -1e18};
+        for (const auto& pt : w.rivers[i].points) { bx.x0 = std::min(bx.x0, pt.first); bx.x1 = std::max(bx.x1, pt.first); bx.y0 = std::min(bx.y0, pt.second); bx.y1 = std::max(bx.y1, pt.second); }
+        rbox[i] = bx;
+    }
+
+    while (!WindowShouldClose()) {
+        if (IsKeyPressed(KEY_M) || IsKeyPressed(KEY_BACKSPACE)) break;
+        if (IsKeyPressed(KEY_SPACE)) paused = !paused;
+        for (int k = 0; k < 4; ++k) if (IsKeyPressed(KEY_ONE + k)) { speed = k; paused = false; }
+        if (IsKeyPressed(KEY_E)) show_town = !show_town;
+        const float wheel = GetMouseWheelMove();
+        if (wheel != 0) cam.pxft = std::clamp(cam.pxft * (wheel > 0 ? 1.15f : 1 / 1.15f), 1.5f, 16.0f);
+        const double dt = std::min(GetFrameTime(), 0.1f);
+        const double mult = paused ? 0.0 : rates[speed];
+
+        // ---- walk: click to go, or WASD
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(show_town && GetMouseX() > GetScreenWidth() - 340)) {
+            const Vector2 t = cam.to_world(GetMousePosition());
+            dest_x = t.x; dest_y = t.y; walking = true;
+        }
+        double ix = (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT) ? 1 : 0) - (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT) ? 1 : 0);
+        double iy = (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP) ? 1 : 0) - (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN) ? 1 : 0);
+        const double pace = 11.0 * mult * dt / kFeet;   // a steady walk is about 3 miles an hour: 4.4 ft/s; RimWorld pawns hurry, so 11 ft/s on screen
+        // Solid ground test for the drifter: a house (with his own width added) or deep water stops him; a creek only slows him.
+        const Node* town_now = built_for >= 0 ? &w.nodes[World::idx(built_for)] : nullptr;
+        auto solid = [&](double x, double y) {
+            if (!town_now) return false;
+            const double c = std::cos(theta), s = std::sin(theta);
+            const double dx = (x - town_now->x) * kFeet, dy = (y - town_now->y) * kFeet;
+            const double lx = dx * c + dy * s, ly = -dx * s + dy * c;
+            for (const Building& b : buildings)
+                if (std::abs(lx - b.lx) < b.w / 2 + 1.4 && std::abs(ly - b.ly) < b.d / 2 + 1.4) return true;
+            return false;
+        };
+        auto deep_water = [&](double x, double y) {
+            for (const RiverSeg& r : near_rivers) {
+                if (r.half < 40) continue;
+                const double dx = r.bx - r.ax, dy = r.by - r.ay, len2 = dx * dx + dy * dy;
+                const double t = len2 > 0 ? std::clamp(((x - r.ax) * dx + (y - r.ay) * dy) / len2, 0.0, 1.0) : 0.0;
+                if (std::hypot(x - (r.ax + dx * t), y - (r.ay + dy * t)) * kFeet < r.half - 8) return true;
+            }
+            return false;
+        };
+        auto step_to = [&](double dx, double dy) {   // moves as far as the ground allows, sliding along walls
+            const double nx = me_x + dx, ny = me_y + dy;
+            auto ok = [&](double x, double y) { return !solid(x, y) && !deep_water(x, y); };
+            if (ok(nx, ny)) { me_x = nx; me_y = ny; return true; }
+            if (ok(nx, me_y)) { me_x = nx; return true; }
+            if (ok(me_x, ny)) { me_y = ny; return true; }
+            return false;
+        };
+        if (ix != 0 || iy != 0) {
+            const double len = std::hypot(ix, iy);
+            step_to(ix / len * pace, iy / len * pace);
+            heading = std::atan2(-iy, ix); stride += 9 * dt * mult; walking = false; dest_x = me_x; dest_y = me_y;
+        } else if (walking) {
+            const double dx = dest_x - me_x, dy = dest_y - me_y, dist = std::hypot(dx, dy);
+            if (dist <= pace || dist < 1e-9) { me_x = dest_x; me_y = dest_y; walking = false; }
+            else {
+                const double bx = me_x, by = me_y;
+                step_to(dx / dist * pace, dy / dist * pace);
+                if (std::hypot(me_x - bx, me_y - by) < pace * 0.2) walking = false;   // walked into a wall: stop
+                heading = std::atan2(-dy, dx); stride += 9 * dt * mult;
+            }
+        }
+        cam.cx += (me_x - cam.cx) * std::min(1.0, 6 * dt);   // the camera follows with a little lag
+        cam.cy += (me_y - cam.cy) * std::min(1.0, 6 * dt);
+
+        // ---- time: the simulation steps once per game day
+        clock += dt * mult * 1440.0 / day_seconds;
+        if (clock >= 1440) { clock -= 1440; if (w.today < end_day) sim.step(); }
+
+        // The nearest founded town and how far off it is.
+        int near = -1;
+        double near_d = 1e18;
+        for (std::size_t i = 0; i < w.nodes.size(); ++i) {
+            const Node& n = w.nodes[i];
+            if (!n.founded && !n.fixed_market) continue;
+            const double d = std::hypot(n.x - me_x, n.y - me_y);
+            if (d < near_d) { near_d = d; near = static_cast<int>(i); }
+        }
+        if (near >= 0 && static_cast<NodeId>(near) != built_for) {   // lay out the town and face its main street toward its busiest road
+            built_for = static_cast<NodeId>(near);
+            const Node& n = w.nodes[static_cast<std::size_t>(near)];
+            double best = -1;
+            theta = 0;
+            for (EdgeId id : n.edges) {
+                const Edge& e = w.edges[World::idx(id)];
+                if (e.mode == Mode::River) continue;
+                const Node& o = w.nodes[World::idx(e.other(built_for))];
+                if (e.use_ema + 1e-6 > best) { best = e.use_ema + 1e-6; theta = std::atan2(o.y - n.y, o.x - n.x); }
+            }
+            near_rivers.clear();
+            for (const RiverLine& r : w.rivers)
+                for (std::size_t k = 1; k < r.points.size(); ++k) {
+                    const auto &a = r.points[k - 1], &b = r.points[k];
+                    if (std::min(a.first, b.first) > n.x + 3 || std::max(a.first, b.first) < n.x - 3 || std::min(a.second, b.second) > n.y + 3 || std::max(a.second, b.second) < n.y - 3) continue;
+                    near_rivers.push_back({a.first, a.second, b.first, b.second, (r.size >= 3 ? 130.0 : r.size == 2 ? 45.0 : 7.0) + 8.0});
+                }
+            ground_town(n, static_cast<std::size_t>(near), theta, near_rivers, buildings);
+            make_folk(n, static_cast<std::size_t>(near), folk);
+        }
+
+        // ---- draw
+        BeginDrawing();
+        const int W = GetScreenWidth(), H = GetScreenHeight();
+        const float f = cam.pxft;
+        const Vector2 tl = cam.to_world({0, 0}), br = cam.to_world({static_cast<float>(W), static_cast<float>(H)});
+        const double vx0 = tl.x - 0.05, vx1 = br.x + 0.05, vy0 = br.y - 0.05, vy1 = tl.y + 0.05;   // the view in miles, with a margin
+        DrawRectangleGradientEx({0, 0, static_cast<float>(W), static_cast<float>(H)},
+                                terrain_color(terrain, tl.x, tl.y), terrain_color(terrain, tl.x, br.y), terrain_color(terrain, br.x, br.y), terrain_color(terrain, br.x, tl.y));
+        // Texture over it: broad patches (about 250 ft across) and fine grain (about 25 ft), anchored to the ground.
+        auto tile = [&](const Texture2D& t, double feet) {
+            const double u = std::fmod(cam.cx * kFeet - W * 0.5 / f, feet) / feet * t.width;
+            const double v = std::fmod(-cam.cy * kFeet - H * 0.5 / f, feet) / feet * t.height;
+            DrawTexturePro(t, {static_cast<float>(u), static_cast<float>(v), static_cast<float>(W / (feet * f) * t.width), static_cast<float>(H / (feet * f) * t.height)},
+                           {0, 0, static_cast<float>(W), static_cast<float>(H)}, {0, 0}, 0, WHITE);
+        };
+        tile(patches, 260);
+        tile(grain, 26);
+        // Tufts of grass and stones, one possible per 14-foot cell.
+        {
+            const double cell = 14;
+            const std::int64_t i0 = static_cast<std::int64_t>(std::floor(tl.x * kFeet / cell)), i1 = static_cast<std::int64_t>(std::floor(br.x * kFeet / cell));
+            const std::int64_t j0 = static_cast<std::int64_t>(std::floor(br.y * kFeet / cell)), j1 = static_cast<std::int64_t>(std::floor(tl.y * kFeet / cell));
+            const Color base = terrain_color(terrain, cam.cx, cam.cy);
+            const Color dark = lerp(base, {20, 30, 14, 255}, 0.45f);
+            for (std::int64_t j = j0; j <= j1; ++j)
+                for (std::int64_t i = i0; i <= i1; ++i) {
+                    const std::uint64_t h = hash3(0x7f, i, j);
+                    const double u = unit_of(h);
+                    if (u > 0.34) continue;
+                    const Vector2 p = cam.to_screen((i + unit_of(mix64(h + 1))) * cell / kFeet, (j + unit_of(mix64(h + 2))) * cell / kFeet);
+                    if (u > 0.30) { DrawCircleV(p, 0.55f * f, {128, 124, 116, 255}); continue; }   // a stone
+                    for (int b = 0; b < 3; ++b) {
+                        const float a = static_cast<float>(-1.9 + b * 0.65 + unit_of(mix64(h + 3 + b)) * 0.3);
+                        DrawLineEx(p, {p.x + std::cos(a) * 1.4f * f, p.y + std::sin(a) * 1.6f * f}, std::max(1.0f, 0.2f * f), dark);
+                    }
+                }
+        }
+        // Rivers.
+        for (std::size_t i = 0; i < w.rivers.size(); ++i) {
+            if (rbox[i].x1 < vx0 || rbox[i].x0 > vx1 || rbox[i].y1 < vy0 || rbox[i].y0 > vy1) continue;
+            const RiverLine& r = w.rivers[i];
+            const float width = (r.size >= 3 ? 260.0f : r.size == 2 ? 90.0f : 14.0f) * f;
+            for (std::size_t k = 1; k < r.points.size(); ++k) {
+                const Vector2 a = cam.to_screen(r.points[k - 1].first, r.points[k - 1].second), b = cam.to_screen(r.points[k].first, r.points[k].second);
+                float t0, t1;
+                if (!clip_to_screen(a, b, width, t0, t1)) continue;
+                const Vector2 p0{a.x + (b.x - a.x) * t0, a.y + (b.y - a.y) * t0}, p1{a.x + (b.x - a.x) * t1, a.y + (b.y - a.y) * t1};
+                DrawLineEx(p0, p1, width + 8 * f, {176, 160, 118, 255});     // muddy bank
+                DrawLineEx(p0, p1, width, {64, 108, 150, 255});
+                DrawLineEx(p0, p1, width * 0.6f, {80, 128, 170, 255});
+            }
+        }
+        // Roads and rails near the view.
+        for (std::size_t i = 0; i < w.edges.size(); ++i) {
+            const Edge& e = w.edges[i];
+            if (ebox[i].x1 < vx0 || ebox[i].x0 > vx1 || ebox[i].y1 < vy0 || ebox[i].y0 > vy1) continue;
+            if (!e.active || e.mode == Mode::River || (e.latent && e.from == LONG_MAX)) continue;
+            const Node& na = w.nodes[World::idx(e.a)];
+            const Node& nb = w.nodes[World::idx(e.b)];
+            if (e.path.size() >= 2) {
+                for (std::size_t k = 1; k < e.path.size(); ++k)
+                    ground_road(cam, cam.to_screen(e.path[k - 1].first, e.path[k - 1].second), cam.to_screen(e.path[k].first, e.path[k].second), e.mode, e.road);
+            } else ground_road(cam, cam.to_screen(na.x, na.y), cam.to_screen(nb.x, nb.y), e.mode, e.road);
+        }
+        for (const CrossingSite& c : w.crossings) {   // a bridge: planks across the river
+            if (c.x < vx0 || c.x > vx1 || c.y < vy0 || c.y > vy1) continue;
+            const Vector2 p = cam.to_screen(c.x, c.y);
+            DrawRectanglePro({p.x, p.y, 40 * f, 14 * f}, {20 * f, 7 * f}, 0, c.kind == "bridge" ? Color{96, 72, 50, 255} : Color{120, 100, 70, 160});
+        }
+        // Towns in view.
+        for (std::size_t i = 0; i < w.nodes.size(); ++i) {
+            const Node& n = w.nodes[i];
+            if ((!n.founded && !n.fixed_market) || std::abs(n.x - cam.cx) > 2.5 || std::abs(n.y - cam.cy) > 2.5) continue;
+            if (static_cast<NodeId>(i) != built_for) continue;   // only the town the player stands in has its layout built
+            draw_town_ground(n, cam, theta, near_rivers, buildings);
+        }
+        // Wagons standing in the nearest town: the sim's own traders, parked along its main street.
+        if (near >= 0 && near_d < 2.0) {
+            const Node& n = w.nodes[static_cast<std::size_t>(near)];
+            const double c = std::cos(theta), s = std::sin(theta);
+            int shown = 0;
+            for (const Trader& t : sim.traders()) {
+                if (!t.alive || t.travelling || t.at != static_cast<NodeId>(near) || ++shown > 60) continue;
+                const std::uint64_t h = mix64(static_cast<std::uint64_t>(t.id) * 7919 + 3);
+                const double pop = std::max(30.0, n.population);
+                const double L = 220 + std::sqrt(pop) * 18;
+                const double lx = (unit_of(h) * 2 - 1) * L * 0.7, ly = (unit_of(mix64(h + 1)) < 0.5 ? -1 : 1) * 9.0;
+                const Vector2 p = cam.to_screen(n.x + (lx * c - ly * s) / kFeet, n.y + (lx * s + ly * c) / kFeet);
+                if (p.x < -120 || p.y < -120 || p.x > W + 120 || p.y > H + 120) continue;
+                const float deg = static_cast<float>(-theta * 180.0 / 3.14159265) + (unit_of(mix64(h + 2)) < 0.5 ? 0.0f : 180.0f);
+                draw_wagon(p, deg, f, trader_color(t), t.cargo >= 0);
+                {   // the teamster stands by his wagon, a few feet toward the street
+                    Look l; l.shirt = {110, 96, 80, 255}; l.hat = {70, 56, 42, 255};
+                    const float side = ly < 0 ? -1.0f : 1.0f;
+                    const Vector2 tp{p.x + static_cast<float>(std::cos(-theta + 1.5708)) * 9 * f * side, p.y + static_cast<float>(std::sin(-theta + 1.5708)) * 9 * f * side};
+                    draw_person(tp, static_cast<float>(-theta * 180.0 / 3.14159265) + 90, f, 0, l);
+                    labels.push_back({tp, t.firm ? "teamster, eastern firm" : t.house >= 0 ? "teamster, freight house" : t.job_town >= 0 ? "teamster on a freight job" : "freighter"});
+                }
+            }
+        }
+        // Outlaw camps: a tent and a fire, where the sim puts them.
+        for (const Gang& g : sim.gangs()) {
+            if (!g.active || g.edge < 0 || g.camp_kind < 0 || g.hideout < 0) continue;
+            const Edge& e = w.edges[World::idx(g.edge)];
+            if (e.a != g.hideout && e.b != g.hideout) continue;
+            const Vector2 m = point_along(w, e, g.hideout, std::clamp(g.camp_miles / std::max(1.0, e.miles), 0.0, 1.0));
+            if (m.x < vx0 || m.x > vx1 || m.y < vy0 || m.y > vy1) continue;
+            const Vector2 p = cam.to_screen(m.x, m.y);
+            DrawTriangle({p.x, p.y - 7 * f}, {p.x - 6 * f, p.y + 4 * f}, {p.x + 6 * f, p.y + 4 * f}, {206, 196, 168, 255});
+            DrawCircleV({p.x + 9 * f, p.y + 3 * f}, 1.2f * f, {230, 110, 30, 255});
+        }
+        // The town's people.
+        labels.clear();
+        if (near >= 0 && near_d < 1.0 && static_cast<NodeId>(near) == built_for) {
+            const Node& n = w.nodes[static_cast<std::size_t>(near)];
+            const double c = std::cos(theta), s = std::sin(theta);
+            const double hr = clock / 60.0;
+            const double day = std::clamp(0.5 + 0.9 * std::cos((hr - 13.0) / 12.0 * 3.14159265), 0.0, 1.0);
+            const double out_and_about = 0.12 + 0.88 * day;                  // most are indoors at night
+            const double ease = 1.0 - std::min(0.6, n.hunger);               // a hungry town moves slowly
+            const std::uint64_t tick = static_cast<std::uint64_t>(GetTime() * 4);
+            for (Folk& p : folk) {
+                if (unit_of(mix64(p.h + 99)) >= out_and_about) continue;
+                if (p.pause > 0) p.pause -= dt * mult;
+                else {
+                    const double step = p.speed * ease * dt * mult;
+                    p.u += p.dir * step;
+                    p.stride += 9 * dt * mult * p.speed / 11.0;
+                    if (std::abs(p.u) > p.bound) { p.u = std::clamp(p.u, -p.bound, p.bound); p.dir = -p.dir; }
+                    // Corners: crossing a street's mouth, sometimes turn into it (or back onto the main street at u = 0).
+                    if (p.street == 0) {
+                        const int nc = std::max(1, static_cast<int>(town_length(n) / 30) / 6);
+                        const int j = static_cast<int>(std::lround(p.u / 180.0));
+                        if (j != 0 && std::abs(j) <= nc && std::abs(p.u - j * 180.0) < step + 0.5 && unit_of(mix64(p.h + tick)) < 0.25) {
+                            p.street = j; p.bound = street_reach(n, j); p.u = 0; p.v = std::clamp(p.v, -7.0, 7.0); p.dir = unit_of(mix64(p.h + 5 + tick)) < 0.5 ? -1 : 1;
+                        }
+                    } else if (std::abs(p.u) < step + 0.5 && unit_of(mix64(p.h + tick)) < 0.4) {
+                        const int j = p.street;
+                        p.street = 0; p.bound = town_length(n); p.u = j * 180.0; p.v = std::clamp(p.v, -11.0, 11.0);
+                        p.dir = unit_of(mix64(p.h + 6 + tick)) < 0.5 ? -1 : 1;
+                    }
+                    if (unit_of(mix64(p.h + static_cast<std::uint64_t>(GetTime() * 60))) < 0.002) p.pause = 3 + unit_of(mix64(p.h + 21 + tick)) * 12;   // stop to talk or look about
+                }
+                const double lx = p.street == 0 ? p.u : p.street * 180.0 + p.v, ly = p.street == 0 ? p.v : p.u;
+                const double wx = n.x + (lx * c - ly * s) / kFeet, wy = n.y + (lx * s + ly * c) / kFeet;
+                if (river_clearance(near_rivers, wx, wy) < 2) { p.dir = -p.dir; p.u += p.dir * 4; continue; }   // turn back from the water
+                const Vector2 sp = cam.to_screen(wx, wy);
+                if (sp.x < -60 || sp.y < -60 || sp.x > W + 60 || sp.y > H + 60) continue;
+                const double al = p.street == 0 ? (p.dir > 0 ? 0.0 : 3.14159265) : (p.dir > 0 ? 1.5707963 : -1.5707963);
+                draw_person(sp, static_cast<float>(-(theta + al) * 180.0 / 3.14159265), f, p.stride, p.look);
+                labels.push_back({sp, p.role});
+            }
+        }
+        draw_person({static_cast<float>(GetScreenWidth() * 0.5f + (me_x - cam.cx) * kFeet * f), static_cast<float>(GetScreenHeight() * 0.5f - (me_y - cam.cy) * kFeet * f)},
+                    static_cast<float>(heading * 180.0 / 3.14159265), f, stride);
+        if (walking) {
+            const Vector2 d = cam.to_screen(dest_x, dest_y);
+            DrawCircleLines(static_cast<int>(d.x), static_cast<int>(d.y), 1.6f * f, {255, 255, 255, 170});
+        }
+
+        // Night: the day runs from dawn at about six to dusk at about eight.
+        {
+            const double hr = clock / 60.0;
+            const double day = std::clamp(0.5 + 0.9 * std::cos((hr - 13.0) / 12.0 * 3.14159265), 0.0, 1.0);
+            const unsigned char a = static_cast<unsigned char>((1.0 - day) * 150);
+            if (a > 0) DrawRectangle(0, 0, W, H, {12, 20, 56, a});
+        }
+
+        {   // name the person under the mouse
+            const Vector2 m = GetMousePosition();
+            const std::pair<Vector2, std::string>* best = nullptr;
+            float bd = 14 * f / 7;
+            for (const auto& l : labels) { const float d = std::hypot(l.first.x - m.x, l.first.y - m.y); if (d < bd) { bd = d; best = &l; } }
+            if (best) {
+                const int tw = TextWidth(best->second.c_str(), 14);
+                DrawRectangle(static_cast<int>(best->first.x) - tw / 2 - 5, static_cast<int>(best->first.y) - 30, tw + 10, 20, {250, 244, 228, 235});
+                Text(best->second.c_str(), static_cast<int>(best->first.x) - tw / 2, static_cast<int>(best->first.y) - 27, 14, {40, 30, 20, 255});
+            }
+        }
+        // HUD
+        panel(10, 8, 470, 50);
+        char hud[200];
+        std::snprintf(hud, sizeof hud, "%s   %02d:%02d   speed %s%.0fx", format_date(w.today).c_str(), static_cast<int>(clock / 60) % 24, static_cast<int>(clock) % 60, paused ? "paused " : "", rates[speed]);
+        Text(hud, 20, 14, 16, {30, 24, 18, 255});
+        if (near >= 0) {
+            const Node& n = w.nodes[static_cast<std::size_t>(near)];
+            const double ft = near_d * kFeet;
+            std::snprintf(hud, sizeof hud, near_d < 0.25 ? "in %s  (%s, %.0f people)" : "%s is %.1f miles away", n.name.c_str(), n.kind.c_str(), n.population);
+            if (near_d >= 0.25) std::snprintf(hud, sizeof hud, "%s is %.1f miles away", n.name.c_str(), near_d);
+            (void)ft;
+            Text(hud, 20, 34, 14, {90, 70, 40, 255});
+        }
+        Text("click or WASD to walk   wheel zoom   1-4 speed   space pause   E town board   M world map", 14, H - 24, 14, {60, 50, 40, 230});
+        if (show_town && near >= 0) draw_town_panel(sim, static_cast<std::size_t>(near));
+        EndDrawing();
+        if (!g_ground_shot.empty() && ++shot_frames == 4) { TakeScreenshot(g_ground_shot.c_str()); break; }
+    }
+    UnloadTexture(patches);
+    UnloadTexture(grain);
+    return WindowShouldClose();
 }
 
 }  // namespace
@@ -590,21 +1296,26 @@ int main(int argc, char** argv) {
     std::string data = find_data_dir(), shot;
     std::uint64_t seed = 0;
     bool seed_set = false;
-    std::string load_file, play_at;
+    std::string load_file, play_at, ground_at;
     int shot_days = 0;
+    bool board_on = false;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         auto next = [&]() { return i + 1 < argc ? std::string(argv[++i]) : std::string(); };
         if (a == "--data") data = next();
         else if (a == "--load") load_file = next();
         else if (a == "--play") play_at = next();
+        else if (a == "--ground") ground_at = next();
+        else if (a == "--zoom") g_ground_zoom = static_cast<float>(std::atof(next().c_str()));
         else if (a == "--seed") { seed = std::strtoull(next().c_str(), nullptr, 10); seed_set = true; }
         else if (a == "--shot") shot = next();
+        else if (a == "--board") board_on = true;
         else if (a == "--days") shot_days = std::atoi(next().c_str());
     }
     const WorldDef world = load_world(data);
     Scenario scenario = load_scenario(data, world);
     if (seed_set) scenario.seed = seed;
+    g_ground_shot = shot;
     Simulation sim(world, scenario);
     if (!load_file.empty()) sim.load_state(load_file);
     const World& w = sim.world();
@@ -614,9 +1325,18 @@ int main(int argc, char** argv) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     InitWindow(1500, 900, "Frontier Sim");
     SetTargetFPS(60);
+    {
+        int n = 0;
+        std::vector<int> cps;
+        for (int c = 32; c < 256; ++c) cps.push_back(c);
+        g_font = LoadFontEx(FRONTIER_FONT, 32, cps.data(), static_cast<int>(cps.size()));
+        n = g_font.glyphCount;
+        g_font_ok = n > 0 && g_font.texture.id != 0;
+        if (g_font_ok) SetTextureFilter(g_font.texture, TEXTURE_FILTER_BILINEAR);
+    }
     SetExitKey(KEY_ESCAPE);
     const Terrain terrain = load_terrain(data);
-    bool show_terrain = true, show_board = false;
+    bool show_terrain = true, show_board = board_on;
 
     Camera2 cam;
     fit(cam, w);
@@ -635,9 +1355,18 @@ int main(int argc, char** argv) {
         for (std::size_t i = 0; i < w.nodes.size(); ++i)
             if (w.nodes[i].id == play_at || w.nodes[i].name == play_at) { selected = static_cast<int>(i); player_spawn(sim, player, static_cast<NodeId>(i), false); break; }
     }
+    auto enter_ground = [&](NodeId at) {   // the local map: returns true if the window was closed there
+        const bool quit = run_ground(sim, terrain, at, end_day) || !g_ground_shot.empty();
+        fit(cam, w);
+        return quit;
+    };
+    bool ground_quit = false;
+    if (!ground_at.empty())
+        for (std::size_t i = 0; i < w.nodes.size(); ++i)
+            if (w.nodes[i].id == ground_at || w.nodes[i].name == ground_at) { ground_quit = enter_ground(static_cast<NodeId>(i)); break; }
     int frames = 0;
 
-    while (!WindowShouldClose()) {
+    while (!ground_quit && !WindowShouldClose()) {
         // ---- input
         if (IsKeyPressed(KEY_SPACE)) paused = !paused;
         for (int k = 0; k < 5; ++k) if (IsKeyPressed(KEY_ONE + k)) { speed = k; paused = false; }
@@ -652,6 +1381,9 @@ int main(int argc, char** argv) {
         if (IsKeyPressed(KEY_G) && selected >= 0 && (w.nodes[static_cast<std::size_t>(selected)].founded || w.nodes[static_cast<std::size_t>(selected)].fixed_market)) {
             player_spawn(sim, player, static_cast<NodeId>(selected), IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT));
             paused = false;
+        }
+        if (IsKeyPressed(KEY_V) && selected >= 0 && (w.nodes[static_cast<std::size_t>(selected)].founded || w.nodes[static_cast<std::size_t>(selected)].fixed_market)) {
+            if (enter_ground(static_cast<NodeId>(selected))) break;
         }
         if (IsKeyPressed(KEY_P)) TakeScreenshot("frontier_shot.png");
         if (paused && IsKeyPressed(KEY_N) && w.today < end_day) sim.step();
@@ -777,7 +1509,7 @@ int main(int argc, char** argv) {
             const float s = sim.is_band_gang(g) ? 4.0f : 6.0f;
             DrawTriangle({p.x, p.y - s}, {p.x - s, p.y + s * 0.7f}, {p.x + s, p.y + s * 0.7f}, {120, 80, 40, 255});
             DrawTriangleLines({p.x, p.y - s}, {p.x - s, p.y + s * 0.7f}, {p.x + s, p.y + s * 0.7f}, {40, 30, 20, 255});
-            if (cam.zoom > 2.0f) DrawText(Simulation::camp_kind_name(g.camp_kind), static_cast<int>(p.x + s + 3), static_cast<int>(p.y - 6), 11, {110, 70, 30, 255});
+            if (cam.zoom > 2.0f) Text(Simulation::camp_kind_name(g.camp_kind), static_cast<int>(p.x + s + 3), static_cast<int>(p.y - 6), 11, {110, 70, 30, 255});
         }
         for (const Gang& g : sim.gangs()) {
             if (!g.active || g.edge < 0) continue;
@@ -792,7 +1524,7 @@ int main(int argc, char** argv) {
             const Color gc = band ? Color{220, 120, 30, 255} : Color{190, 20, 20, 255};
             DrawLineEx({p.x - s, p.y - s}, {p.x + s, p.y + s}, band ? 1.8f : 3.2f, gc);
             DrawLineEx({p.x - s, p.y + s}, {p.x + s, p.y - s}, band ? 1.8f : 3.2f, gc);
-            if (!band) DrawText(TextFormat("%d", g.men), static_cast<int>(p.x + s + 2), static_cast<int>(p.y - 6), 12, gc);
+            if (!band) Text(TextFormat("%d", g.men), static_cast<int>(p.x + s + 2), static_cast<int>(p.y - 6), 12, gc);
         }
         for (std::size_t i = 0; i < w.nodes.size(); ++i) {
             const Node& n = w.nodes[i];
@@ -804,7 +1536,7 @@ int main(int argc, char** argv) {
             if (n.starving) DrawCircleLines(static_cast<int>(p.x), static_cast<int>(p.y), r + 3, {200, 30, 30, 255});
             if (n.garrison > 0) DrawRectangle(static_cast<int>(p.x - 2), static_cast<int>(p.y - r - 7), 4, 4, {30, 70, 140, 255});
             if (cam.zoom > 0.9f || n.fixed_market || n.population > 1500 || static_cast<int>(i) == selected)
-                DrawText(n.name.c_str(), static_cast<int>(p.x + r + 3), static_cast<int>(p.y - 6), 13, {40, 30, 20, 255});
+                Text(n.name.c_str(), static_cast<int>(p.x + r + 3), static_cast<int>(p.y - 6), 13, {40, 30, 20, 255});
         }
         for (const Trader& t : sim.traders()) {
             Vector2 pos;
@@ -836,41 +1568,41 @@ int main(int argc, char** argv) {
         char hud[220];
         std::snprintf(hud, sizeof hud, "%s   %s   outfits %d (%d loaded)   gangs %d   overlay: %s", format_date(w.today).c_str(),
                       paused || w.today >= end_day ? "paused" : (std::string(TextFormat("%.0f d/s", speeds[speed]))).c_str(), alive, loaded, gangs, overlay_name(overlay));
-        DrawText(hud, 18, 13, 15, {40, 30, 20, 255});
+        Text(hud, 18, 13, 15, {40, 30, 20, 255});
 
         // Legend.
         panel(10, 40, 190, 262);
         int ly = 48;
-        auto key = [&](Color c, const char* label) { DrawCircle(24, ly + 7, 4, c); DrawText(label, 36, ly, 13, {40, 30, 20, 255}); ly += 18; };
+        auto key = [&](Color c, const char* label) { DrawCircle(24, ly + 7, 4, c); Text(label, 36, ly, 13, {40, 30, 20, 255}); ly += 18; };
         key({40, 40, 40, 255}, "freelancer");
         key({30, 150, 70, 255}, "house outfit");
         key({40, 80, 200, 255}, "eastern firm");
         key({230, 130, 20, 255}, "freight job");
         DrawLineEx({20, static_cast<float>(ly + 4)}, {28, static_cast<float>(ly + 10)}, 1.8f, {220, 120, 30, 255});
         DrawLineEx({20, static_cast<float>(ly + 10)}, {28, static_cast<float>(ly + 4)}, 1.8f, {220, 120, 30, 255});
-        DrawText("small band (2-5 men)", 36, ly, 13, {40, 30, 20, 255});
+        Text("small band (2-5 men)", 36, ly, 13, {40, 30, 20, 255});
         ly += 18;
         DrawLineEx({18, static_cast<float>(ly + 2)}, {30, static_cast<float>(ly + 12)}, 3.2f, {190, 20, 20, 255});
         DrawLineEx({18, static_cast<float>(ly + 12)}, {30, static_cast<float>(ly + 2)}, 3.2f, {190, 20, 20, 255});
-        DrawText("large gang (men shown)", 36, ly, 13, {40, 30, 20, 255});
+        Text("large gang (men shown)", 36, ly, 13, {40, 30, 20, 255});
         ly += 18;
         DrawCircleLines(24, ly + 7, 5, {200, 30, 30, 255});
-        DrawText("food shortage", 36, ly, 13, {40, 30, 20, 255});
+        Text("food shortage", 36, ly, 13, {40, 30, 20, 255});
         ly += 18;
         DrawTriangle({24, static_cast<float>(ly + 1)}, {19, static_cast<float>(ly + 11)}, {29, static_cast<float>(ly + 11)}, {120, 80, 40, 255});
-        DrawText("gang camp", 36, ly, 13, {40, 30, 20, 255});
+        Text("gang camp", 36, ly, 13, {40, 30, 20, 255});
         ly += 18;
-        DrawText("big dot: loaded wagon", 18, ly, 12, {90, 70, 40, 255});
+        Text("big dot: loaded wagon", 18, ly, 12, {90, 70, 40, 255});
         ly += 18;
-        DrawText("thick road: worn in by traffic", 18, ly, 12, {90, 70, 40, 255});
+        Text("thick road: worn in by traffic", 18, ly, 12, {90, 70, 40, 255});
         ly += 16;
-        DrawText("B price board", 18, ly, 12, {90, 70, 40, 255});
+        Text("B price board", 18, ly, 12, {90, 70, 40, 255});
         ly += 16;
-        DrawText("G play: start at selected town", 18, ly, 12, {90, 70, 40, 255});
+        Text("G play: start at selected town", 18, ly, 12, {90, 70, 40, 255});
         ly += 18;
-        DrawText(TextFormat("C show: %s", filter.carrier < 0 ? "all" : kCarrierNames[filter.carrier]), 18, ly, 12, {90, 70, 40, 255});
+        Text(TextFormat("C show: %s", filter.carrier < 0 ? "all" : kCarrierNames[filter.carrier]), 18, ly, 12, {90, 70, 40, 255});
         ly += 16;
-        DrawText(TextFormat("L loaded only: %s", filter.loaded_only ? "on" : "off"), 18, ly, 12, {90, 70, 40, 255});
+        Text(TextFormat("L loaded only: %s", filter.loaded_only ? "on" : "off"), 18, ly, 12, {90, 70, 40, 255});
 
         if (show_board) draw_price_board(w);
         if (player.active()) {
@@ -889,9 +1621,9 @@ int main(int argc, char** argv) {
         int ey = GetScreenHeight() - fh - 4;
         for (auto it = recent.rbegin(); it != recent.rend(); ++it) {
             const Event& e = **it;
-            DrawText(format_date(e.day).c_str(), 18, ey, 14, {110, 90, 60, 255});
-            DrawText(e.text.substr(0, 84).c_str(), 112, ey, 14, event_color(e.type));
-            DrawText(e.cause.substr(0, 98).c_str(), 112, ey + 15, 12, {110, 100, 90, 255});
+            Text(format_date(e.day).c_str(), 18, ey, 14, {110, 90, 60, 255});
+            Text(e.text.substr(0, 84).c_str(), 112, ey, 14, event_color(e.type));
+            Text(e.cause.substr(0, 98).c_str(), 112, ey + 15, 12, {110, 100, 90, 255});
             ey += 34;
         }
         EndDrawing();

@@ -10,3 +10,5 @@ FetchContent_MakeAvailable(raylib)
 
 add_executable(frontier_viewer main.cpp)
 target_link_libraries(frontier_viewer PRIVATE frontier_sim raylib)
+
+target_compile_definitions(frontier_viewer PRIVATE FRONTIER_FONT="${CMAKE_CURRENT_SOURCE_DIR}/assets/LiberationSerif-Regular.ttf")
