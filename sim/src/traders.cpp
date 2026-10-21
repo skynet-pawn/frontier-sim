@@ -115,7 +115,7 @@ void Simulation::settle_trader(Trader& t) {
     log_.with({field("trader", t.id), field("node", n.name), field("stake", t.cash), field("invested", invest)});
     log_.add(world_.today, EventType::Trader, "trader_settled", t.at,
              strf("Trader #%d settles in %s with a stake of %s", t.id, n.name.c_str(), money(t.cash).c_str()),
-             strf("he made his pile and put %s into a business in town", money(invest).c_str()));
+             strf("he made his pile and put %s into a business in town", money(invest).c_str()), t.cash < 40000);   // only a big fortune is news
     t.alive = false;
     t.cash = 0;
     t.pending_spend = 0;

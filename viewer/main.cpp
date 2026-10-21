@@ -167,7 +167,7 @@ bool is_headline(const Event& e) {
     static const char* const kinds[] = {"famine", "famine_over", "ghost_town", "town_founded", "gang_takeover", "town_freed", "shortage", "gang_war", "gang_merged",
                                         "leader_killed", "house_founded",
                                         "house_closed", "route_changed", "reserve_exhausted", "output_begins", "rush", "road_closure",
-                                        "house_collapse", "firm_withdrawal", "crop_failure", "vigilance_formed", "repopulating", "law_established", "bushwhack_notable", "cavalry_sent"};
+                                        "house_collapse", "firm_withdrawal", "road_improved", "road_worn", "trader_settled", "crop_failure", "vigilance_formed", "repopulating", "law_established", "bushwhack_notable", "cavalry_sent"};
     for (const char* k : kinds) if (e.kind == k) return true;
     return false;
 }
@@ -240,6 +240,24 @@ void draw_town_panel(const Simulation& sim, std::size_t i) {
         std::snprintf(b, sizeof b, "%-11s %7.0f  $%6.2f   %s", w.goods[gi].name.substr(0, 11).c_str(), n.stock[gi], w.mid_price(static_cast<NodeId>(i), g), order);
         line(b);
     }
+    // Outlaws who trade here and where they really live.
+    {
+        int bands = 0, big = 0, shown = 0;
+        for (const Gang& g : sim.gangs()) {
+            if (!g.active || g.hideout != static_cast<NodeId>(i)) continue;
+            (sim.is_band_gang(g) ? bands : big) += 1;
+        }
+        if (bands + big > 0) {
+            std::snprintf(b, sizeof b, "outlaws trading here: %d band%s, %d large gang%s", bands, bands == 1 ? "" : "s", big, big == 1 ? "" : "s");
+            line(b, {150, 60, 20, 255});
+            for (const Gang& g : sim.gangs()) {
+                if (!g.active || g.hideout != static_cast<NodeId>(i) || g.camp_kind < 0 || shown >= 3) continue;
+                std::snprintf(b, sizeof b, "  #%d: %d men, camp in a %s, %.0f mi out", g.id, g.men, Simulation::camp_kind_name(g.camp_kind), g.camp_miles);
+                line(b, {110, 70, 30, 255});
+                ++shown;
+            }
+        }
+    }
     // The town's paper: what it has printed lately, newest first (headlines travel, so this includes news from elsewhere).
     ty += 6;
     const auto& shelf = sim.paper_headlines(static_cast<NodeId>(i));
@@ -258,6 +276,29 @@ void draw_town_panel(const Simulation& sim, std::size_t i) {
 
 // What one wagon train is doing. The sim does not store why a trader picked a road, so this shows what it carries,
 // where it is bound, and the temperament and fear that weigh on that choice.
+// A price board: the biggest towns with what a pound of flour and a head of beef cost there, so a shortage or a glut can be
+// read across the map. Prices are shown against the East's price, since distance and risk are what make the gap.
+void draw_price_board(const World& w) {
+    std::vector<std::size_t> order;
+    for (std::size_t i = 0; i < w.nodes.size(); ++i)
+        if (!w.nodes[i].fixed_market && w.nodes[i].founded && !w.nodes[i].ghost) order.push_back(i);
+    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return w.nodes[a].population > w.nodes[b].population; });
+    if (order.size() > 16) order.resize(16);
+    const GoodId flour = find_good(w, "flour"), beef = find_good(w, "beef_cattle");
+    const int x = 210, y = 40, rows = static_cast<int>(order.size());
+    panel(x, y, 430, 40 + rows * 17);
+    DrawText("PRICE BOARD (B)      town         pop    flour   beef  hunger", x + 8, y + 6, 13, {90, 70, 40, 255});
+    int ty = y + 26;
+    for (std::size_t i : order) {
+        const Node& n = w.nodes[i];
+        char b[160];
+        std::snprintf(b, sizeof b, "%-18s %7.0f  %6.2f %7.2f   %.2f", n.name.substr(0, 18).c_str(), n.population,
+                      flour >= 0 ? w.mid_price(static_cast<NodeId>(i), flour) : 0.0, beef >= 0 ? w.mid_price(static_cast<NodeId>(i), beef) : 0.0, n.hunger);
+        DrawText(b, x + 8, ty, 13, n.starving ? Color{170, 30, 30, 255} : Color{40, 30, 20, 255});
+        ty += 17;
+    }
+}
+
 void draw_trader_panel(const World& w, const Trader& t) {
     const int x = GetScreenWidth() - 330, y = 40;
     panel(x, y, 320, 250);
@@ -399,7 +440,7 @@ int main(int argc, char** argv) {
     SetTargetFPS(60);
     SetExitKey(KEY_ESCAPE);
     const Terrain terrain = load_terrain(data);
-    bool show_terrain = true;
+    bool show_terrain = true, show_board = false;
 
     Camera2 cam;
     fit(cam, w);
@@ -425,6 +466,7 @@ int main(int argc, char** argv) {
         if (IsKeyPressed(KEY_L)) filter.loaded_only = !filter.loaded_only;
         if (IsKeyPressed(KEY_T)) show_terrain = !show_terrain;
         if (IsKeyPressed(KEY_X)) followed = -1;
+        if (IsKeyPressed(KEY_B)) show_board = !show_board;
         if (IsKeyPressed(KEY_P)) TakeScreenshot("frontier_shot.png");
         if (paused && IsKeyPressed(KEY_N) && w.today < end_day) sim.step();
         const float wheel = GetMouseWheelMove();
@@ -528,6 +570,18 @@ int main(int argc, char** argv) {
             const float thick = e.mode == Mode::Rail ? 2.5f : e.mode == Mode::River ? 2.0f : 1.5f + 0.9f * static_cast<float>(e.road);   // worn trails thicken into wagon and graded roads
             for (std::size_t k = 1; k < way.size(); ++k) DrawLineEx(way[k - 1], way[k], thick, lerp(mode_color(e.mode), {200, 30, 20, 255}, danger));
         }
+        // Camps: a tent on the trail, camp_miles out from the town the gang trades with (a label for the picture; the sim never reads it).
+        for (const Gang& g : sim.gangs()) {
+            if (!g.active || g.edge < 0 || g.camp_kind < 0 || g.hideout < 0) continue;
+            const Edge& e = w.edges[World::idx(g.edge)];
+            if (e.a != g.hideout && e.b != g.hideout) continue;
+            const Vector2 m = point_along(w, e, g.hideout, std::clamp(g.camp_miles / std::max(1.0, e.miles), 0.0, 1.0));
+            const Vector2 p = cam.to_screen(m.x, m.y);
+            const float s = sim.is_band_gang(g) ? 4.0f : 6.0f;
+            DrawTriangle({p.x, p.y - s}, {p.x - s, p.y + s * 0.7f}, {p.x + s, p.y + s * 0.7f}, {120, 80, 40, 255});
+            DrawTriangleLines({p.x, p.y - s}, {p.x - s, p.y + s * 0.7f}, {p.x + s, p.y + s * 0.7f}, {40, 30, 20, 255});
+            if (cam.zoom > 2.0f) DrawText(Simulation::camp_kind_name(g.camp_kind), static_cast<int>(p.x + s + 3), static_cast<int>(p.y - 6), 11, {110, 70, 30, 255});
+        }
         for (const Gang& g : sim.gangs()) {
             if (!g.active || g.edge < 0) continue;
             const Edge& e = w.edges[World::idx(g.edge)];
@@ -588,7 +642,7 @@ int main(int argc, char** argv) {
         DrawText(hud, 18, 13, 15, {40, 30, 20, 255});
 
         // Legend.
-        panel(10, 40, 190, 196);
+        panel(10, 40, 190, 250);
         int ly = 48;
         auto key = [&](Color c, const char* label) { DrawCircle(24, ly + 7, 4, c); DrawText(label, 36, ly, 13, {40, 30, 20, 255}); ly += 18; };
         key({40, 40, 40, 255}, "freelancer");
@@ -606,11 +660,20 @@ int main(int argc, char** argv) {
         DrawCircleLines(24, ly + 7, 5, {200, 30, 30, 255});
         DrawText("food shortage", 36, ly, 13, {40, 30, 20, 255});
         ly += 18;
+        DrawTriangle({24, static_cast<float>(ly + 1)}, {19, static_cast<float>(ly + 11)}, {29, static_cast<float>(ly + 11)}, {120, 80, 40, 255});
+        DrawText("gang camp", 36, ly, 13, {40, 30, 20, 255});
+        ly += 18;
         DrawText("big dot: loaded wagon", 18, ly, 12, {90, 70, 40, 255});
+        ly += 18;
+        DrawText("thick road: worn in by traffic", 18, ly, 12, {90, 70, 40, 255});
+        ly += 16;
+        DrawText("B price board", 18, ly, 12, {90, 70, 40, 255});
         ly += 18;
         DrawText(TextFormat("C show: %s", filter.carrier < 0 ? "all" : kCarrierNames[filter.carrier]), 18, ly, 12, {90, 70, 40, 255});
         ly += 16;
         DrawText(TextFormat("L loaded only: %s", filter.loaded_only ? "on" : "off"), 18, ly, 12, {90, 70, 40, 255});
+
+        if (show_board) draw_price_board(w);
 
         // Event feed: the latest events that are not routine, newest at the bottom, with the cause beneath.
         const auto& events = sim.log().events();
