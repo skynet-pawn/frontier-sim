@@ -148,6 +148,8 @@ struct Edge {
     double use_ema = 0;                 // wagons a day over the past half year or so
     double freight_miles = 0;           // miles as the freight bill counts them (the road level's discount applied)
     long from = 0, until = 0;
+    bool latent = false;                // a rail link the sim builds when a town is worth it; `from` is set when construction starts
+    long earliest = 0;                  // the first day it may be started
     std::string note;
     std::vector<std::pair<double, double>> path;   // the route over the terrain, a to b (empty = a straight line); drawing only
     int river_crossings = 0, river_biggest = 0;    // rivers the route crosses, and the size of the biggest (information; the miles already include the crossings)

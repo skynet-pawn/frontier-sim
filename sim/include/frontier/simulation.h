@@ -429,6 +429,7 @@ private:
     double goal_of(int id) const;                     // the pile he is after
     bool wants_house(const Trader& t) const;    // would a house get him rich faster than he is getting there?
     bool maybe_settle(Trader& t);
+    void review_rails();             // start building a latent rail link where a town has grown enough to justify it
     bool review_roads();             // raise and wear down trail edges by how many wagons use them; true if any changed   // a freelancer with his pile may settle where he stands; true if he did
     double spot_uncertainty(NodeId d, GoodId g, double q) const;
     double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;

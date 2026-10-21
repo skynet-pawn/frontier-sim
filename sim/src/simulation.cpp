@@ -144,7 +144,48 @@ bool Simulation::review_roads() {
     return changed;
 }
 
+// Railroads build to where the people are. A latent rail link is started when the town at its unserved end has grown to
+// rail_build_pop, the line's other end is on rail, and the company has fewer than rail_max_building lines going. Track is
+// laid at rail_build_rate miles a day, and the line opens through the ordinary schedule (so it shows as a route change).
+void Simulation::review_rails() {
+    const Params& p = world_.params;
+    if (!p.rail_stages || p.rail_review_days <= 0 || world_.today % p.rail_review_days != 0) return;
+    auto on_rail = [&](NodeId n) {
+        for (EdgeId id : world_.nodes[World::idx(n)].edges) {
+            const Edge& e = world_.edges[World::idx(id)];
+            if (e.mode == Mode::Rail && e.active) return true;
+        }
+        return false;
+    };
+    int building = 0;
+    for (const Edge& e : world_.edges)
+        if (e.latent && e.from != LONG_MAX && e.from > world_.today) ++building;
+    if (building >= p.rail_max_building) return;
+    Edge* best = nullptr;
+    double best_pop = p.rail_build_pop;
+    NodeId best_town = -1;
+    for (Edge& e : world_.edges) {
+        if (!e.latent || e.from != LONG_MAX || world_.today < e.earliest) continue;
+        const bool ra = on_rail(e.a), rb = on_rail(e.b);
+        if (!ra && !rb) continue;
+        const NodeId town = !ra ? e.a : !rb ? e.b : (world_.nodes[World::idx(e.a)].market_population() >= world_.nodes[World::idx(e.b)].market_population() ? e.a : e.b);
+        const Node& t = world_.nodes[World::idx(town)];
+        if (t.fixed_market || !t.founded || t.ghost) continue;
+        if (t.market_population() >= best_pop) { best_pop = t.market_population(); best = &e; best_town = town; }
+    }
+    if (!best) return;
+    const long days = static_cast<long>(std::ceil(best->miles / p.rail_build_rate));
+    best->from = world_.today + days;
+    const Node& t = world_.nodes[World::idx(best_town)];
+    const Node& from = world_.nodes[World::idx(best->other(best_town))];
+    log_.with({field("a", from.name), field("b", t.name), field("miles", best->miles), field("days", days), field("population", t.market_population())});
+    log_.add(world_.today, EventType::Network, "rail_construction", best_town,
+             strf("Track-laying begins on a railroad from %s to %s (%.0f miles, about %ld days)", from.name.c_str(), t.name.c_str(), best->miles, days),
+             strf("%s: %s has grown to %.0f people and %s is already on rail", best->note.empty() ? "a railroad company" : best->note.c_str(), t.name.c_str(), t.market_population(), from.name.c_str()));
+}
+
 void Simulation::update_network() {
+    review_rails();
     std::vector<EdgeId> opened, closed;
     const bool roads_changed = review_roads();
     if (!world_.update_active_edges(&opened, &closed) && !roads_changed) return;

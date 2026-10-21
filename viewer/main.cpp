@@ -170,7 +170,7 @@ bool is_headline(const Event& e) {
     static const char* const kinds[] = {"famine", "famine_over", "ghost_town", "town_founded", "gang_takeover", "town_freed", "shortage", "gang_war", "gang_merged",
                                         "leader_killed", "house_founded",
                                         "house_closed", "route_changed", "reserve_exhausted", "output_begins", "rush", "road_closure",
-                                        "house_collapse", "firm_withdrawal", "road_improved", "road_worn", "trader_settled", "crop_failure", "vigilance_formed", "repopulating", "law_established", "bushwhack_notable", "cavalry_sent"};
+                                        "house_collapse", "firm_withdrawal", "rail_construction", "road_improved", "road_worn", "trader_settled", "crop_failure", "vigilance_formed", "repopulating", "law_established", "bushwhack_notable", "cavalry_sent"};
     for (const char* k : kinds) if (e.kind == k) return true;
     return false;
 }
@@ -761,6 +761,7 @@ int main(int argc, char** argv) {
             std::vector<Vector2> way;
             if (e.path.size() >= 2) for (const auto& pt : e.path) way.push_back(cam.to_screen(static_cast<float>(pt.first), static_cast<float>(pt.second)));
             else way = {cam.to_screen(static_cast<float>(a.x), static_cast<float>(a.y)), cam.to_screen(static_cast<float>(b.x), static_cast<float>(b.y))};
+            if (e.latent && e.from == LONG_MAX) continue;   // a railroad nobody has started building: nothing to draw
             if (!e.active) { for (std::size_t k = 1; k < way.size(); ++k) DrawLineEx(way[k - 1], way[k], 1.0f, {200, 120, 120, 120}); continue; }  // shut: a closed road or one not built yet
             const float danger = static_cast<float>(std::clamp(e.robbed_ema / 0.004, 0.0, 1.0));
             const float thick = e.mode == Mode::Rail ? 2.5f : e.mode == Mode::River ? 2.0f : 1.5f + 0.9f * static_cast<float>(e.road);   // worn trails thicken into wagon and graded roads

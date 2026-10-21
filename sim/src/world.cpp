@@ -118,7 +118,9 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         e.hazard = d.hazard >= 0 ? d.hazard : p.hazard[static_cast<int>(d.mode)];
         e.freight_miles = d.miles;
         e.travel_days = std::max(1.0, std::ceil(d.miles / p.speed[static_cast<int>(d.mode)]));
-        e.from = d.from; e.until = d.until; e.note = d.note; e.path = d.path; e.river_crossings = d.river_crossings; e.river_biggest = d.river_biggest;
+        e.from = d.from; e.until = d.until; e.note = d.note;
+        e.latent = d.latent;
+        if (e.latent) { e.earliest = d.from; e.from = LONG_MAX; }   // closed until the sim decides to lay the track e.path = d.path; e.river_crossings = d.river_crossings; e.river_biggest = d.river_biggest;
         const EdgeId id = static_cast<EdgeId>(edges.size());
         nodes[idx(d.a)].edges.push_back(id);
         nodes[idx(d.b)].edges.push_back(id);

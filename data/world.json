@@ -204,6 +204,13 @@
     { "a": "great_bend", "b": "ellsworth" },
     { "a": "kansas_city", "b": "great_bend", "mode": "rail", "from": "1872-07-01", "note": "Santa Fe reaches the Arkansas Valley (date approximate)" },
     { "a": "billings", "b": "miles_city", "mode": "rail", "from": "1882-03-01", "note": "Northern Pacific builds west up the Yellowstone (date approximate)" },
+    // Candidate lines the sim may lay when a town has grown enough (only with "rail_stages": 1 in the scenario; otherwise they stay unbuilt).
+    // These are not history: the Black Hills got its railroad in 1890 and Texas towns got theirs later or never. The dates are the earliest a company could start.
+    { "a": "cheyenne", "b": "deadwood", "mode": "rail", "latent": true, "from": "1876-06-01", "note": "the Union Pacific, building a Black Hills branch" },
+    { "a": "billings", "b": "bozeman", "mode": "rail", "latent": true, "from": "1882-06-01", "note": "the Northern Pacific" },
+    { "a": "bozeman", "b": "helena", "mode": "rail", "latent": true, "from": "1882-06-01", "note": "the Northern Pacific" },
+    { "a": "dodge_city", "b": "tascosa", "mode": "rail", "latent": true, "from": "1880-01-01", "note": "the Santa Fe, building into the Panhandle" },
+    { "a": "fort_worth", "b": "fort_griffin", "mode": "rail", "latent": true, "from": "1876-07-01", "note": "the Texas and Pacific" },
     { "a": "gainesville", "b": "fort_worth" },
     { "a": "gainesville", "b": "fort_sill" },
     { "a": "austin", "b": "galveston", "mode": "rail", "from": "1871-12-01", "note": "Houston and Texas Central reached Austin in 1871; the line runs to the Gulf" },

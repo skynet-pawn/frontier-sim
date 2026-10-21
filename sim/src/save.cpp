@@ -19,7 +19,7 @@ namespace frontier {
 
 namespace {
 constexpr char kMagic[8] = {'F', 'R', 'S', 'A', 'V', 'E', '0', '1'};
-constexpr std::uint32_t kStateVersion = 4;
+constexpr std::uint32_t kStateVersion = 5;
 }  // namespace
 
 // ---- struct field lists (found by argument-dependent lookup from the generic vector and pair code) ----
@@ -56,7 +56,7 @@ template <class Ar> void io(Ar& ar, Node& n) {
 
 // A route's definition (ends, miles, dates, path) comes from the data; only what changes is saved.
 template <class Ar> void io(Ar& ar, Edge& e) {
-    io(ar, e.blocked_until); io(ar, e.block_cause); io(ar, e.active);
+    io(ar, e.blocked_until); io(ar, e.block_cause); io(ar, e.active); io(ar, e.from);
     io(ar, e.robbed_ema); io(ar, e.transits_ema); io(ar, e.robbed_today); io(ar, e.transits_today);
     io(ar, e.traffic_today); io(ar, e.traffic_ema); io(ar, e.loot_today); io(ar, e.loot_ema); io(ar, e.road); io(ar, e.use_ema);
 }

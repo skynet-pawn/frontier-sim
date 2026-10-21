@@ -91,6 +91,7 @@ struct EdgeDef {
     double miles = 0;
     double hazard = -1;         // daily chance of a mishap; <0 means use the mode default
     long from = LONG_MIN, until = LONG_MAX;
+    bool latent = false;        // a rail link the sim may decide to build (see Params rail_stages); `from` is then the earliest date
     std::string note;           // why it opens or closes, shown in the event log
     std::vector<std::pair<double, double>> path;   // the way the route runs over the terrain (map miles, a to b); empty = straight
     int river_crossings = 0;    // rivers on the way (a ford, ferry or bridge each) and the biggest one's size
@@ -305,6 +306,14 @@ struct Params {
     double assumed_gang_men = 8;
     double risk_prior = 0.002;               // prior daily robbery risk per trader on any edge
     double risk_prior_weight = 0.3;
+    // Railroads that build where towns are worth it. With rail_stages 1 the latent rail links in world.json are laid by the sim:
+    // each month, if fewer than rail_max_building lines are under construction, the railroad starts the link whose far town
+    // (one end already on rail) is biggest, provided it has rail_build_pop people. Track takes miles / rail_build_rate days.
+    int rail_stages = 0;
+    int rail_review_days = 30;
+    double rail_build_pop = 1200;
+    double rail_build_rate = 2.0;            // miles of track a day (the Union Pacific laid 1-2, with a big crew, on flat ground)
+    int rail_max_building = 2;
     // Roads that form from traffic. Guesses: a graded, bridged road roughly halved a wagon's cost and a third of its time.
     int road_review_days = 90;               // how often the network is reviewed (the route table is rebuilt only if a road changed)
     double road_use_alpha = 0.005;           // smoothing of wagons a day (about a 140-day half-life)
