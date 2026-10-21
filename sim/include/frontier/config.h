@@ -309,7 +309,7 @@ struct Params {
     // Railroads that build where towns are worth it. With rail_stages 1 the latent rail links in world.json are laid by the sim:
     // each month, if fewer than rail_max_building lines are under construction, the railroad starts the link whose far town
     // (one end already on rail) is biggest, provided it has rail_build_pop people. Track takes miles / rail_build_rate days.
-    int rail_stages = 0;
+    int rail_stages = 1;
     int rail_review_days = 30;
     double rail_build_pop = 1200;
     double rail_build_rate = 2.0;            // miles of track a day (the Union Pacific laid 1-2, with a big crew, on flat ground)
