@@ -19,7 +19,7 @@ namespace frontier {
 
 namespace {
 constexpr char kMagic[8] = {'F', 'R', 'S', 'A', 'V', 'E', '0', '1'};
-constexpr std::uint32_t kStateVersion = 3;
+constexpr std::uint32_t kStateVersion = 4;
 }  // namespace
 
 // ---- struct field lists (found by argument-dependent lookup from the generic vector and pair code) ----
@@ -74,7 +74,7 @@ template <class Ar> void io(Ar& ar, Trader& t) {
 
 template <class Ar> void io(Ar& ar, House& h) {
     io(ar, h.id); io(ar, h.alive); io(ar, h.eastern); io(ar, h.founder); io(ar, h.seat); io(ar, h.cash); io(ar, h.start_capital);
-    io(ar, h.wealth); io(ar, h.outfits); io(ar, h.founded); io(ar, h.last_hire);
+    io(ar, h.wealth); io(ar, h.outfits); io(ar, h.founded); io(ar, h.last_hire); io(ar, h.retired);
     io(ar, h.base_risk_aversion); io(ar, h.risk_aversion); io(ar, h.fear);
 }
 

@@ -412,6 +412,8 @@ struct Params {
     double patience_min_days = 365, patience_max_days = 1825;   // how long he will wait for it (per trader)
     double income_half_life = 60;                       // days over which his sense of what he earns forgets
     double house_min_income = 3;                        // $/day: a man who is not making money does not multiply his losses
+    double house_retire_chance = 0.004;                 // daily, once the owner holds his pile in the house's cash (grows with how much more he holds)
+    double house_retire_share = 0.6;                    // of the house's cash he takes out when he retires; the rest stays to keep the wagons rolling
     int house_small_outfits = 3;                        // a house this small hires with no reserve in hand, as one man with a second wagon would
     double settle_cash = 5000;               // below this stake a freelancer has nothing to cash out
     double settle_chance = 0.05;             // per sale, at settle_ref_cash; the temptation grows in proportion to what he holds

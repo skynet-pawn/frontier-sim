@@ -364,7 +364,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_I(firms_initial); P_D(firm_capital_min); P_D(firm_capital_max); P_D(firm_capacity_lb); P_D(firm_upkeep);
     P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_scarcity_weight); P_D(scarcity_ref); P_D(scarcity_alpha); P_D(scarcity_memory); P_D(entry_danger_floor);
     P_D(firm_entry_rate); P_D(firm_hurdle); P_D(return_alpha); P_D(danger_ref); P_D(danger_alpha); P_D(settle_cash);
-    P_D(settle_chance); P_D(settle_ref_cash); P_D(settle_chance_cap); P_D(goal_min); P_D(goal_max); P_D(patience_min_days); P_D(patience_max_days); P_D(income_half_life); P_D(house_min_income); P_I(house_small_outfits);
+    P_D(settle_chance); P_D(settle_ref_cash); P_D(settle_chance_cap); P_D(goal_min); P_D(goal_max); P_D(patience_min_days); P_D(patience_max_days); P_D(income_half_life); P_D(house_min_income); P_I(house_small_outfits); P_D(house_retire_chance); P_D(house_retire_share);
     P_D(house_float); P_D(house_found_cash); P_D(house_found_chance); P_D(house_nerve); P_I(house_max_outfits); P_I(house_hire_days); P_D(settle_invest_share); P_D(firm_withdraw_rate); P_D(price_uncertainty_weight);
     P_D(spot_uncertainty_base); P_D(spot_uncertainty_thin);
     P_D(gang_encounter_prob); P_D(gang_upkeep); P_D(gang_recruit_cost); P_I(gang_min_men); P_I(gang_max_men);

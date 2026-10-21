@@ -61,6 +61,26 @@ void Simulation::houses_day() {
         House& h = houses_[i];
         if (!h.alive) continue;
 
+        // The owner of a house, like any trader, is tempted to take his pile and stop: it is dangerous work and a fortune is no use
+        // to a dead man. When the house holds in cash what he set out to get, he retires; he takes most of it (invested in the
+        // seat town as a settler's stake is) and the house carries on under managers, a little poorer, with his memory of the roads.
+        if (!h.eastern && !h.retired && h.outfits > 0) {
+            const double goal = goal_of(h.founder);
+            if (h.cash >= goal && rng_.chance(std::min(0.05, p.house_retire_chance * h.cash / goal))) {
+                const double take = h.cash * p.house_retire_share;
+                Node& seat = world_.nodes[World::idx(h.seat)];
+                const double invest = seat.fixed_market ? 0.0 : take * p.settle_invest_share;   // a retiree puts his stake into a frontier town, not the East
+                seat.cash += invest;
+                world_.record(MoneyFlow::TraderExit, -(take - invest));
+                h.cash -= take;
+                h.retired = true;
+                log_.with({field("house", h.id), field("trader", h.founder), field("took", take), field("invested", invest), field("outfits", h.outfits)});
+                log_.add(world_.today, EventType::Trader, "house_owner_retired", h.seat,
+                         strf("The owner of freight house #%d retires at %s with %s", h.id, nname(h.seat).c_str(), money(take).c_str()),
+                         strf("the house held %s in cash, more than the %s he set out to make; managers run its %d outfits", money(h.cash + take).c_str(), money(goal).c_str(), h.outfits));
+            }
+        }
+
         // An eastern firm that finds returns below its hurdle takes its capital back East, as a lone firm outfit would.
         if (h.eastern && return_ema_ < p.firm_hurdle && h.cash > 1.3 * h.start_capital &&
             rng_.chance(p.firm_withdraw_rate * (p.firm_hurdle - return_ema_) / p.firm_hurdle)) {

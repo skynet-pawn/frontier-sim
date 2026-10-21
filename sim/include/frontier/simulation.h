@@ -104,6 +104,7 @@ struct House {
     double wealth = 0;           // cash plus everything in the outfits, refreshed each morning
     int outfits = 0;
     long founded = 0, last_hire = -100000;
+    bool retired = false;        // the owner has cashed out; the house runs on under managers
     double base_risk_aversion = 1, risk_aversion = 1;   // the owner's temperament, and what experience has made of it
     std::vector<std::pair<EdgeId, double>> fear;        // the owner's memory of dangerous roads, shared by every outfit
 };
@@ -424,7 +425,8 @@ private:
     void spawn_trader(NodeId at, bool firm);
     void trader_entry();
     void settle_trader(Trader& t);
-    double trait(const Trader& t, std::uint64_t salt) const;   // a fixed temperament in [0,1) drawn from his id and the seed (nothing stored)
+    double trait(int id, std::uint64_t salt) const;   // a fixed temperament in [0,1) drawn from a trader's id and the seed (nothing stored)
+    double goal_of(int id) const;                     // the pile he is after
     bool wants_house(const Trader& t) const;    // would a house get him rich faster than he is getting there?
     bool maybe_settle(Trader& t);
     bool review_roads();             // raise and wear down trail edges by how many wagons use them; true if any changed   // a freelancer with his pile may settle where he stands; true if he did

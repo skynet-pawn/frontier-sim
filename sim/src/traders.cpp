@@ -121,12 +121,17 @@ void Simulation::settle_trader(Trader& t) {
     t.pending_spend = 0;
 }
 
-double Simulation::trait(const Trader& t, std::uint64_t salt) const {
-    std::uint64_t x = (static_cast<std::uint64_t>(t.id) + 1) * 0x9E3779B97F4A7C15ULL ^ (sc_.seed * 0xBF58476D1CE4E5B9ULL) ^ (salt * 0x94D049BB133111EBULL);   // splitmix64 finaliser
+double Simulation::trait(int id, std::uint64_t salt) const {
+    std::uint64_t x = (static_cast<std::uint64_t>(id) + 1) * 0x9E3779B97F4A7C15ULL ^ (sc_.seed * 0xBF58476D1CE4E5B9ULL) ^ (salt * 0x94D049BB133111EBULL);   // splitmix64 finaliser
     x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
     x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
     x ^= x >> 31;
     return static_cast<double>(x >> 11) * (1.0 / 9007199254740992.0);
+}
+
+double Simulation::goal_of(int id) const {
+    const Params& p = world_.params;
+    return std::exp(std::log(p.goal_min) + trait(id, 1) * (std::log(p.goal_max) - std::log(p.goal_min)));
 }
 
 // Founding a house is a way to get rich faster. Each freelancer has a pile he is after and a time he will wait for it
@@ -137,9 +142,9 @@ bool Simulation::wants_house(const Trader& t) const {
     const Params& p = world_.params;
     if (t.firm) return true;
     if (t.income < p.house_min_income) return false;
-    const double goal = std::exp(std::log(p.goal_min) + trait(t, 1) * (std::log(p.goal_max) - std::log(p.goal_min)));
+    const double goal = goal_of(t.id);
     if (t.worth >= goal) return false;
-    const double patience = p.patience_min_days + trait(t, 2) * (p.patience_max_days - p.patience_min_days);
+    const double patience = p.patience_min_days + trait(t.id, 2) * (p.patience_max_days - p.patience_min_days);
     return (goal - t.worth) / t.income > patience;
 }
 
