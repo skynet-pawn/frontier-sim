@@ -58,6 +58,24 @@ costs, risks and log entries. `add_trader(..., controlled=true)` makes an outfit
 **Events** carry a stable `kind` and typed `fields` (who, where, how much) next to the human-readable text and
 cause, ready for rumors, headlines or a viewer. Eastern markets have finite depth: a big sale depresses the price.
 
+## Watching and playing
+
+The viewer is an optional raylib build (`cmake -S . -B build_viewer -DFRONTIER_BUILD_VIEWER=ON`). It draws the running world over
+a shaded-relief map: towns, wagons, gangs and their camps, roads that thicken as traffic wears them in, a price board (B), a
+town panel and the headlines. Click a town or a wagon to read what it knows.
+
+A world is slow to history-simulate (the 4,694-node map takes about 25 minutes for ten years) so a start can be saved and opened
+at once:
+
+```
+python tools/make_start.py data/slices/full start.sav --days 3650
+frontier_viewer --data data/slices/full --load start.sav
+```
+
+**Play mode.** Select a town and press G (shift-G for a drover), or start with `--play "Kansas City"`. You run one outfit through the
+same `act_buy`, `act_travel` and `act_sell` the AI uses: pick a good, click the town to haul it to, hire guards, set off. The world waits
+while you decide in town and runs while you travel. Snapshots load only into the same data folder and the same build, so make them on demand.
+
 ## How it works
 
 - **World** (`data/world.json`, `data/goods.json`): nodes (towns, forts, camps, ranges, eastern markets) and

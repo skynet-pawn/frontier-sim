@@ -115,18 +115,23 @@ void Simulation::settle_trader(Trader& t) {
     log_.with({field("trader", t.id), field("node", n.name), field("stake", t.cash), field("invested", invest)});
     log_.add(world_.today, EventType::Trader, "trader_settled", t.at,
              strf("Trader #%d settles in %s with a stake of %s", t.id, n.name.c_str(), money(t.cash).c_str()),
-             strf("he made his pile and put %s into a business in town", money(invest).c_str()));
+             strf("he made his pile and put %s into a business in town", money(invest).c_str()), t.cash < 40000);   // only a big fortune is news
     t.alive = false;
     t.cash = 0;
     t.pending_spend = 0;
 }
 
-double Simulation::trait(const Trader& t, std::uint64_t salt) const {
-    std::uint64_t x = (static_cast<std::uint64_t>(t.id) + 1) * 0x9E3779B97F4A7C15ULL ^ (sc_.seed * 0xBF58476D1CE4E5B9ULL) ^ (salt * 0x94D049BB133111EBULL);   // splitmix64 finaliser
+double Simulation::trait(int id, std::uint64_t salt) const {
+    std::uint64_t x = (static_cast<std::uint64_t>(id) + 1) * 0x9E3779B97F4A7C15ULL ^ (sc_.seed * 0xBF58476D1CE4E5B9ULL) ^ (salt * 0x94D049BB133111EBULL);   // splitmix64 finaliser
     x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
     x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
     x ^= x >> 31;
     return static_cast<double>(x >> 11) * (1.0 / 9007199254740992.0);
+}
+
+double Simulation::goal_of(int id) const {
+    const Params& p = world_.params;
+    return std::exp(std::log(p.goal_min) + trait(id, 1) * (std::log(p.goal_max) - std::log(p.goal_min)));
 }
 
 // Founding a house is a way to get rich faster. Each freelancer has a pile he is after and a time he will wait for it
@@ -137,9 +142,9 @@ bool Simulation::wants_house(const Trader& t) const {
     const Params& p = world_.params;
     if (t.firm) return true;
     if (t.income < p.house_min_income) return false;
-    const double goal = std::exp(std::log(p.goal_min) + trait(t, 1) * (std::log(p.goal_max) - std::log(p.goal_min)));
+    const double goal = goal_of(t.id);
     if (t.worth >= goal) return false;
-    const double patience = p.patience_min_days + trait(t, 2) * (p.patience_max_days - p.patience_min_days);
+    const double patience = p.patience_min_days + trait(t.id, 2) * (p.patience_max_days - p.patience_min_days);
     return (goal - t.worth) / t.income > patience;
 }
 
@@ -344,7 +349,7 @@ const std::vector<NodeId>& Simulation::horizon(NodeId n) {
                 world_.route(static_cast<NodeId>(s), reach[i], scratch_route_);
                 for (EdgeId eid : scratch_route_) {
                     const Edge& e = world_.edges[World::idx(eid)];
-                    horizon_path_[s][i].miles[static_cast<int>(e.mode)] += e.miles;
+                    horizon_path_[s][i].miles[static_cast<int>(e.mode)] += e.freight_miles;
                     horizon_path_[s][i].days += e.travel_days;
                 }
             }
@@ -366,7 +371,7 @@ void Simulation::plan_paths(const Trader& t, NodeId from, std::vector<PathInfo>&
         for (EdgeId eid : scratch_route_) {
             const Edge& e = world_.edges[World::idx(eid)];
             pi.days += e.travel_days;
-            pi.miles[static_cast<int>(e.mode)] += e.miles;
+            pi.miles[static_cast<int>(e.mode)] += e.freight_miles;
             pi.gang_risk += edge_risk(t, eid) * e.travel_days;
             pi.hazard_risk += e.hazard * e.travel_days * world_.params.mishap_loss_fraction;
         }
@@ -422,7 +427,7 @@ bool Simulation::sell_along_the_way(Trader& t) {
     double miles[kModeCount] = {0, 0, 0}, days = 0, gang_risk = 0, hazard_risk = 0;
     for (std::size_t i = t.leg; i < t.route.size(); ++i) {
         const Edge& e = world_.edges[World::idx(t.route[i])];
-        miles[static_cast<int>(e.mode)] += e.miles;
+        miles[static_cast<int>(e.mode)] += e.freight_miles;
         days += e.travel_days;
         gang_risk += edge_risk(t, t.route[i]) * e.travel_days;
         hazard_risk += e.hazard * e.travel_days * p.mishap_loss_fraction;
@@ -674,7 +679,7 @@ ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
         double miles[kModeCount] = {0, 0, 0};
         for (EdgeId eid : scratch_route_) {
             const Edge& e = world_.edges[World::idx(eid)];
-            miles[static_cast<int>(e.mode)] += e.miles;
+            miles[static_cast<int>(e.mode)] += e.freight_miles;
         }
         const double freight = world_.freight_unit_cost(t.cargo, miles) * t.qty;
         t.cash -= freight;

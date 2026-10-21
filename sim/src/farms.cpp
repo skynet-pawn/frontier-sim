@@ -54,7 +54,7 @@ double Simulation::crop_gate_ratio(NodeId id, GoodId fl, NodeId& outlet) {
         if (static_cast<NodeId>(d) == id || (!dn.fixed_market && !dn.founded)) continue;
         if (!world_.route(id, static_cast<NodeId>(d), scratch_route_)) continue;
         double miles[kModeCount] = {0, 0, 0};
-        for (EdgeId e : scratch_route_) miles[static_cast<int>(world_.edges[World::idx(e)].mode)] += world_.edges[World::idx(e)].miles;
+        for (EdgeId e : scratch_route_) miles[static_cast<int>(world_.edges[World::idx(e)].mode)] += world_.edges[World::idx(e)].freight_miles;
         const double net = world_.quote_sell(static_cast<NodeId>(d), fl, q) / q - world_.freight_unit_cost(fl, miles);
         if (net > best) {
             best = net;
@@ -248,7 +248,7 @@ void Simulation::ship_farm_goods(NodeId id, Node& n) {
         for (NodeId m : markets_) {
             if (!world_.route(id, m, scratch_route_)) continue;
             double miles[kModeCount] = {0, 0, 0};
-            for (EdgeId e : scratch_route_) miles[static_cast<int>(world_.edges[World::idx(e)].mode)] += world_.edges[World::idx(e)].miles;
+            for (EdgeId e : scratch_route_) miles[static_cast<int>(world_.edges[World::idx(e)].mode)] += world_.edges[World::idx(e)].freight_miles;
             const double freight = world_.freight_unit_cost(g, miles);
             const double net = world_.quote_sell(m, g, q) / q - freight;
             if (net > best_net) {

@@ -234,6 +234,7 @@ WorldDef load_world(const std::string& dir) {
         e.hazard = je.value("hazard", -1.0);
         e.from = date_or(je, "from", LONG_MIN);
         e.until = date_or(je, "until", LONG_MAX);
+        e.latent = je.value("latent", false);
         e.note = je.value("note", "");
         w.edges.push_back(e);
     }
@@ -356,7 +357,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_D(drifter_decay); P_D(news_paper_pop); P_I(bush_stages); P_D(bush_rate); P_D(bush_take); P_D(bush_resident); P_D(bush_kill); P_D(bush_outrage_resident); P_D(bush_outrage_stranger); P_D(bush_seen); P_D(bush_notable); P_D(bush_notable_outrage); P_D(army_range); P_D(army_skill); P_I(news_stages); P_I(news_paper_days); P_D(news_speed); P_D(news_range); P_I(news_keep); P_D(news_fame); P_D(news_fame_cap); P_I(fame_stages); P_I(posse_rout_pause); P_D(posse_base_skill); P_I(gang_large_men); P_D(fame_robbery); P_D(fame_toll); P_D(fame_kill); P_D(fame_fight); P_D(fame_decay); P_D(fame_posse_min); P_D(fame_catch_floor); P_D(fame_catch_cap); P_D(fame_flee); P_D(fame_flee_trigger); P_D(fame_size_ref); P_D(gang_flee_range); P_D(law_presence_none); P_D(law_presence_marshal); P_D(law_tax_rate); P_I(law_stages); P_D(law_marshal_pop); P_I(law_marshal_days); P_D(law_marshal_min_pop); P_D(law_marshal_outrage); P_D(law_sheriff_pop); P_I(law_sheriff_days); P_I(law_lapse_days); P_I(posse_max_men_marshal); P_D(vigilance_cost_per_man); P_D(visit_spend); P_D(garrison_pay_per_soldier); P_D(contract_backlog_days); P_D(quartermaster_share); P_I(quartermaster_interval_days); P_D(depot_floor_days); P_D(guard_visit_spend); P_D(visit_spend_value_rate); P_I(plan_stop_costs); P_I(books_stages);
     P_D(trader_capacity_lb); P_D(drover_fraction); P_D(trader_upkeep); P_D(guard_wage); P_I(guard_step);
     P_I(max_guards); P_D(trader_base_defenders); P_D(guard_strength); P_D(assumed_gang_men);
-    P_D(risk_prior); P_D(risk_prior_weight); P_D(risk_ema_alpha); P_D(fear_bump);
+    P_D(risk_prior); P_D(risk_prior_weight); P_D(risk_ema_alpha); P_I(road_review_days); P_I(rail_stages); P_I(rail_review_days); P_D(rail_build_pop); P_D(rail_build_rate); P_I(rail_max_building); P_D(road_use_alpha); P_D(road_down_share); P_D(road_up_wagon); P_D(road_up_graded); P_D(road_speed_wagon); P_D(road_speed_graded); P_D(road_freight_wagon); P_D(road_freight_graded); P_D(fear_bump);
     P_D(fear_decay); P_D(risk_aversion_min); P_D(risk_aversion_max); P_D(firm_risk_aversion_min); P_D(firm_risk_aversion_max); P_D(risk_aversion_bump);
     P_D(risk_aversion_cap); P_D(risk_aversion_decay); P_D(info_noise); P_D(inbound_awareness); P_D(min_profit);
     P_D(avail_fraction); P_D(local_reserve_days); P_D(deadhead_discount); P_D(lookahead_weight); P_I(merchant_interval_days); P_D(merchant_min_pop); P_D(merchant_reorder_days); P_D(merchant_safety_days); P_D(merchant_cycle_days); P_I(trade_horizon); P_D(winter_cover_days); P_D(winter_min_y); P_I(winter_lay_in_month); P_D(merchant_cash_share); P_D(merchant_margin); P_D(contract_share); P_D(contract_premium); P_I(contract_memory_days); P_I(contract_term_days); P_I(contract_max_behind_days); P_I(carrier_jobs); P_D(job_preference); P_D(job_rate_share); 
@@ -364,7 +365,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_I(firms_initial); P_D(firm_capital_min); P_D(firm_capital_max); P_D(firm_capacity_lb); P_D(firm_upkeep);
     P_D(firm_drover_fraction); P_D(freelancer_entry_rate); P_D(story_profit_threshold); P_D(story_ref); P_D(story_alpha); P_D(story_fade); P_D(entry_scarcity_weight); P_D(scarcity_ref); P_D(scarcity_alpha); P_D(scarcity_memory); P_D(entry_danger_floor);
     P_D(firm_entry_rate); P_D(firm_hurdle); P_D(return_alpha); P_D(danger_ref); P_D(danger_alpha); P_D(settle_cash);
-    P_D(settle_chance); P_D(settle_ref_cash); P_D(settle_chance_cap); P_D(goal_min); P_D(goal_max); P_D(patience_min_days); P_D(patience_max_days); P_D(income_half_life); P_D(house_min_income); P_I(house_small_outfits);
+    P_D(settle_chance); P_D(settle_ref_cash); P_D(settle_chance_cap); P_D(goal_min); P_D(goal_max); P_D(patience_min_days); P_D(patience_max_days); P_D(income_half_life); P_D(house_min_income); P_I(house_small_outfits); P_D(house_retire_chance); P_D(house_retire_share);
     P_D(house_float); P_D(house_found_cash); P_D(house_found_chance); P_D(house_nerve); P_I(house_max_outfits); P_I(house_hire_days); P_D(settle_invest_share); P_D(firm_withdraw_rate); P_D(price_uncertainty_weight);
     P_D(spot_uncertainty_base); P_D(spot_uncertainty_thin);
     P_D(gang_encounter_prob); P_D(gang_upkeep); P_D(gang_recruit_cost); P_I(gang_min_men); P_I(gang_max_men);

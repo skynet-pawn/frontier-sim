@@ -19,7 +19,7 @@ namespace frontier {
 
 namespace {
 constexpr char kMagic[8] = {'F', 'R', 'S', 'A', 'V', 'E', '0', '1'};
-constexpr std::uint32_t kStateVersion = 2;
+constexpr std::uint32_t kStateVersion = 5;
 }  // namespace
 
 // ---- struct field lists (found by argument-dependent lookup from the generic vector and pair code) ----
@@ -56,9 +56,9 @@ template <class Ar> void io(Ar& ar, Node& n) {
 
 // A route's definition (ends, miles, dates, path) comes from the data; only what changes is saved.
 template <class Ar> void io(Ar& ar, Edge& e) {
-    io(ar, e.blocked_until); io(ar, e.block_cause); io(ar, e.active);
+    io(ar, e.blocked_until); io(ar, e.block_cause); io(ar, e.active); io(ar, e.from);
     io(ar, e.robbed_ema); io(ar, e.transits_ema); io(ar, e.robbed_today); io(ar, e.transits_today);
-    io(ar, e.traffic_today); io(ar, e.traffic_ema); io(ar, e.loot_today); io(ar, e.loot_ema);
+    io(ar, e.traffic_today); io(ar, e.traffic_ema); io(ar, e.loot_today); io(ar, e.loot_ema); io(ar, e.road); io(ar, e.use_ema);
 }
 
 template <class Ar> void io(Ar& ar, Trader& t) {
@@ -74,7 +74,7 @@ template <class Ar> void io(Ar& ar, Trader& t) {
 
 template <class Ar> void io(Ar& ar, House& h) {
     io(ar, h.id); io(ar, h.alive); io(ar, h.eastern); io(ar, h.founder); io(ar, h.seat); io(ar, h.cash); io(ar, h.start_capital);
-    io(ar, h.wealth); io(ar, h.outfits); io(ar, h.founded); io(ar, h.last_hire);
+    io(ar, h.wealth); io(ar, h.outfits); io(ar, h.founded); io(ar, h.last_hire); io(ar, h.retired);
     io(ar, h.base_risk_aversion); io(ar, h.risk_aversion); io(ar, h.fear);
 }
 
@@ -264,6 +264,7 @@ void Simulation::load_state(const std::string& path) {
     // Derived tables are rebuilt from the restored state, not stored. The route table follows the active routes; the trader
     // horizons follow the route table. The version number is restored so caches keyed on it behave as they did.
     const long saved_version = world_.route_version;
+    for (Edge& e : world_.edges) world_.apply_road(e);   // travel days and freight miles follow the saved road levels
     world_.rebuild_routes();
     world_.route_version = saved_version;
     horizon_version_ = -1;
