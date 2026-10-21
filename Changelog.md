@@ -9,7 +9,7 @@ player yet; the next big pieces are real world generation and the first playable
 
 ## 2026-10-21 (the ground view)
 
-- (pending hash) **Viewer: a ground view at RimWorld scale** (V on a town, or `--ground TOWN`): terrain, rivers, roads and rails, towns laid out as streets and buildings (kept off the water), parked wagons and gang camps, and people who walk the streets, stop to talk, go indoors at night and slow down when the town is hungry. Hover shows a role. The drifter walks by click or WASD and is stopped by houses and deep rivers. Nothing drawn here decides an outcome. No doors, trading or reactions yet.
+- (`fb0ff9c`) **Viewer: a ground view at RimWorld scale** (V on a town, or `--ground TOWN`): terrain, rivers, roads and rails, towns laid out as streets and buildings (kept off the water), parked wagons and gang camps, and people who walk the streets, stop to talk, go indoors at night and slow down when the town is hungry. Hover shows a role. The drifter walks by click or WASD and is stopped by houses and deep rivers. Nothing drawn here decides an outcome. No doors, trading or reactions yet.
 - **Viewer: a serif font** (Liberation Serif, SIL OFL, in `viewer/assets/`) and tables laid out by column so the town list, buy list and price board line up. `--board` opens the price board.
 
 ## 2026-10-21 (railroads that build, a start tool)
