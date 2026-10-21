@@ -11,6 +11,23 @@ player yet; the next big pieces are real world generation and the first playable
 
 - (no code) **Lead stages confirmed on 3 seeds** (famines 3, 3, 3 against 32 to 46 without; starved 2.6k to 4.1k against 15.6k to 18k; traders 5.4k to 5.7k against 1.5k; money $224M to $253M against $128M to $138M). The 3.7 times traders are mostly freight-house outfits following 2.3 times more orders and 27% more towns. A side finding: traders can go into debt for freight billed on departure, and retired traders' debts are written off against the East (+$127M of the $253M, +$40M in the baseline). See CLAUDE.md.
 
+## 2026-10-21 (what traders really spend)
+
+- (3354c66) **Trade ledger, stop spending in the planner, honest profit books.** The batch report now has a trade ledger
+  (`TradeBook`): per kind of outfit, by year and by good, what traders bought, paid in freight, earned, spent on upkeep, guards and
+  at every town stop, and was paid for freight jobs. It showed that lone traders lost about $148 a load (-$4.9M over six years)
+  because the party spends $3 plus $1 a guard plus 1.5% of the cargo's value at every stop and the trip planner never counted it
+  (it was $410 a load, more than the goods cost); that freight jobs (284,000 against 34,000 speculative loads, paying $15 each)
+  were a loss for the carrier; and that the 'profit per trader' figure (-3 early, -9 late) included the running costs of town-hired
+  convoys, which a town pays. Three switches, all on in the generated scenario and off elsewhere (the original maps behave as before):
+  `plan_stop_costs` (traders and job-takers count stop spending when they judge a trip), and `books_stages` (convoy costs stay out
+  of the profit total, which also feeds eastern firms' reported return; a carrier pays no value-based spending on a supplier's
+  goods). From the day-2,200 checkpoint (seed 1, years 7 to 12): lone traders' net cash per load -$148 -> -$53 (planner only) ->
+  +$14 (all three), total -$4.9M -> +$0.5M; the profit statistic -5 to -10 -> +2 to +9; eastern firms 3 -> 7; 5-year failure of later
+  entrants 41.9% -> 45.0% (starting lone traders 50.4%). Noise to remember: famine episodes 3 / 1 / 5 across the three variants, from
+  one checkpoint and seed.
+- (3354c66) The generated world now starts with 1,500 lone traders instead of 9,654 (`tools/gen_towns.py` `start-traders`).
+
 ## 2026-10-20 (trader cohorts and the starting crowd)
 
 - (5b6899b, with the notes in this commit) **Trader cohorts.** Each batch run now follows every trader by id and reports, for lone
@@ -22,7 +39,7 @@ player yet; the next big pieces are real world generation and the first playable
   (scratch copies, one seed) crash less but settle at the same 700 to 1,000 lone traders; the late world barely changes (4,300 to
   5,600 traders, 5 or 6 famines). Overall left / ever is about 65% (51 to 75% is the user's target range). Nobody ever settles
   rich, and the average profit per trader keeps falling (-1 on day 30, -7 to -14 at the end): the trader problem is next. The
-  generator still writes 9,654; a start near 1,500 is to be confirmed on three seeds. The freight write-off (+$127M of $253M) is
+  generator now writes 1,500 (the user's call; to be confirmed on three seeds). The freight write-off (+$127M of $253M) is
   left as it is.
 
 ## 2026-10-20 (save and reload)
