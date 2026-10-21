@@ -305,6 +305,13 @@ struct Params {
     double assumed_gang_men = 8;
     double risk_prior = 0.002;               // prior daily robbery risk per trader on any edge
     double risk_prior_weight = 0.3;
+    // Roads that form from traffic. Guesses: a graded, bridged road roughly halved a wagon's cost and a third of its time.
+    int road_review_days = 90;               // how often the network is reviewed (the route table is rebuilt only if a road changed)
+    double road_use_alpha = 0.005;           // smoothing of wagons a day (about a 140-day half-life)
+    double road_up_wagon = 2.5, road_up_graded = 10.0;   // wagons a day that raise a trail to a wagon road, and a wagon road to a graded road
+    double road_down_share = 0.4;            // a road falls back a level when use drops below this share of what raised it
+    double road_speed_wagon = 1.2, road_speed_graded = 1.4;
+    double road_freight_wagon = 0.8, road_freight_graded = 0.6;
     double risk_ema_alpha = 0.03;
     double fear_bump = 0.04;                 // daily risk a trader adds to an edge after being robbed there
     double fear_decay = 0.01;

@@ -169,7 +169,7 @@ bool Simulation::cheapest_source(NodeId town, GoodId g, double load_units, NodeI
         double gang_risk = 0;
         for (EdgeId eid : scratch_route_) {
             const Edge& e = world_.edges[World::idx(eid)];
-            miles[static_cast<int>(e.mode)] += e.miles;
+            miles[static_cast<int>(e.mode)] += e.freight_miles;
             gang_risk += (e.robbed_ema + p.risk_prior * p.risk_prior_weight) / (e.transits_ema + p.risk_prior_weight) * e.travel_days;
         }
         const double q = std::min(load_units, spare);

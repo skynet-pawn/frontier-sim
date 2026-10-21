@@ -116,6 +116,7 @@ World::World(const WorldDef& def, const Params& p, long start_day) : goods(def.g
         Edge e;
         e.a = d.a; e.b = d.b; e.mode = d.mode; e.miles = d.miles;
         e.hazard = d.hazard >= 0 ? d.hazard : p.hazard[static_cast<int>(d.mode)];
+        e.freight_miles = d.miles;
         e.travel_days = std::max(1.0, std::ceil(d.miles / p.speed[static_cast<int>(d.mode)]));
         e.from = d.from; e.until = d.until; e.note = d.note; e.path = d.path; e.river_crossings = d.river_crossings; e.river_biggest = d.river_biggest;
         const EdgeId id = static_cast<EdgeId>(edges.size());
@@ -178,7 +179,7 @@ void World::refresh_contract_prices() {
                 if (source <= 0 || m == ni) continue;
                 if (!route(static_cast<NodeId>(m), static_cast<NodeId>(ni), path)) continue;
                 double miles[kModeCount] = {0, 0, 0};
-                for (EdgeId e : path) miles[static_cast<int>(edges[idx(e)].mode)] += edges[idx(e)].miles;
+                for (EdgeId e : path) miles[static_cast<int>(edges[idx(e)].mode)] += edges[idx(e)].freight_miles;
                 const double cost = source * (1 + params.spread / 2) + freight_unit_cost(c.good, miles);
                 best = std::min(best, cost);
             }
@@ -457,6 +458,13 @@ double World::freight_unit_cost(GoodId g, const double miles_by_mode[kModeCount]
 }
 
 // ---------------------------------------------------------------- network
+
+void World::apply_road(Edge& e) const {
+    const int level = e.mode == Mode::Trail ? e.road : 0;
+    const double speed = params.speed[static_cast<int>(e.mode)] * (level == 0 ? 1.0 : level == 1 ? params.road_speed_wagon : params.road_speed_graded);
+    e.travel_days = std::max(1.0, std::ceil(e.miles / speed));
+    e.freight_miles = e.miles * (level == 0 ? 1.0 : level == 1 ? params.road_freight_wagon : params.road_freight_graded);
+}
 
 bool World::update_active_edges(std::vector<EdgeId>* opened, std::vector<EdgeId>* closed) {
     bool changed = false;

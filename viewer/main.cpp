@@ -525,7 +525,7 @@ int main(int argc, char** argv) {
             else way = {cam.to_screen(static_cast<float>(a.x), static_cast<float>(a.y)), cam.to_screen(static_cast<float>(b.x), static_cast<float>(b.y))};
             if (!e.active) { for (std::size_t k = 1; k < way.size(); ++k) DrawLineEx(way[k - 1], way[k], 1.0f, {200, 120, 120, 120}); continue; }  // shut: a closed road or one not built yet
             const float danger = static_cast<float>(std::clamp(e.robbed_ema / 0.004, 0.0, 1.0));
-            const float thick = e.mode == Mode::Rail ? 2.5f : e.mode == Mode::River ? 2.0f : 1.5f;
+            const float thick = e.mode == Mode::Rail ? 2.5f : e.mode == Mode::River ? 2.0f : 1.5f + 0.9f * static_cast<float>(e.road);   // worn trails thicken into wagon and graded roads
             for (std::size_t k = 1; k < way.size(); ++k) DrawLineEx(way[k - 1], way[k], thick, lerp(mode_color(e.mode), {200, 30, 20, 255}, danger));
         }
         for (const Gang& g : sim.gangs()) {

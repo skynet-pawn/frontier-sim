@@ -115,9 +115,39 @@ void Simulation::step() {
 
 // ---------------------------------------------------------------- network and shocks
 
+// Roads form where wagons keep going. Settlers and teamsters wore the track in, counties graded and bridged the busy ones,
+// and a road nobody used washed out. Reviewed every road_review_days; the route table is rebuilt only if one changed.
+// (The work is done by the travellers and the towns at either end, so no money moves.)
+bool Simulation::review_roads() {
+    const Params& p = world_.params;
+    if (p.road_review_days <= 0 || world_.today % p.road_review_days != 0) return false;
+    bool changed = false;
+    for (std::size_t i = 0; i < world_.edges.size(); ++i) {
+        Edge& e = world_.edges[i];
+        if (e.mode != Mode::Trail || !e.active) continue;
+        int level = e.road;
+        if (level < 2 && e.use_ema >= (level == 0 ? p.road_up_wagon : p.road_up_graded)) ++level;
+        else if (level > 0 && e.use_ema < p.road_down_share * (level == 1 ? p.road_up_wagon : p.road_up_graded)) --level;
+        if (level == e.road) continue;
+        const bool up = level > e.road;
+        e.road = level;
+        world_.apply_road(e);
+        changed = true;
+        static const char* const names[3] = {"trail", "wagon road", "graded road"};
+        log_.with({field("a", nname(e.a)), field("b", nname(e.b)), field("level", level), field("use", e.use_ema), field("miles", e.miles)});
+        log_.add(world_.today, EventType::Network, up ? "road_improved" : "road_worn",  e.a,
+                 strf("The %s between %s and %s is %s a %s (%.0f miles, %.0f days)", e.note.empty() ? "trail" : "route", nname(e.a).c_str(), nname(e.b).c_str(),
+                      up ? "made into" : "let go back to", names[level], e.miles, e.travel_days),
+                 up ? strf("%.1f wagons a day keep the track in use", e.use_ema) : strf("only %.1f wagons a day pass; it washes out", e.use_ema),
+                 level != 2 || !up);
+    }
+    return changed;
+}
+
 void Simulation::update_network() {
     std::vector<EdgeId> opened, closed;
-    if (!world_.update_active_edges(&opened, &closed)) return;
+    const bool roads_changed = review_roads();
+    if (!world_.update_active_edges(&opened, &closed) && !roads_changed) return;
     world_.rebuild_routes();
     world_.refresh_contract_prices();
     auto describe = [&](EdgeId id, const char* verb) {
@@ -735,6 +765,7 @@ void Simulation::end_of_day() {
     for (Edge& e : world_.edges) {
         e.robbed_ema += p.risk_ema_alpha * (e.robbed_today - e.robbed_ema);
         e.transits_ema += p.risk_ema_alpha * (e.transits_today - e.transits_ema);
+        e.use_ema += p.road_use_alpha * (e.transits_today - e.use_ema);
         e.traffic_ema += 0.05 * (e.traffic_today - e.traffic_ema);
         e.loot_ema += 0.05 * (e.loot_today - e.loot_ema);
         e.robbed_today = e.transits_today = e.traffic_today = e.loot_today = 0;

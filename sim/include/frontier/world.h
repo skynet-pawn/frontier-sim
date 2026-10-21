@@ -142,6 +142,11 @@ struct Edge {
     NodeId a = -1, b = -1;
     Mode mode = Mode::Trail;
     double miles = 0, hazard = 0, travel_days = 1;
+    // Roads form where wagons keep going: a trail used enough becomes a wagon road, then a graded road (see Params
+    // road_*). The level shortens the trip and cuts the freight bill; disuse lets it wear back. Rail and rivers are fixed.
+    int road = 0;                       // 0 trail, 1 wagon road, 2 graded road
+    double use_ema = 0;                 // wagons a day over the past half year or so
+    double freight_miles = 0;           // miles as the freight bill counts them (the road level's discount applied)
     long from = 0, until = 0;
     std::string note;
     std::vector<std::pair<double, double>> path;   // the route over the terrain, a to b (empty = a straight line); drawing only
@@ -226,6 +231,7 @@ public:
 
     // ---- Freight ----
     double freight_unit_cost(GoodId g, const double miles_by_mode[kModeCount]) const;
+    void apply_road(Edge& e) const;   // set travel days and freight miles from the edge's mode and road level
 
     // ---- Network and routing ----
     // Activates or deactivates edges by date; returns true if the network changed.

@@ -344,7 +344,7 @@ const std::vector<NodeId>& Simulation::horizon(NodeId n) {
                 world_.route(static_cast<NodeId>(s), reach[i], scratch_route_);
                 for (EdgeId eid : scratch_route_) {
                     const Edge& e = world_.edges[World::idx(eid)];
-                    horizon_path_[s][i].miles[static_cast<int>(e.mode)] += e.miles;
+                    horizon_path_[s][i].miles[static_cast<int>(e.mode)] += e.freight_miles;
                     horizon_path_[s][i].days += e.travel_days;
                 }
             }
@@ -366,7 +366,7 @@ void Simulation::plan_paths(const Trader& t, NodeId from, std::vector<PathInfo>&
         for (EdgeId eid : scratch_route_) {
             const Edge& e = world_.edges[World::idx(eid)];
             pi.days += e.travel_days;
-            pi.miles[static_cast<int>(e.mode)] += e.miles;
+            pi.miles[static_cast<int>(e.mode)] += e.freight_miles;
             pi.gang_risk += edge_risk(t, eid) * e.travel_days;
             pi.hazard_risk += e.hazard * e.travel_days * world_.params.mishap_loss_fraction;
         }
@@ -422,7 +422,7 @@ bool Simulation::sell_along_the_way(Trader& t) {
     double miles[kModeCount] = {0, 0, 0}, days = 0, gang_risk = 0, hazard_risk = 0;
     for (std::size_t i = t.leg; i < t.route.size(); ++i) {
         const Edge& e = world_.edges[World::idx(t.route[i])];
-        miles[static_cast<int>(e.mode)] += e.miles;
+        miles[static_cast<int>(e.mode)] += e.freight_miles;
         days += e.travel_days;
         gang_risk += edge_risk(t, t.route[i]) * e.travel_days;
         hazard_risk += e.hazard * e.travel_days * p.mishap_loss_fraction;
@@ -674,7 +674,7 @@ ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
         double miles[kModeCount] = {0, 0, 0};
         for (EdgeId eid : scratch_route_) {
             const Edge& e = world_.edges[World::idx(eid)];
-            miles[static_cast<int>(e.mode)] += e.miles;
+            miles[static_cast<int>(e.mode)] += e.freight_miles;
         }
         const double freight = world_.freight_unit_cost(t.cargo, miles) * t.qty;
         t.cash -= freight;
