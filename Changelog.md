@@ -9,7 +9,7 @@ player yet; the next big pieces are real world generation and the first playable
 
 ## 2026-10-21 (doors and interiors)
 
-- (pending hash) **Viewer: doors and rooms in the ground view.** Main-street buildings get trades (store, saloon, freight office, hotel, blacksmith, bank, marshal, church; camps get tents), each with a door and sign; the rest are houses. Click a door, or F/Enter beside one, to go in. Each room has furniture and people, and a counter panel read from the sim (shelf and prices, saloon rumours, freight board, bank cash, law). No buying or selling yet: the drifter is not a sim agent. Returning to the world map with M now leaves it paused. `--inside NAME` opens a room for screenshots.
+- (`85bd3b0`) **Viewer: doors and rooms in the ground view.** Main-street buildings get trades (store, saloon, freight office, hotel, blacksmith, bank, marshal, church; camps get tents), each with a door and sign; the rest are houses. Click a door, or F/Enter beside one, to go in. Each room has furniture and people, and a counter panel read from the sim (shelf and prices, saloon rumours, freight board, bank cash, law). No buying or selling yet: the drifter is not a sim agent. Returning to the world map with M now leaves it paused. `--inside NAME` opens a room for screenshots.
 
 ## 2026-10-21 (the ground view)
 
