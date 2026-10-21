@@ -47,6 +47,8 @@ struct Trader {
     double capacity_lb = 12000;  // what the outfit can haul in one trip
     double upkeep = 1.5;         // $/day running costs, before guards
     double start_capital = 0;
+    double worth = 0;            // cash plus the cargo at cost, as of yesterday: its daily change is his income
+    double income = 0;           // what he has been clearing a day, smoothed over `income_half_life`
 
     // Personality and memory: experience reshapes these (principle 4).
     double base_risk_aversion = 1;
@@ -422,6 +424,9 @@ private:
     void spawn_trader(NodeId at, bool firm);
     void trader_entry();
     void settle_trader(Trader& t);
+    double trait(const Trader& t, std::uint64_t salt) const;   // a fixed temperament in [0,1) drawn from his id and the seed (nothing stored)
+    bool wants_house(const Trader& t) const;    // would a house get him rich faster than he is getting there?
+    bool maybe_settle(Trader& t);   // a freelancer with his pile may settle where he stands; true if he did
     double spot_uncertainty(NodeId d, GoodId g, double q) const;
     double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;
     double daily_cost(const Trader& t, int guards) const;

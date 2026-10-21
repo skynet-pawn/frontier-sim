@@ -21,3 +21,5 @@ target_compile_definitions(audit_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE
 add_executable(route_probe route_probe.cpp)
 target_link_libraries(route_probe PRIVATE frontier_sim)
 target_compile_definitions(route_probe PRIVATE FRONTIER_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+add_executable(wealth_probe wealth_probe.cpp)
+target_link_libraries(wealth_probe PRIVATE frontier_sim)

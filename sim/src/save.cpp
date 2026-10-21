@@ -19,7 +19,7 @@ namespace frontier {
 
 namespace {
 constexpr char kMagic[8] = {'F', 'R', 'S', 'A', 'V', 'E', '0', '1'};
-constexpr std::uint32_t kStateVersion = 1;
+constexpr std::uint32_t kStateVersion = 2;
 }  // namespace
 
 // ---- struct field lists (found by argument-dependent lookup from the generic vector and pair code) ----
@@ -66,7 +66,7 @@ template <class Ar> void io(Ar& ar, Trader& t) {
     io(ar, t.drover); io(ar, t.controlled); io(ar, t.agent_for); io(ar, t.ordered_day); io(ar, t.express);
     io(ar, t.contract); io(ar, t.contract_units); io(ar, t.job_town); io(ar, t.job_src);
     io(ar, t.job_debt); io(ar, t.job_unit); io(ar, t.job_price); io(ar, t.job_guards);
-    io(ar, t.leaving); io(ar, t.firm); io(ar, t.capacity_lb); io(ar, t.upkeep); io(ar, t.start_capital);
+    io(ar, t.leaving); io(ar, t.firm); io(ar, t.capacity_lb); io(ar, t.upkeep); io(ar, t.start_capital); io(ar, t.worth); io(ar, t.income);
     io(ar, t.base_risk_aversion); io(ar, t.risk_aversion); io(ar, t.fear); io(ar, t.house); io(ar, t.robberies);
     io(ar, t.pending_spend); io(ar, t.recent_profit);
     io(ar, t.route); io(ar, t.leg); io(ar, t.days_left); io(ar, t.dest); io(ar, t.travelling);

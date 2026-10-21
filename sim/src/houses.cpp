@@ -2,7 +2,8 @@
 //
 // A frontier teamster who struck it rich did not keep driving. He bought more wagons, hired drivers, and sent
 // them where his own experience said the money was (Russell, Majors & Waddell ran thousands of wagons this way;
-// eastern firms did the same through western agents). Here a trader holding a pile founds a house. His own outfit
+// eastern firms did the same through western agents). Here a trader who can afford a second wagon, and is not
+// getting rich fast enough alone, founds a house (see `wants_house`). His own outfit
 // stays on the road as the first of several, each working off a float drawn from the house's cash. A holdup then
 // costs the house one load and one driver, which it can absorb, instead of ruining the only outfit it has. And
 // since one load is a small part of his wealth, the owner weighs risk against payout far more coolly than a lone
@@ -18,10 +19,11 @@ namespace frontier {
 void Simulation::houses_day() {
     const Params& p = world_.params;
 
-    // A trader with a pile founds a house. (Checked every day, not only on idle days: the richest rarely sit still.)
+    // A trader who can afford a second wagon and driver, and for whom that is the quicker road to the pile he is after,
+    // founds a house. (Checked every day, not only on idle days: the busiest rarely sit still.)
     for (Trader& t : traders_) {
         if (!t.alive || t.house >= 0 || t.controlled || t.agent_for >= 0) continue;
-        if (t.cash > p.house_found_cash && rng_.chance(p.house_found_chance)) found_house(t);
+        if (t.cash >= p.house_found_cash && wants_house(t) && rng_.chance(p.house_found_chance)) found_house(t);
     }
     if (houses_.empty()) return;
 
@@ -84,7 +86,8 @@ void Simulation::houses_day() {
         }
 
         // Growth: a new outfit whenever the house can fund a float and still hold one in reserve for a bad month.
-        const double needed = h.outfits == 0 ? p.house_float : 2 * p.house_float;
+        // (A house of one or two outfits is a man with a second wagon: it has no reserve to hold back.)
+        const double needed = (h.outfits == 0 || h.outfits < p.house_small_outfits) ? p.house_float : 2 * p.house_float;
         if (h.outfits < p.house_max_outfits && world_.today - h.last_hire >= p.house_hire_days &&
             static_cast<int>(traders_.size()) < sc_.max_traders && h.cash >= needed)
             hire_outfit(h);
@@ -126,6 +129,7 @@ void Simulation::hire_outfit(House& h) {
     t.drover = rng_.chance(h.eastern ? p.firm_drover_fraction : p.drover_fraction);
     t.cash = p.house_float;
     t.start_capital = p.house_float;
+    t.worth = t.cash;
     t.capacity_lb = h.eastern ? p.firm_capacity_lb : p.trader_capacity_lb;
     t.upkeep = h.eastern ? p.firm_upkeep : p.trader_upkeep;
     t.base_risk_aversion = h.base_risk_aversion;

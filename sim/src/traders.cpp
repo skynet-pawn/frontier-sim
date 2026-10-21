@@ -21,6 +21,7 @@ void Simulation::spawn_trader(NodeId at, bool firm) {
     t.drover = rng_.chance(firm ? p.firm_drover_fraction : p.drover_fraction);
     t.cash = firm ? rng_.uniform(p.firm_capital_min, p.firm_capital_max) : rng_.uniform(sc_.capital_min, sc_.capital_max);
     t.start_capital = t.cash;
+    t.worth = t.cash;
     t.capacity_lb = firm ? p.firm_capacity_lb : p.trader_capacity_lb;
     t.upkeep = firm ? p.firm_upkeep : p.trader_upkeep;
     t.base_risk_aversion = firm ? rng_.uniform(p.firm_risk_aversion_min, p.firm_risk_aversion_max)
@@ -120,6 +121,40 @@ void Simulation::settle_trader(Trader& t) {
     t.pending_spend = 0;
 }
 
+double Simulation::trait(const Trader& t, std::uint64_t salt) const {
+    std::uint64_t x = (static_cast<std::uint64_t>(t.id) + 1) * 0x9E3779B97F4A7C15ULL ^ (sc_.seed * 0xBF58476D1CE4E5B9ULL) ^ (salt * 0x94D049BB133111EBULL);   // splitmix64 finaliser
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
+    x ^= x >> 31;
+    return static_cast<double>(x >> 11) * (1.0 / 9007199254740992.0);
+}
+
+// Founding a house is a way to get rich faster. Each freelancer has a pile he is after and a time he will wait for it
+// (both fixed from his id). At his present income, if the pile is further off than he will wait, a second wagon and
+// driver is how he speeds things up; a man earning fast enough does not need one, and a man earning nothing would only
+// multiply his losses. An eastern firm's outfit exists to grow, so it always wants to.
+bool Simulation::wants_house(const Trader& t) const {
+    const Params& p = world_.params;
+    if (t.firm) return true;
+    if (t.income < p.house_min_income) return false;
+    const double goal = std::exp(std::log(p.goal_min) + trait(t, 1) * (std::log(p.goal_max) - std::log(p.goal_min)));
+    if (t.worth >= goal) return false;
+    const double patience = p.patience_min_days + trait(t, 2) * (p.patience_max_days - p.patience_min_days);
+    return (goal - t.worth) / t.income > patience;
+}
+
+// A freelancer with a pile may cash out, tempted in proportion to what he holds: it is a dangerous trade and a pile is
+// no use to a dead man. The roll comes when a load is sold, the moment a teamster stands empty-handed in a town (a
+// trader who sells and rebuys in one step is never idle).
+bool Simulation::maybe_settle(Trader& t) {
+    const Params& p = world_.params;
+    if (t.firm || t.house >= 0 || t.agent_for >= 0 || t.controlled || t.cargo >= 0 || t.cash <= p.settle_cash) return false;
+    if (world_.nodes[World::idx(t.at)].fixed_market) return false;
+    if (!rng_.chance(std::min(p.settle_chance_cap, p.settle_chance * t.cash / p.settle_ref_cash))) return false;
+    settle_trader(t);
+    return true;
+}
+
 void Simulation::retire(Trader& t, const char* why, bool ruined) {
     if (t.house >= 0) ++house_exits_[ruined ? 1 : 0];
     if (ruined) {  // a failed freelancer is out of work and out of luck: raw material for a gang
@@ -139,6 +174,13 @@ void Simulation::step_trader(Trader& t) {
     const Params& p = world_.params;
     if (!t.alive) return;
     if (t.job_town >= 0) settle_consignment(t);  // before the broke check: a robbed carrier owes nothing for the goods
+
+    // What a freelancer clears is the change in what he is worth (cash and his own cargo at cost) from one morning to the next.
+    if (!t.firm && t.house < 0 && t.agent_for < 0) {
+        const double worth = t.cash - t.pending_spend + (t.cargo >= 0 && t.job_town < 0 ? t.qty * t.unit_cost : 0.0);
+        t.income += (worth - t.worth - t.income) * (1.0 - std::pow(0.5, 1.0 / p.income_half_life));
+        t.worth = worth;
+    }
 
     // Wages, feed and supplies are money spent in the economy: on the road it is spent at the next stop,
     // and an idle trader spends it where he waits.
@@ -173,12 +215,7 @@ void Simulation::step_trader(Trader& t) {
     t.risk_aversion = std::max(t.base_risk_aversion, t.risk_aversion - p.risk_aversion_decay);
 
     if (!t.travelling && !t.controlled && t.cargo < 0) {
-        const Node& here = world_.nodes[World::idx(t.at)];
-        // A freelancer who has made his pile may settle down.
-        if (!t.firm && t.house < 0 && !here.fixed_market && t.agent_for < 0 && t.cash > p.settle_cash && rng_.chance(p.settle_chance)) {
-            settle_trader(t);
-            return;
-        }
+        if (maybe_settle(t)) return;
         // An eastern firm whose returns have fallen short of its hurdle pulls its capital out.
         if (t.firm && t.house < 0 && t.cash > 1.3 * t.start_capital && return_ema_ < p.firm_hurdle &&
             rng_.chance(p.firm_withdraw_rate * (p.firm_hurdle - return_ema_) / p.firm_hurdle)) {
@@ -788,6 +825,8 @@ void Simulation::decide(Trader& t) {
             return;
         }
     }
+
+    if (maybe_settle(t)) return;   // the load is sold and he holds his pile: settle before buying the next one
 
     // An open order is work for a carrier: the supplier's goods, paid for the haul. Taken when it beats buying a load.
     const Plan job = (p.carrier_jobs >= 2 || (p.carrier_jobs == 1 && !t.firm)) ? plan_job(t, scratch_paths_) : Plan{};

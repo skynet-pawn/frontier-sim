@@ -394,13 +394,22 @@ struct Params {
     double danger_alpha = 0.02;
     // Freight houses: a trader this rich founds one and runs other men's wagons. Rough numbers; tune from the runs.
     double house_float = 8000;               // working capital the house gives each outfit
-    double house_found_cash = 24000;         // a trader holding this much founds a house (three floats: his own and two to spare)
+    double house_found_cash = 16000;         // the least a freelancer needs to found one: his own float and a second outfit's
     double house_found_chance = 0.05;        // daily, once he is that rich
     double house_nerve = 1.0;                // 1: a leader weighs risk only by the share of his wealth on the load; 0: as a lone trader would
     int house_max_outfits = 12;
     int house_hire_days = 30;                // at most one new outfit a month
-    double settle_cash = 20000;              // a freelancer this rich may settle down
-    double settle_chance = 0.004;
+    // Founding a house is a way to get rich faster, not a prize for being rich. A freelancer who can afford a second wagon
+    // and driver does so when, at his present income, the pile he is after is further off than he is willing to wait.
+    double goal_min = 15000, goal_max = 60000;          // the pile he wants before he stops (per trader, log-uniform)
+    double patience_min_days = 365, patience_max_days = 1825;   // how long he will wait for it (per trader)
+    double income_half_life = 60;                       // days over which his sense of what he earns forgets
+    double house_min_income = 3;                        // $/day: a man who is not making money does not multiply his losses
+    int house_small_outfits = 3;                        // a house this small hires with no reserve in hand, as one man with a second wagon would
+    double settle_cash = 5000;               // below this stake a freelancer has nothing to cash out
+    double settle_chance = 0.05;             // per sale, at settle_ref_cash; the temptation grows in proportion to what he holds
+    double settle_ref_cash = 20000;
+    double settle_chance_cap = 0.25;         // a rich man still has a trade to finish
     double settle_invest_share = 0.7;        // share of his stake invested in the town where he settles
     double firm_withdraw_rate = 0.01;        // daily, scaled by how far returns fall short of the hurdle
     double price_uncertainty_weight = 0.5;   // how much a thin spot market worries a risk-averse outfit
