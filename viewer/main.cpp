@@ -629,6 +629,7 @@ Terrain load_terrain(const std::string& data) {
 // and this view is for a town, a camp or a stretch of road. Nothing drawn here decides an outcome: streets and buildings are
 // laid out from the town's size and id, wagons shown are the ones the sim says are standing in town.
 
+std::string g_ground_inside;   // --inside NAME: start in the first building of that name (for screenshots)
 float g_ground_zoom = 9.0f;   // pixels per foot to start at (--zoom)
 std::string g_ground_shot;   // with --shot, the ground view saves one frame and returns
 constexpr double kFeet = 5280.0;   // feet in a mile
@@ -791,7 +792,10 @@ struct Folk {
     Look look;
 };
 
-struct Building { double lx, ly, w, d; Color c; bool big; };
+// What a building is. `room` picks the inside (None means a shut door: a ghost town's shell, a tent). The door sits on the
+// wall facing its street, (dx, dy) in the town's frame with an outward normal (nx, ny).
+enum Room { kNone, kStore, kSaloon, kFreight, kHotel, kSmith, kBank, kLaw, kChurch, kHouse };
+struct Building { double lx, ly, w, d; Color c; bool big; Room room = kNone; const char* name = ""; double dx = 0, dy = 0, nx = 0, ny = 0; };
 
 // A piece of river near the town, in miles, with half its width (water and bank) in feet. Streets stop at the water and
 // houses keep off the bank: a town sits beside its river, not in it.
@@ -833,6 +837,7 @@ void ground_town(const Node& n, std::size_t idx, double theta, const std::vector
             const double bw = (big ? 26 : 18) + unit_of(mix64(h + 2)) * 6, bd = (big ? 32 : 20) + unit_of(mix64(h + 3)) * 12;
             out.push_back({k * 30.0, s * (17 + bd / 2), bw, bd, colour(mix64(h + 4)), big});
         }
+    const std::size_t nmain = out.size();
     const int nc = std::max(1, ns / 6);
     for (int j = -nc; j <= nc; ++j) {
         if (j == 0) continue;
@@ -851,6 +856,37 @@ void ground_town(const Node& n, std::size_t idx, double theta, const std::vector
     out.erase(std::remove_if(out.begin(), out.end(), [&](const Building& b) {
         return river_clearance(rivers, n.x + (b.lx * c - b.ly * s) / kFeet, n.y + (b.lx * s + b.ly * c) / kFeet) < 22;
     }), out.end());
+
+    // Doors and trades. Main-street fronts nearest the middle get the town's trades in order of how soon a town needs them;
+    // everything else on a cross street is a house. Camps have a trading tent and a saloon tent; ghost towns are shells.
+    std::vector<Building*> mainst;
+    for (Building& b : out) {
+        if (std::fabs(b.ly) < 60) {
+            mainst.push_back(&b);
+            const double sg = b.ly < 0 ? -1 : 1;
+            b.dx = b.lx; b.dy = b.ly - sg * b.d / 2; b.nx = 0; b.ny = -sg;
+        } else {
+            const double sg = b.lx - std::round(b.lx / 180.0) * 180.0 < 0 ? -1 : 1;   // which side of its cross street
+            b.dx = b.lx - sg * b.w / 2; b.dy = b.ly; b.nx = -sg; b.ny = 0;
+            if (!n.ghost && !tents) { b.room = kHouse; b.name = "house"; }
+        }
+    }
+    if (n.ghost) return;
+    std::sort(mainst.begin(), mainst.end(), [](const Building* a, const Building* b) { return std::fabs(a->lx) + (a->ly > 0) < std::fabs(b->lx) + (b->ly > 0); });
+    if (tents) {
+        const struct { Room r; const char* nm; } t[] = {{kStore, "trading tent"}, {kSaloon, "saloon tent"}};
+        for (std::size_t i = 0; i < mainst.size() && i < 2; ++i) { mainst[i]->room = t[i].r; mainst[i]->name = t[i].nm; }
+        return;
+    }
+    const bool post = n.kind == "fort";
+    const struct { Room r; const char* nm; } seq[] = {
+        {kStore, post ? "sutler's store" : "general store"}, {kSaloon, "saloon"}, {kFreight, "freight office"}, {kHotel, "hotel"},
+        {kSmith, "blacksmith"}, {kBank, "bank"}, {kLaw, post ? "guardhouse" : "marshal's office"}, {kChurch, "church"}, {kSaloon, "saloon"}, {kStore, "dry goods"}};
+    const std::size_t trades = std::min<std::size_t>({sizeof seq / sizeof seq[0], mainst.size(), static_cast<std::size_t>(2 + pop / 350)});
+    for (std::size_t i = 0; i < mainst.size(); ++i) {
+        if (i < trades) { mainst[i]->room = seq[i].r; mainst[i]->name = seq[i].nm; }
+        else { mainst[i]->room = kHouse; mainst[i]->name = "house"; }
+    }
 }
 
 void draw_town_ground(const Node& n, const GroundCam& cam, double theta, const std::vector<RiverSeg>& rivers, const std::vector<Building>& bs) {
@@ -887,6 +923,16 @@ void draw_town_ground(const Node& n, const GroundCam& cam, double theta, const s
         DrawRectanglePro({p.x + 0.9f * f, p.y + 1.1f * f, static_cast<float>(b.w) * f, static_cast<float>(b.d) * f}, {static_cast<float>(b.w) * f / 2, static_cast<float>(b.d) * f / 2}, deg, {0, 0, 0, 55});
         DrawRectanglePro({p.x, p.y, static_cast<float>(b.w) * f, static_cast<float>(b.d) * f}, {static_cast<float>(b.w) * f / 2, static_cast<float>(b.d) * f / 2}, deg, b.c);
         DrawRectanglePro({p.x, p.y, static_cast<float>(b.w) * f, 1.4f * f}, {static_cast<float>(b.w) * f / 2, 0.7f * f}, deg, lerp(b.c, {255, 255, 255, 255}, 0.22f));   // ridge
+        if (b.room != kNone) {   // the door, on the wall that faces the street
+            const Vector2 dp = at(b.dx, b.dy);
+            const float dw = (b.nx == 0 ? 4.0f : 1.4f) * f, dh = (b.nx == 0 ? 1.4f : 4.0f) * f;
+            DrawRectanglePro({dp.x, dp.y, dw, dh}, {dw / 2, dh / 2}, deg, {70, 44, 28, 255});
+            if (f >= 4.5f && b.room != kHouse) {
+                const int tw = TextWidth(b.name, 13);
+                DrawRectangle(static_cast<int>(p.x) - tw / 2 - 4, static_cast<int>(p.y) - 10, tw + 8, 18, {40, 28, 18, 190});   // a sign board
+                Text(b.name, static_cast<int>(p.x) - tw / 2, static_cast<int>(p.y) - 8, 13, {250, 240, 220, 235});
+            }
+        }
     }
     if (n.kind == "fort") {   // a stockade square beside the street, with a flagpole
         const double cx = 0, cy = 230, half = 150;
@@ -948,6 +994,249 @@ void make_folk(const Node& n, std::size_t idx, std::vector<Folk>& out) {
     }
 }
 
+// ---------------------------------------------------------------- inside a building
+
+// A room drawn in feet, y down, the door in the middle of the bottom wall. The people in it are made from the town and
+// the hour (a saloon fills at night); what the counter shows is read from the town's own shelf, orders and headlines, so
+// the room never invents anything the sim does not hold.
+struct Furn { float x, y, w, h; Color c; bool solid = true; };
+struct Occupant { float x, y, deg; Look look; std::string role; };
+struct Interior {
+    Room room = kNone;
+    const char* name = "";
+    float rw = 30, rd = 24;
+    Color floor{150, 118, 80, 255};
+    std::vector<Furn> furn;
+    std::vector<Occupant> people;
+    float cx = 0, cy = 0;                 // where the counter is served from (the panel opens when the player is near)
+    float px = 0, py = 0, heading = 90, stride = 0, dest_x = 0, dest_y = 0;
+    bool walking = false;
+};
+
+Interior make_interior(const Node& n, std::size_t idx, const Building& b, std::size_t bi, double hour) {
+    Interior in;
+    in.room = b.room;
+    in.name = b.name;
+    const std::uint64_t h = hash3(mix64(static_cast<std::uint64_t>(idx) * 2654435761ULL + 17), static_cast<std::int64_t>(bi), 77);
+    const Color wood{98, 66, 42, 255}, dark{70, 46, 30, 255}, iron{58, 58, 62, 255}, cloth{160, 60, 54, 255};
+    const bool camp = n.kind.find("camp") != std::string::npos;
+    const bool ranchy = n.kind == "range" || n.kind == "ranch" || n.kind == "farm";
+    int serial = 0;
+    auto person = [&](float x, float y, const char* role, Color shirt, Color hat, bool hat_on = true, float scale = 1.0f) {
+        Occupant o{x, y, 90.0f, Look{}, role};
+        o.look.shirt = shirt; o.look.hat = hat; o.look.hat_on = hat_on; o.look.scale = scale;
+        in.people.push_back(o);
+        ++serial;
+    };
+    // A customer or guest: what a town's people are, by its kind.
+    auto patron = [&](float x, float y) {
+        const std::uint64_t k = mix64(h + 100 + static_cast<std::uint64_t>(serial));
+        const double u = unit_of(k);
+        if (n.garrison > 0 && u < 0.4) person(x, y, "soldier", {52, 66, 110, 255}, {40, 50, 90, 255});
+        else if (camp && u < 0.7) person(x, y, "miner", {120, 100, 80, 255}, {88, 76, 62, 255});
+        else if (ranchy && u < 0.6) person(x, y, "hand", {110, 100, 90, 255}, {176, 152, 104, 255});
+        else if (u > 0.9) person(x, y, "woman", {120, 92, 112, 255}, {214, 206, 188, 255}, false);
+        else person(x, y, "townsman", {static_cast<unsigned char>(80 + unit_of(k + 1) * 60), 84, 96, 255}, {92, 66, 44, 255}, unit_of(k + 2) < 0.8);
+    };
+    const bool late = hour >= 17 || hour < 2;
+    switch (b.room) {
+    case kStore:
+        in.rw = 34; in.rd = 26; in.floor = {160, 128, 90, 255};
+        in.furn = {{1, 0.5f, in.rw - 2, 2, wood}, {5, 9, in.rw - 10, 2.5f, dark}, {2, 15, 3, 3, {110, 80, 50, 255}}, {in.rw - 5, 15, 3, 3, {110, 80, 50, 255}}, {in.rw - 9, 3.5f, 4, 3, {150, 120, 80, 255}}};
+        person(in.rw / 2, 7, "storekeeper", {196, 190, 170, 255}, {60, 50, 40, 255}, false);
+        in.cx = in.rw / 2; in.cy = 12.5f;
+        for (int i = 0, k = static_cast<int>(unit_of(h) * 3); i < k; ++i) patron(8 + unit_of(mix64(h + 5 + i)) * (in.rw - 16), 15 + unit_of(mix64(h + 9 + i)) * 6);
+        break;
+    case kSaloon:
+        in.rw = 38; in.rd = 28; in.floor = {138, 104, 70, 255};
+        in.furn = {{4, 0.5f, in.rw - 12, 1.5f, wood}, {4, 5, in.rw - 12, 2.5f, dark}, {in.rw - 6, 1, 4, 5, iron}};
+        person(in.rw / 2 - 2, 3.4f, "bartender", {230, 226, 214, 255}, {30, 30, 30, 255}, false);
+        in.cx = in.rw / 2 - 2; in.cy = 9;
+        for (int t = 0; t < 4; ++t) {
+            const float tx = t % 2 ? in.rw - 11 : 6, ty = t < 2 ? 14.0f : 21.0f;
+            in.furn.push_back({tx, ty, 3, 3, {120, 86, 54, 255}});
+            if (unit_of(mix64(h + 20 + t)) < (late ? 0.9 : 0.35)) { patron(tx - 1.2f, ty + 1.5f); patron(tx + 4.2f, ty + 1.5f); }
+        }
+        for (int i = 0, k = late ? 2 : 0; i < k; ++i) patron(8 + i * 3.0f, 10.5f);   // leaning on the bar
+        break;
+    case kFreight:
+        in.rw = 28; in.rd = 22; in.floor = {152, 126, 92, 255};
+        in.furn = {{4, 7, in.rw - 8, 2.5f, dark}, {in.rw / 2 - 5, 0.3f, 10, 0.8f, {236, 228, 200, 255}, false}, {2, 13, 4, 4, {120, 92, 60, 255}}, {in.rw - 8, 12, 5, 5, {120, 92, 60, 255}}};
+        person(in.rw / 2, 5.2f, "freight clerk", {200, 196, 180, 255}, {40, 40, 40, 255}, false);
+        in.cx = in.rw / 2; in.cy = 11;
+        break;
+    case kHotel:
+        in.rw = 32; in.rd = 26; in.floor = {146, 110, 78, 255};
+        in.furn = {{in.rw - 14, 5, 10, 2.5f, dark}, {1, 1, 6, 13, {120, 90, 60, 255}}, {10, 14, 8, 5, cloth, false}, {in.rw - 6, 14, 3, 2, {120, 86, 54, 255}}};
+        person(in.rw - 9, 3.5f, "desk clerk", {210, 206, 194, 255}, {40, 40, 40, 255}, false);
+        in.cx = in.rw - 9; in.cy = 9;
+        for (int i = 0, k = static_cast<int>(unit_of(h) * 3); i < k; ++i) patron(10 + unit_of(mix64(h + 5 + i)) * 12, 14 + unit_of(mix64(h + 9 + i)) * 7);
+        break;
+    case kSmith:
+        in.rw = 30; in.rd = 24; in.floor = {112, 100, 88, 255};
+        in.furn = {{in.rw - 8, 0.5f, 7, 4, {120, 52, 30, 255}}, {in.rw / 2 - 1, 10, 2, 1.5f, iron}, {0.5f, 2, 1.5f, 10, wood}, {4, 16, 6, 3, {96, 78, 58, 255}}};
+        person(in.rw / 2, 8, "blacksmith", {110, 96, 84, 255}, {40, 30, 24, 255}, false);
+        in.cx = in.rw / 2; in.cy = 12.5f;
+        break;
+    case kBank:
+        in.rw = 26; in.rd = 22; in.floor = {172, 156, 128, 255};
+        in.furn = {{2, 8, in.rw - 4, 2, dark}, {in.rw - 6, 1, 5, 4, iron}, {2, 8, 0.4f, 0.1f, dark, false}};
+        person(in.rw / 2, 5.5f, "banker", {40, 40, 44, 255}, {30, 30, 30, 255});
+        in.cx = in.rw / 2; in.cy = 12;
+        break;
+    case kLaw:
+        in.rw = 26; in.rd = 22; in.floor = {148, 120, 86, 255};
+        in.furn = {{4, 9, 8, 3, dark}, {in.rw - 9.5f, 0.5f, 9, 7.5f, {60, 60, 66, 255}}, {1.5f, 1.5f, 2.5f, 2.5f, iron}};
+        person(8, 7.5f, n.law >= 2 ? "county deputy" : n.garrison > 0 ? "sergeant of the guard" : "town marshal", {70, 76, 96, 255}, {60, 46, 34, 255});
+        in.cx = 8; in.cy = 14;
+        break;
+    case kChurch:
+        in.rw = 30; in.rd = 36; in.floor = {170, 142, 106, 255};
+        in.furn = {{in.rw / 2 - 2, 2, 4, 2, wood}};
+        for (int r = 0; r < 4; ++r) { in.furn.push_back({4, 12.0f + r * 5, 8, 1.6f, {118, 84, 54, 255}}); in.furn.push_back({in.rw - 12, 12.0f + r * 5, 8, 1.6f, {118, 84, 54, 255}}); }
+        person(in.rw / 2, 5, "preacher", {30, 30, 34, 255}, {30, 30, 30, 255}, false);
+        in.cx = in.rw / 2; in.cy = 9;
+        break;
+    default:   // a house: a bed, a table and a stove
+        in.rw = 18; in.rd = 16; in.floor = {156, 124, 90, 255};
+        in.furn = {{1, 1, 6, 4, cloth}, {10, 8, 4, 3, {120, 86, 54, 255}}, {1, 10, 2.5f, 2.5f, iron}};
+        in.cx = 8; in.cy = 8;
+        if (unit_of(h + 1) < 0.7) person(11, 5, "woman", {120, 92, 112, 255}, {214, 206, 188, 255}, false);
+        if (unit_of(h + 2) < 0.35) person(9, 11.5f, "child", {150, 120, 90, 255}, {110, 80, 50, 255}, false, 0.62f);
+        break;
+    }
+    in.px = in.rw / 2; in.py = in.rd - 3.5f; in.dest_x = in.px; in.dest_y = in.py;
+    return in;
+}
+
+bool interior_clear(const Interior& in, float x, float y) {
+    if (x < 1.4f || x > in.rw - 1.4f || y < 1.4f || y > in.rd + 0.5f) return false;
+    if (y > in.rd - 1.4f && std::abs(x - in.rw / 2) > 2.2f) return false;           // the wall either side of the door
+    for (const Furn& f : in.furn)
+        if (f.solid && x > f.x - 1.0f && x < f.x + f.w + 1.0f && y > f.y - 1.0f && y < f.y + f.h + 1.0f) return false;
+    for (const Occupant& o : in.people)
+        if (std::hypot(x - o.x, y - o.y) < 1.4f) return false;
+    return true;
+}
+
+// Draws the room and its people, then the counter panel. Returns the labels (screen position, role) for the hover.
+void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, double hour, std::vector<std::pair<Vector2, std::string>>& labels) {
+    const World& w = sim.world();
+    const Node& n = w.nodes[idx];
+    const int W = GetScreenWidth(), H = GetScreenHeight();
+    const float area = static_cast<float>(W - 360);
+    const float f = std::min((area - 40) / in.rw, (H - 130.0f) / in.rd);
+    const float ox = (area - in.rw * f) / 2 + 10, oy = 76;
+    ClearBackground({34, 26, 20, 255});
+    DrawRectangle(0, 0, W, H, {34, 26, 20, 255});
+    DrawRectangle(static_cast<int>(ox), static_cast<int>(oy), static_cast<int>(in.rw * f), static_cast<int>(in.rd * f), in.floor);
+    for (float x = 1.2f; x < in.rw; x += 1.2f)   // floorboards
+        DrawLineEx({ox + x * f, oy}, {ox + x * f, oy + in.rd * f}, 1.0f, lerp(in.floor, {0, 0, 0, 255}, 0.13f));
+    const Color wall{82, 58, 40, 255};
+    const float t = 1.1f * f;
+    DrawRectangle(static_cast<int>(ox - t), static_cast<int>(oy - t), static_cast<int>(in.rw * f + 2 * t), static_cast<int>(t), wall);
+    DrawRectangle(static_cast<int>(ox - t), static_cast<int>(oy), static_cast<int>(t), static_cast<int>(in.rd * f), wall);
+    DrawRectangle(static_cast<int>(ox + in.rw * f), static_cast<int>(oy), static_cast<int>(t), static_cast<int>(in.rd * f), wall);
+    DrawRectangle(static_cast<int>(ox - t), static_cast<int>(oy + in.rd * f), static_cast<int>((in.rw / 2 - 2.2f) * f + t), static_cast<int>(t), wall);
+    DrawRectangle(static_cast<int>(ox + (in.rw / 2 + 2.2f) * f), static_cast<int>(oy + in.rd * f), static_cast<int>((in.rw / 2 - 2.2f) * f + t), static_cast<int>(t), wall);
+    DrawRectangle(static_cast<int>(ox + (in.rw / 2 - 2.2f) * f), static_cast<int>(oy + (in.rd - 0.5f) * f), static_cast<int>(4.4f * f), static_cast<int>(0.5f * f), {120, 40, 36, 255});   // the mat
+    for (const Furn& fu : in.furn) {
+        const Rectangle r{ox + fu.x * f, oy + fu.y * f, fu.w * f, fu.h * f};
+        DrawRectangleRec({r.x + 0.3f * f, r.y + 0.4f * f, r.width, r.height}, {0, 0, 0, 60});
+        DrawRectangleRec(r, fu.c);
+        DrawRectangleLinesEx(r, 1.0f, lerp(fu.c, {0, 0, 0, 255}, 0.4f));
+    }
+    if (in.room == kLaw) for (float x = in.rw - 9; x < in.rw - 0.5f; x += 1.2f) DrawLineEx({ox + x * f, oy + 0.5f * f}, {ox + x * f, oy + 8 * f}, 1.2f, {150, 150, 156, 255});
+    if (in.room == kSmith) DrawCircleV({ox + (in.rw - 4.5f) * f, oy + 2.5f * f}, 1.3f * f, {255, 150, 50, 200});
+    if (in.room == kBank) for (float x = 2.5f; x < in.rw - 2; x += 1.1f) DrawLineEx({ox + x * f, oy + 6.2f * f}, {ox + x * f, oy + 8 * f}, 1.0f, {190, 160, 90, 255});
+    for (const Occupant& o : in.people) {
+        const Vector2 sp{ox + o.x * f, oy + o.y * f};
+        draw_person(sp, o.deg, f, 0, o.look);
+        labels.push_back({sp, o.role});
+    }
+    // Lamplight after dark, less of the daylight tint than outside.
+    const double day = std::clamp(0.5 + 0.9 * std::cos((hour - 13.0) / 12.0 * 3.14159265), 0.0, 1.0);
+    const unsigned char a = static_cast<unsigned char>((1.0 - day) * 70);
+    if (a > 0) DrawRectangle(0, 0, W - 360, H, {40, 24, 10, a});
+
+    // The counter: what the shop holds, read from the town.
+    const int x = W - 350, y = 70;
+    const bool near = std::hypot(in.px - in.cx, in.py - in.cy) < 6.0f;
+    panel(x, y, 340, near || in.room == kHouse ? 440 : 64);
+    int ty = y + 8;
+    auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { Text(s.c_str(), x + 10, ty, 15, c); ty += 19; };
+    auto para = [&](const std::string& s, Color c = {40, 30, 20, 255}) { for (const std::string& l : wrap(s, 13, 318)) { Text(l.c_str(), x + 10, ty, 13, c); ty += 16; } ty += 3; };
+    char b[160];
+    line(std::string(in.name) + ", " + n.name, {20, 20, 20, 255});
+    if (!near && in.room != kHouse) { para("Step up to the counter. The door is the red mat."); }
+    auto goods_table = [&](bool all) {
+        cells(x + 10, ty, 14, {90, 70, 40, 255}, {{"good", 0, false}, {"on the shelf", 190, true}, {"price", 320, true}});
+        ty += 18;
+        int shown = 0;
+        for (std::size_t g = 0; g < w.goods.size() && shown < 12; ++g) {
+            if (n.stock[g] < 1 || w.goods[g].name == "gold") continue;
+            if (!all && w.goods[g].name != "tools" && w.goods[g].name != "ammunition") continue;
+            std::snprintf(b, sizeof b, "%.0f", n.stock[g]);
+            char pr[24];
+            std::snprintf(pr, sizeof pr, "$%.2f", w.mid_price(static_cast<NodeId>(idx), static_cast<GoodId>(g)));
+            cells(x + 10, ty, 14, {40, 30, 20, 255}, {{w.goods[g].name, 0, false}, {b, 190, true}, {pr, 320, true}});
+            ty += 18; ++shown;
+        }
+        if (!shown) para("The shelves are bare.", {150, 40, 30, 255});
+    };
+    if (!near && in.room != kHouse) return;
+    switch (in.room) {
+    case kStore: goods_table(true); break;
+    case kSmith: para("The smith sells what he makes and mends what you bring."); goods_table(false); break;
+    case kSaloon: {
+        const GoodId wh = find_good(w, "whiskey");
+        if (wh >= 0) { std::snprintf(b, sizeof b, "Whiskey, $%.2f a bottle.", w.mid_price(static_cast<NodeId>(idx), wh)); line(b); }
+        ty += 4;
+        line("What they are saying", {90, 70, 40, 255});
+        int said = 0;
+        const auto& news = sim.paper_headlines(static_cast<NodeId>(idx));
+        for (std::size_t k = news.size(); k-- > 0 && said < 3; ++said) para(format_date(news[k]->day) + "  " + news[k]->text, {40, 30, 20, 255});
+        if (n.starving) { para("\"The shelves have been bare and the children are thin.\"", {150, 40, 30, 255}); ++said; }
+        if (n.law == 0) { para("\"No law here. The miners' meeting settles what it can.\""); ++said; }
+        if (n.captor >= 0) { para("\"The gang runs this town and takes its cut.\"", {150, 40, 30, 255}); ++said; }
+        if (!said) para("Nobody has much to say today.");
+        break;
+    }
+    case kFreight: {
+        line("The board", {90, 70, 40, 255});
+        int open = 0;
+        for (std::size_t g = 0; g < w.goods.size() && open < 9; ++g) {
+            if (n.order_qty[g] < 1) continue;
+            std::snprintf(b, sizeof b, "Wanted: %.0f %s at $%.2f", n.order_qty[g], w.goods[g].name.c_str(), n.order_price[g]);
+            line(b); ++open;
+        }
+        if (!open) para("Nothing posted. The town has what it needs, or has stopped asking.");
+        int wagons = 0;
+        for (const Trader& tr : sim.traders()) wagons += tr.alive && !tr.travelling && tr.at == static_cast<NodeId>(idx);
+        std::snprintf(b, sizeof b, "%d wagon%s standing in town.", wagons, wagons == 1 ? "" : "s");
+        ty += 4; line(b);
+        break;
+    }
+    case kHotel:
+        std::snprintf(b, sizeof b, "Rooms upstairs. %.0f people in town.", n.population);
+        para(b);
+        break;
+    case kBank:
+        std::snprintf(b, sizeof b, "The town holds $%.0f in cash.", n.cash);
+        para(b);
+        if (n.cash < 200) para("\"Money is tight. We pay out in dust.\"");
+        break;
+    case kLaw: {
+        static const char* const kLaw[] = {"There is no officer; the miners' meeting rules.", "A town marshal keeps the peace here.", "The county sheriff keeps deputies here."};
+        para(kLaw[std::clamp(n.law, 0, 2)]);
+        if (n.garrison > 0) { std::snprintf(b, sizeof b, "Garrison: %.0f men.", n.garrison); para(b); }
+        break;
+    }
+    case kChurch: para("A plain church. The preacher greets whoever comes in."); break;
+    default: para("Someone's home. They look you over and say nothing."); break;
+    }
+}
+
 // Runs the ground view until the player goes back to the map (returns false) or closes the window (returns true).
 bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long end_day) {
     const World& w = sim.world();
@@ -970,6 +1259,8 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
     std::vector<Building> buildings;
     std::vector<RiverSeg> near_rivers;
     std::vector<Folk> folk;
+    Interior room;                    // the room the drifter is in, when inside >= 0 (an index into buildings)
+    int inside = -1, enter_bi = -1;   // enter_bi: the door he is walking to
     std::vector<std::pair<Vector2, std::string>> labels;   // who is who, shown for the person under the mouse
     NodeId built_for = -1;
     double theta = 0;
@@ -1001,9 +1292,23 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
         const double mult = paused ? 0.0 : rates[speed];
 
         // ---- walk: click to go, or WASD
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(show_town && GetMouseX() > GetScreenWidth() - 340)) {
+        if (inside < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(show_town && GetMouseX() > GetScreenWidth() - 340)) {
             const Vector2 t = cam.to_world(GetMousePosition());
-            dest_x = t.x; dest_y = t.y; walking = true;
+            dest_x = t.x; dest_y = t.y; walking = true; enter_bi = -1;
+            if (built_for >= 0) {   // a click on a building with a door means: go in
+                const Node& tn = w.nodes[World::idx(built_for)];
+                const double c = std::cos(theta), s = std::sin(theta);
+                const double ddx = (t.x - tn.x) * kFeet, ddy = (t.y - tn.y) * kFeet;
+                const double lx = ddx * c + ddy * s, ly = -ddx * s + ddy * c;
+                for (std::size_t i = 0; i < buildings.size(); ++i) {
+                    const Building& b = buildings[i];
+                    if (b.room == kNone || std::abs(lx - b.lx) > b.w / 2 || std::abs(ly - b.ly) > b.d / 2) continue;
+                    const double fx = b.dx + b.nx * 3.0, fy = b.dy + b.ny * 3.0;
+                    dest_x = tn.x + (fx * c - fy * s) / kFeet; dest_y = tn.y + (fx * s + fy * c) / kFeet;
+                    enter_bi = static_cast<int>(i);
+                    break;
+                }
+            }
         }
         double ix = (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT) ? 1 : 0) - (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT) ? 1 : 0);
         double iy = (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP) ? 1 : 0) - (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN) ? 1 : 0);
@@ -1036,7 +1341,47 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             if (ok(me_x, ny)) { me_y = ny; return true; }
             return false;
         };
-        if (ix != 0 || iy != 0) {
+        if (inside >= 0) {
+            // ---- inside: his own small walk in feet, stopped by furniture and walls
+            const double ipace = 6.0 * mult * dt;
+            auto istep = [&](float dx, float dy) {
+                if (interior_clear(room, room.px + dx, room.py + dy)) { room.px += dx; room.py += dy; return true; }
+                if (interior_clear(room, room.px + dx, room.py)) { room.px += dx; return true; }
+                if (interior_clear(room, room.px, room.py + dy)) { room.py += dy; return true; }
+                return false;
+            };
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                const float area = static_cast<float>(GetScreenWidth() - 360);
+                const float sc = std::min((area - 40) / room.rw, (GetScreenHeight() - 130.0f) / room.rd);
+                room.dest_x = (GetMouseX() - ((area - room.rw * sc) / 2 + 10)) / sc;
+                room.dest_y = (GetMouseY() - 76) / sc;
+                room.walking = true;
+            }
+            if (ix != 0 || iy != 0) {
+                const double len = std::hypot(ix, iy);
+                istep(static_cast<float>(ix / len * ipace), static_cast<float>(-iy / len * ipace));
+                room.heading = static_cast<float>(std::atan2(-iy, ix) * 180.0 / 3.14159265); room.stride += 9 * dt * mult; room.walking = false;
+            } else if (room.walking) {
+                const float dx = room.dest_x - room.px, dy = room.dest_y - room.py, dist = std::hypot(dx, dy);
+                if (dist <= ipace) room.walking = false;
+                else {
+                    const float bx = room.px, by = room.py;
+                    istep(static_cast<float>(dx / dist * ipace), static_cast<float>(dy / dist * ipace));
+                    if (std::hypot(room.px - bx, room.py - by) < ipace * 0.2) room.walking = false;
+                    room.heading = std::atan2(dy, dx) * 180.0f / 3.14159265f; room.stride += 9 * dt * mult;
+                }
+            }
+            if (room.py > room.rd - 1.0f) {   // out the door: stand in the street in front of it
+                const Building& b = buildings[static_cast<std::size_t>(inside)];
+                const double c = std::cos(theta), s = std::sin(theta), fx = b.dx + b.nx * 4.0, fy = b.dy + b.ny * 4.0;
+                const Node& tn = w.nodes[World::idx(built_for)];
+                me_x = tn.x + (fx * c - fy * s) / kFeet; me_y = tn.y + (fx * s + fy * c) / kFeet;
+                dest_x = me_x; dest_y = me_y; walking = false;
+                cam.cx = me_x; cam.cy = me_y;
+                inside = -1;
+            }
+        } else if (ix != 0 || iy != 0) {
+            enter_bi = -1;
             const double len = std::hypot(ix, iy);
             step_to(ix / len * pace, iy / len * pace);
             heading = std::atan2(-iy, ix); stride += 9 * dt * mult; walking = false; dest_x = me_x; dest_y = me_y;
@@ -1048,6 +1393,27 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
                 step_to(dx / dist * pace, dy / dist * pace);
                 if (std::hypot(me_x - bx, me_y - by) < pace * 0.2) walking = false;   // walked into a wall: stop
                 heading = std::atan2(-dy, dx); stride += 9 * dt * mult;
+            }
+        }
+        if (inside < 0 && town_now) {   // arriving at the door he clicked on, or pressing F / Enter beside any door, goes in
+            const double c = std::cos(theta), s = std::sin(theta);
+            const double ddx = (me_x - town_now->x) * kFeet, ddy = (me_y - town_now->y) * kFeet;
+            const double lx = ddx * c + ddy * s, ly = -ddx * s + ddy * c;
+            int go = -1;
+            for (std::size_t i = 0; i < buildings.size(); ++i) {
+                const Building& b = buildings[i];
+                if (b.room == kNone || std::hypot(lx - b.dx, ly - b.dy) > 6.5) continue;
+                if ((enter_bi == static_cast<int>(i) && !walking) || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_ENTER)) { go = static_cast<int>(i); break; }
+            }
+            if (!walking) enter_bi = -1;
+            if (!g_ground_inside.empty())
+                for (std::size_t i = 0; i < buildings.size(); ++i)
+                    if (g_ground_inside == buildings[i].name) { go = static_cast<int>(i); g_ground_inside.clear(); break; }
+            if (go >= 0) {
+                inside = go;
+                enter_bi = -1;
+                room = make_interior(*town_now, static_cast<std::size_t>(built_for), buildings[static_cast<std::size_t>(go)], static_cast<std::size_t>(go), clock / 60.0);
+                if (!g_ground_shot.empty()) { room.px = room.cx; room.py = room.cy + 1.0f; }   // screenshots start at the counter
             }
         }
         cam.cx += (me_x - cam.cx) * std::min(1.0, 6 * dt);   // the camera follows with a little lag
@@ -1256,6 +1622,14 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             if (a > 0) DrawRectangle(0, 0, W, H, {12, 20, 56, a});
         }
 
+        if (inside >= 0) {   // the room replaces the street while he is in it
+            labels.clear();
+            draw_interior(sim, static_cast<std::size_t>(built_for), room, clock / 60.0, labels);
+            const float area = static_cast<float>(W - 360);
+            const float sc = std::min((area - 40) / room.rw, (H - 130.0f) / room.rd);
+            draw_person({(area - room.rw * sc) / 2 + 10 + room.px * sc, 76 + room.py * sc}, room.heading, sc, room.stride);
+            if (room.walking) DrawCircleLines(static_cast<int>((area - room.rw * sc) / 2 + 10 + room.dest_x * sc), static_cast<int>(76 + room.dest_y * sc), 0.8f * sc, {255, 255, 255, 170});
+        }
         {   // name the person under the mouse
             const Vector2 m = GetMousePosition();
             const std::pair<Vector2, std::string>* best = nullptr;
@@ -1280,7 +1654,9 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             (void)ft;
             Text(hud, 20, 34, 14, {90, 70, 40, 255});
         }
-        Text("click or WASD to walk   wheel zoom   1-4 speed   space pause   E town board   M world map", 14, H - 24, 14, {60, 50, 40, 230});
+        Text(inside >= 0 ? "click or WASD to walk   leave by the red mat at the door   1-4 speed   space pause"
+                         : "click or WASD to walk   click a door (or F beside one) to go in   wheel zoom   1-4 speed   space pause   E town board   M world map",
+             14, H - 24, 14, inside >= 0 ? Color{230, 220, 200, 230} : Color{60, 50, 40, 230});
         if (show_town && near >= 0) draw_town_panel(sim, static_cast<std::size_t>(near));
         EndDrawing();
         if (!g_ground_shot.empty() && ++shot_frames == 4) { TakeScreenshot(g_ground_shot.c_str()); break; }
@@ -1306,6 +1682,7 @@ int main(int argc, char** argv) {
         else if (a == "--load") load_file = next();
         else if (a == "--play") play_at = next();
         else if (a == "--ground") ground_at = next();
+        else if (a == "--inside") g_ground_inside = next();
         else if (a == "--zoom") g_ground_zoom = static_cast<float>(std::atof(next().c_str()));
         else if (a == "--seed") { seed = std::strtoull(next().c_str(), nullptr, 10); seed_set = true; }
         else if (a == "--shot") shot = next();
@@ -1358,6 +1735,7 @@ int main(int argc, char** argv) {
     auto enter_ground = [&](NodeId at) {   // the local map: returns true if the window was closed there
         const bool quit = run_ground(sim, terrain, at, end_day) || !g_ground_shot.empty();
         fit(cam, w);
+        paused = true;   // the ground view keeps its own clock; the map waits until asked to run
         return quit;
     };
     bool ground_quit = false;

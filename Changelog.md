@@ -7,6 +7,10 @@ Where things stand: the headless simulation (`sim/`, `cli/`) is mature and runs 
 2,000 nodes in about 25-30 minutes. An optional raylib viewer (`viewer/`) draws the running world. There is no terrain and no
 player yet; the next big pieces are real world generation and the first playable role.
 
+## 2026-10-21 (doors and interiors)
+
+- (pending hash) **Viewer: doors and rooms in the ground view.** Main-street buildings get trades (store, saloon, freight office, hotel, blacksmith, bank, marshal, church; camps get tents), each with a door and sign; the rest are houses. Click a door, or F/Enter beside one, to go in. Each room has furniture and people, and a counter panel read from the sim (shelf and prices, saloon rumours, freight board, bank cash, law). No buying or selling yet: the drifter is not a sim agent. Returning to the world map with M now leaves it paused. `--inside NAME` opens a room for screenshots.
+
 ## 2026-10-21 (the ground view)
 
 - (`fb0ff9c`) **Viewer: a ground view at RimWorld scale** (V on a town, or `--ground TOWN`): terrain, rivers, roads and rails, towns laid out as streets and buildings (kept off the water), parked wagons and gang camps, and people who walk the streets, stop to talk, go indoors at night and slow down when the town is hungry. Hover shows a role. The drifter walks by click or WASD and is stopped by houses and deep rivers. Nothing drawn here decides an outcome. No doors, trading or reactions yet.
