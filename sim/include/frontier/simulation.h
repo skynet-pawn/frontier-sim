@@ -434,6 +434,9 @@ private:
     double spot_uncertainty(NodeId d, GoodId g, double q) const;
     double certainty_adjusted(const Trader& t, NodeId d, GoodId g, double q, double revenue) const;
     double daily_cost(const Trader& t, int guards) const;
+    // What it costs this trader a unit to haul a good: the market rate for hired haulers (town convoys, express agents,
+    // contract loads), `owner_haul_share` of it for a man hauling with his own wagon.
+    double haul_unit_cost(const Trader& t, GoodId g, const double* miles_by_mode) const;
     double stop_cost(int guards, int legs, double cargo_value) const;   // spending at the stops of a trip, as the planner sees it (0 unless plan_stop_costs)
     void traders_day();
     // The cause chain of a food shortage, per food (shelf cover, open order, freight on the road, trader drain, last delivery).

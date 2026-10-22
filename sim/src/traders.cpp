@@ -77,6 +77,12 @@ double Simulation::stop_cost(int guards, int legs, double cargo_value) const {
     return legs * (p.visit_spend + guards * p.guard_visit_spend + cargo_value * p.visit_spend_value_rate);
 }
 
+double Simulation::haul_unit_cost(const Trader& t, GoodId g, const double* miles_by_mode) const {
+    const double rate = world_.freight_unit_cost(g, miles_by_mode);
+    const bool hired = t.agent_for >= 0 || t.express || t.contract >= 0;
+    return hired ? rate : rate * world_.params.owner_haul_share;
+}
+
 double Simulation::daily_cost(const Trader& t, int guards) const {
     return t.upkeep + guards * world_.params.guard_wage;
 }
@@ -406,7 +412,7 @@ Simulation::Plan Simulation::plan_sell(const Trader& t, const std::vector<PathIn
             if (!best.valid || revenue + look(d) > best.utility) best = {revenue + look(d), t.at, t.cargo, t.qty, 0, true};
             continue;
         }
-        const double freight = world_.freight_unit_cost(t.cargo, pi.miles) * t.qty;
+        const double freight = haul_unit_cost(t, t.cargo, pi.miles) * t.qty;
         for (int k = 0; k <= p.max_guards; k += std::max(1, p.guard_step)) {
             const double loss = loss_fraction(pi, defense(k) / d0);
             const double util = (1 - loss) * revenue - freight - daily_cost(t, k) * pi.days - stop_cost(k, pi.legs, t.unit_cost * t.qty + freight) -
@@ -436,7 +442,7 @@ bool Simulation::sell_along_the_way(Trader& t) {
     rest.gang_risk = gang_risk;
     rest.hazard_risk = hazard_risk;
     const double loss = loss_fraction(rest, defense(t.guards) / defense(0));
-    const double freight_unit = world_.freight_unit_cost(t.cargo, miles);
+    const double freight_unit = haul_unit_cost(t, t.cargo, miles);
     const GoodId cargo = t.cargo;
     // He set out for the load waiting at the far end as much as for the sale, so that counts here too: a trip
     // judged with the backhaul at departure must not be dropped at the first town for lack of it.
@@ -519,7 +525,7 @@ Simulation::Plan Simulation::plan_buy(const Trader& t, const std::vector<PathInf
             const PathInfo& pi = paths[d];
             if (!pi.ok || static_cast<NodeId>(d) == t.at) continue;
             const Node& dn = world_.nodes[d];
-            const double freight_unit = world_.freight_unit_cost(gid, pi.miles);
+            const double freight_unit = haul_unit_cost(t, gid, pi.miles);
             // Wagons already on the road to the town are counted: they fill its order first and then crowd its shelf, so a
             // camp with four months of whiskey on the way is no longer the best market for more whiskey.
             const double inb = dn.fixed_market ? 0.0 : known_inbound(t, static_cast<NodeId>(d), gid);
@@ -641,7 +647,7 @@ void Simulation::ensure_opportunities() {
             for (std::size_t k = 0; k < loads.size(); ++k) {
                 const GoodId gid = goods_here[k];
                 const double profit = world_.quote_sell(dests[i], gid, loads[k].q) - loads[k].buy_cost -
-                                      world_.freight_unit_cost(gid, hp.miles) * loads[k].q;
+                                      world_.freight_unit_cost(gid, hp.miles) * world_.params.owner_haul_share * loads[k].q;
                 double& slot = opportunity_[loads[k].kind][n];
                 slot = std::max(slot, profit - daily_cost(0) * hp.days);
             }
@@ -681,7 +687,7 @@ ActionResult Simulation::act_travel(Trader& t, NodeId dest, int guards) {
             const Edge& e = world_.edges[World::idx(eid)];
             miles[static_cast<int>(e.mode)] += e.freight_miles;
         }
-        const double freight = world_.freight_unit_cost(t.cargo, miles) * t.qty;
+        const double freight = haul_unit_cost(t, t.cargo, miles) * t.qty;
         t.cash -= freight;
         { TradeAcc d; d.freight = freight; book(t, t.cargo, d); }
         world_.record(MoneyFlow::Freight, -freight);
@@ -840,7 +846,7 @@ void Simulation::decide(Trader& t) {
     if (job.valid && job_value >= p.min_profit && (!buy.valid || buy.utility < p.min_profit || job_value >= buy.utility) && act_take_job(t, job)) return;
     if (buy.valid && buy.utility >= p.min_profit) {
         const PathInfo& pi = scratch_paths_[World::idx(buy.dest)];
-        const double freight_unit = world_.freight_unit_cost(buy.good, pi.miles);
+        const double freight_unit = haul_unit_cost(t, buy.good, pi.miles);
         // Keep back enough to pay the freight and the trip's running costs.
         const double max_spend = t.cash - daily_cost(t, buy.guards) * pi.days - stop_cost(buy.guards, pi.legs, world_.quote_buy(t.at, buy.good, buy.qty) + freight_unit * buy.qty) - freight_unit * buy.qty;
         if (max_spend > 0 && act_buy(t, buy.good, buy.qty, max_spend).result == ActionResult::Ok) {

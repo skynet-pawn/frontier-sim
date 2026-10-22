@@ -36,7 +36,10 @@ namespace {
 Font g_font{};
 bool g_font_ok = false;
 
+bool g_measure = false;   // a layout pass: panels and text draw nothing, so a panel can learn its height before it is drawn
+
 void Text(const char* s, int x, int y, int size, Color c) {
+    if (g_measure) return;
     if (g_font_ok) DrawTextEx(g_font, s, {static_cast<float>(x), static_cast<float>(y)}, static_cast<float>(size), 0, c);
     else DrawText(s, x, y, size, c);
 }
@@ -222,6 +225,7 @@ Color event_color(EventType t) {
 }
 
 void panel(int x, int y, int w, int h) {
+    if (g_measure) return;
     DrawRectangle(x, y, w, h, {250, 244, 228, 230});
     DrawRectangleLines(x, y, w, h, {120, 100, 70, 255});
 }
@@ -233,15 +237,20 @@ void cells(int x, int y, int size, Color c, std::initializer_list<Cell> row) {
     for (const Cell& k : row) Text(k.s.c_str(), x + k.at - (k.right ? TextWidth(k.s.c_str(), size) : 0), y, size, c);
 }
 
-void draw_town_panel(const Simulation& sim, std::size_t i) {
+int draw_town_panel(const Simulation& sim, std::size_t i) {
     const World& w = sim.world();
     const Node& n = w.nodes[i];
     const int x = GetScreenWidth() - 330, y = 40;
-    panel(x, y, 320, 560);
+    if (!g_measure) {   // lay it out once without drawing to learn how tall it is, so what sits below it never overlaps
+        g_measure = true;
+        const int bottom = draw_town_panel(sim, i);
+        g_measure = false;
+        panel(x, y, 320, bottom - y);
+    }
     int ty = y + 8;
     auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { Text(s.c_str(), x + 10, ty, 15, c); ty += 19; };
     line(n.name + "  (" + n.kind + ")", {20, 20, 20, 255});
-    if (n.fixed_market) { line("an eastern market: prices are fixed"); return; }
+    if (n.fixed_market) { line("an eastern market: prices are fixed"); return ty + 4; }
     char b[160];
     std::snprintf(b, sizeof b, "population %.0f   cash $%.0f", n.population, n.cash);
     line(b);
@@ -302,6 +311,7 @@ void draw_town_panel(const Simulation& sim, std::size_t i) {
     } else {
         line("no newspaper here", {120, 100, 70, 255});
     }
+    return ty + 4;
 }
 
 // ---------------------------------------------------------------- play mode: one outfit driven by the player
@@ -316,6 +326,7 @@ struct Player {
     long start_day = 0;
     std::string msg;
     bool dead = false;
+    bool departing = false;   // set at the freight office when he sets off: the ground view hands back to the map
     bool active() const { return id >= 0; }
     static Rectangle rect() { return {10, 312, 370, 340}; }
 };
@@ -324,13 +335,18 @@ Trader* player_trader(Simulation& sim, const Player& p) { return p.active() ? si
 
 double worth_of(const Trader& t) { return t.cash + (t.cargo >= 0 ? t.qty * t.unit_cost : 0.0); }
 
-void player_spawn(Simulation& sim, Player& p, NodeId at, bool drover) {
+// A drifter who walks into town with a little money and a wagon is, to the sim, one more outfit that waits for orders.
+constexpr double kDrifterCash = 1500;
+
+void player_spawn(Simulation& sim, Player& p, NodeId at, bool drover, double cash = 3000) {
     p = Player{};
-    p.id = sim.add_trader(at, 3000, drover, /*controlled=*/true);
+    p.id = sim.add_trader(at, cash, drover, /*controlled=*/true);
     p.drover = drover;
     p.start_day = sim.world().today;
     if (const Trader* t = sim.find_trader(p.id)) p.start_worth = worth_of(*t);
-    p.msg = "You have $3,000 and an empty wagon. Pick a good, click a town to haul it to.";
+    char b[160];
+    std::snprintf(b, sizeof b, "You have $%.0f and an empty wagon. Pick a good, click a town to haul it to.", cash);
+    p.msg = b;
 }
 
 // A hold: the world waits while the player is in a town with a decision to make.
@@ -436,7 +452,7 @@ void draw_player_panel(Simulation& sim, Player& p, bool& wait) {
             const double cost = w.quote_buy(t->at, static_cast<GoodId>(gi), units);
             std::string est = "-";
             if (ri.ok) {
-                const double freight = w.freight_unit_cost(static_cast<GoodId>(gi), ri.miles) * units;
+                const double freight = (w.freight_unit_cost(static_cast<GoodId>(gi), ri.miles) * w.params.owner_haul_share) * units;
                 const double sale = w.quote_sell(p.dest, static_cast<GoodId>(gi), units);
                 char e[32];
                 std::snprintf(e, sizeof e, "%+.0f", sale - cost - freight);
@@ -457,7 +473,7 @@ void draw_player_panel(Simulation& sim, Player& p, bool& wait) {
         if (button({static_cast<float>(x), static_cast<float>(ty + 4), 150, 22}, "Buy a full load", p.sel >= 0)) {
             // Keep back the freight, the guards and a little spending money.
             double reserve = 100;
-            if (ri.ok) reserve += w.freight_unit_cost(p.sel, ri.miles) * t->capacity_lb / w.goods[World::idx(p.sel)].load_lb + w.params.guard_wage * p.guards * ri.days;
+            if (ri.ok) reserve += (w.freight_unit_cost(p.sel, ri.miles) * w.params.owner_haul_share) * t->capacity_lb / w.goods[World::idx(p.sel)].load_lb + w.params.guard_wage * p.guards * ri.days;
             const Receipt r = sim.act_buy(*t, p.sel, 1e9, std::max(0.0, t->cash - reserve));
             if (r.result == ActionResult::Ok) std::snprintf(b, sizeof b, "Bought %.0f units for $%.0f.", r.units, r.money);
             else std::snprintf(b, sizeof b, "Could not buy (%s).", action_result_name(r.result));
@@ -743,6 +759,39 @@ void ground_road(const GroundCam& cam, Vector2 a, Vector2 b, Mode mode, int road
             DrawLineEx({p0.x + nrm.x * width * 0.28f * side, p0.y + nrm.y * width * 0.28f * side}, {p1.x + nrm.x * width * 0.28f * side, p1.y + nrm.y * width * 0.28f * side}, std::max(1.0f, width * 0.09f), {128, 106, 76, 255});
 }
 
+// Where segment a-b crosses segment c-d (screen pixels), as the parameter along a-b; false if they do not cross.
+bool seg_cross(Vector2 a, Vector2 b, Vector2 c, Vector2 d, float& t) {
+    const float rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y;
+    const float den = rx * sy - ry * sx;
+    if (std::abs(den) < 1e-6f) return false;
+    t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / den;
+    const float u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / den;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
+// A rail line over a river rides a timber trestle: a deck on piers a little wider than the water, so the track does not
+// float on the blue. `river_px` is the drawn width of the river including its banks.
+void ground_trestle(const GroundCam& cam, Vector2 a, Vector2 b, Vector2 at, float river_px, Vector2 river_dir) {
+    const float len = std::hypot(b.x - a.x, b.y - a.y);
+    if (len < 0.01f) return;
+    const Vector2 d{(b.x - a.x) / len, (b.y - a.y) / len}, nrm{-d.y, d.x};
+    const float f = cam.pxft;
+    const float across = std::max(0.25f, std::abs(d.x * river_dir.y - d.y * river_dir.x));   // a slanting crossing is longer than the river is wide
+    const float half = std::min(river_px * 0.5f / across, 900.0f * f) + 5 * f;
+    const Vector2 p0{at.x - d.x * half, at.y - d.y * half}, p1{at.x + d.x * half, at.y + d.y * half};
+    DrawLineEx(p0, p1, 12.5f * f, {0, 0, 0, 50});
+    for (float s = -half; s <= half; s += 6 * f) {   // piers: timber bents across the stream
+        const Vector2 c{at.x + d.x * s, at.y + d.y * s};
+        DrawLineEx({c.x - nrm.x * 5.2f * f, c.y - nrm.y * 5.2f * f}, {c.x + nrm.x * 5.2f * f, c.y + nrm.y * 5.2f * f}, 1.1f * f, {74, 52, 36, 255});
+    }
+    DrawLineEx(p0, p1, 11 * f, {120, 92, 62, 255});    // the deck
+    DrawLineEx(p0, p1, 9.6f * f, {104, 78, 52, 255});
+    for (int side = -1; side <= 1; side += 2) {
+        DrawLineEx({p0.x + nrm.x * 5.4f * f * side, p0.y + nrm.y * 5.4f * f * side}, {p1.x + nrm.x * 5.4f * f * side, p1.y + nrm.y * 5.4f * f * side}, 0.6f * f, {70, 50, 34, 255});   // handrails
+        DrawLineEx({p0.x + nrm.x * 2.35f * f * side, p0.y + nrm.y * 2.35f * f * side}, {p1.x + nrm.x * 2.35f * f * side, p1.y + nrm.y * 2.35f * f * side}, 0.45f * f, {170, 170, 176, 255});   // the rails
+    }
+}
+
 // A covered wagon seen from above, drawn along `deg` (screen degrees, clockwise).
 void draw_wagon(Vector2 c, float deg, float f, Color tint, bool loaded) {
     auto box = [&](float dx, float dy, float w, float h, Color col) {   // dx along the wagon, dy across it, in feet
@@ -787,6 +836,7 @@ struct Folk {
     double u = 0, v = 0;       // feet along the street and across it
     double dir = 1, speed = 5, pause = 0, stride = 0;
     double bound = 100;        // how far along this street it may walk
+    double lx = 0, ly = 0;     // where it stood last frame in the town's frame (feet), for stepping around others
     std::uint64_t h = 0;
     const char* role = "townsman";
     Look look;
@@ -1011,7 +1061,35 @@ struct Interior {
     float cx = 0, cy = 0;                 // where the counter is served from (the panel opens when the player is near)
     float px = 0, py = 0, heading = 90, stride = 0, dest_x = 0, dest_y = 0;
     bool walking = false;
+    std::vector<NodeId> cand;             // the freight office: towns worth hauling to, nearest by road first
 };
+
+// The towns the freight board offers as destinations: the nearest founded ones that a road reaches, by days on the road, and
+// the nearest eastern market at the end (the way out for cattle and hides).
+void fill_candidates(const World& w, NodeId here, Interior& in) {
+    in.cand.clear();
+    const Node& h = w.nodes[World::idx(here)];
+    std::vector<std::pair<double, NodeId>> v;
+    NodeId east = -1;
+    double east_d = 1e18;
+    for (std::size_t i = 0; i < w.nodes.size(); ++i) {
+        const Node& n = w.nodes[i];
+        if (static_cast<NodeId>(i) == here || (!n.founded && !n.fixed_market) || n.ghost) continue;
+        const double d = std::hypot(n.x - h.x, n.y - h.y);
+        if (n.fixed_market) { if (d < east_d && route_info(w, here, static_cast<NodeId>(i)).ok) { east_d = d; east = static_cast<NodeId>(i); } continue; }
+        v.push_back({d, static_cast<NodeId>(i)});
+    }
+    const std::size_t keep = std::min<std::size_t>(v.size(), 40);
+    std::partial_sort(v.begin(), v.begin() + static_cast<std::ptrdiff_t>(keep), v.end());
+    std::vector<std::pair<double, NodeId>> byroad;
+    for (std::size_t i = 0; i < keep; ++i) {
+        const RouteInfo r = route_info(w, here, v[i].second);
+        if (r.ok) byroad.push_back({r.days, v[i].second});
+    }
+    std::sort(byroad.begin(), byroad.end());
+    for (std::size_t i = 0; i < byroad.size() && i < 12; ++i) in.cand.push_back(byroad[i].second);
+    if (east >= 0) in.cand.push_back(east);
+}
 
 Interior make_interior(const Node& n, std::size_t idx, const Building& b, std::size_t bi, double hour) {
     Interior in;
@@ -1120,7 +1198,7 @@ bool interior_clear(const Interior& in, float x, float y) {
 }
 
 // Draws the room and its people, then the counter panel. Returns the labels (screen position, role) for the hover.
-void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, double hour, std::vector<std::pair<Vector2, std::string>>& labels) {
+void draw_interior(Simulation& sim, Player& pl, std::size_t idx, const Interior& in, double hour, std::vector<std::pair<Vector2, std::string>>& labels) {
     const World& w = sim.world();
     const Node& n = w.nodes[idx];
     const int W = GetScreenWidth(), H = GetScreenHeight();
@@ -1162,7 +1240,7 @@ void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, d
     // The counter: what the shop holds, read from the town.
     const int x = W - 350, y = 70;
     const bool near = std::hypot(in.px - in.cx, in.py - in.cy) < 6.0f;
-    panel(x, y, 340, near || in.room == kHouse ? 440 : 64);
+    panel(x, y, 340, near || in.room == kHouse ? 500 : 64);
     int ty = y + 8;
     auto line = [&](const std::string& s, Color c = {40, 30, 20, 255}) { Text(s.c_str(), x + 10, ty, 15, c); ty += 19; };
     auto para = [&](const std::string& s, Color c = {40, 30, 20, 255}) { for (const std::string& l : wrap(s, 13, 318)) { Text(l.c_str(), x + 10, ty, 13, c); ty += 16; } ty += 3; };
@@ -1174,7 +1252,7 @@ void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, d
         ty += 18;
         int shown = 0;
         for (std::size_t g = 0; g < w.goods.size() && shown < 12; ++g) {
-            if (n.stock[g] < 1 || w.goods[g].name == "gold") continue;
+            if (n.stock[g] < 1 || w.goods[g].money) continue;
             if (!all && w.goods[g].name != "tools" && w.goods[g].name != "ammunition") continue;
             std::snprintf(b, sizeof b, "%.0f", n.stock[g]);
             char pr[24];
@@ -1186,7 +1264,61 @@ void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, d
     };
     if (!near && in.room != kHouse) return;
     switch (in.room) {
-    case kStore: goods_table(true); break;
+    case kStore: {
+        Trader* t = player_trader(sim, pl);
+        const bool here_ok = t && !t->travelling && t->at == static_cast<NodeId>(idx);
+        if (!t) { para("You have no outfit. Leave and come back in to start again.", {150, 40, 30, 255}); break; }
+        std::snprintf(b, sizeof b, "you: $%.0f in hand", t->cash);
+        line(b, {30, 90, 50, 255});
+        if (!here_ok) { para("Your wagon is not in this town."); break; }
+        if (t->cargo >= 0) {
+            std::snprintf(b, sizeof b, "on the wagon: %.0f %s (cost $%.2f a unit)", t->qty, w.goods[World::idx(t->cargo)].name.c_str(), t->unit_cost);
+            line(b);
+            std::snprintf(b, sizeof b, "here it would fetch about $%.0f", w.quote_sell(static_cast<NodeId>(idx), t->cargo, t->qty));
+            line(b);
+            if (button({static_cast<float>(x + 10), static_cast<float>(ty), 150, 22}, "Sell it here")) {
+                const Receipt r = sim.act_sell(*t);
+                if (r.result == ActionResult::Ok) std::snprintf(b, sizeof b, "Sold %.0f units for $%.0f.", r.units, r.money);
+                else std::snprintf(b, sizeof b, "Could not sell (%s).", action_result_name(r.result));
+                pl.msg = b;
+            }
+            ty += 30;
+        } else {
+            cells(x + 10, ty, 14, {90, 70, 40, 255}, {{"good (click to pick)", 0, false}, {"shelf", 235, true}, {"price", 320, true}});
+            ty += 18;
+            int shown = 0;
+            for (std::size_t g = 0; g < w.goods.size() && shown < 9; ++g) {
+                const GoodDef& gd = w.goods[g];
+                const double stock = n.fixed_market ? 1e9 : n.stock[g];
+                if (gd.self_propelled != pl.drover || stock < 1 || gd.money) continue;
+                const double units = std::min(t->capacity_lb / gd.load_lb, stock);
+                char sh[24], pr[24];
+                if (n.fixed_market) std::snprintf(sh, sizeof sh, "plenty"); else std::snprintf(sh, sizeof sh, "%.0f", stock);
+                std::snprintf(pr, sizeof pr, "$%.2f", w.quote_buy(static_cast<NodeId>(idx), static_cast<GoodId>(g), units) / std::max(1.0, units));
+                const Rectangle row{static_cast<float>(x + 4), static_cast<float>(ty - 1), 332.0f, 17.0f};
+                const bool hot = CheckCollisionPointRec(GetMousePosition(), row);
+                if (pl.sel == static_cast<GoodId>(g)) DrawRectangleRec(row, {230, 210, 160, 255});
+                else if (hot) DrawRectangleRec(row, {240, 228, 200, 255});
+                if (hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) pl.sel = static_cast<GoodId>(g);
+                cells(x + 10, ty, 14, {40, 30, 20, 255}, {{gd.name, 0, false}, {sh, 235, true}, {pr, 320, true}});
+                ty += 18; ++shown;
+            }
+            if (!shown) para("Nothing on the shelves you could haul.", {150, 40, 30, 255});
+            if (button({static_cast<float>(x + 10), static_cast<float>(ty + 2), 160, 22}, "Buy a full load", pl.sel >= 0)) {
+                // Keep back the freight and the guards for the road ahead, and a little spending money.
+                const RouteInfo ri = pl.dest >= 0 ? route_info(w, t->at, pl.dest) : RouteInfo{};
+                double reserve = std::max(150.0, 0.2 * t->cash);
+                if (ri.ok) reserve = 100 + (w.freight_unit_cost(pl.sel, ri.miles) * w.params.owner_haul_share) * t->capacity_lb / w.goods[World::idx(pl.sel)].load_lb + w.params.guard_wage * pl.guards * ri.days;
+                const Receipt r = sim.act_buy(*t, pl.sel, 1e9, std::max(0.0, t->cash - reserve));
+                if (r.result == ActionResult::Ok) std::snprintf(b, sizeof b, "Bought %.0f units for $%.0f. Now see the freight office to haul it.", r.units, r.money);
+                else std::snprintf(b, sizeof b, "Could not buy (%s).", action_result_name(r.result));
+                pl.msg = b;
+            }
+            ty += 32;
+        }
+        if (!pl.msg.empty()) para(pl.msg, {90, 70, 40, 255});
+        break;
+    }
     case kSmith: para("The smith sells what he makes and mends what you bring."); goods_table(false); break;
     case kSaloon: {
         const GoodId wh = find_good(w, "whiskey");
@@ -1203,18 +1335,75 @@ void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, d
         break;
     }
     case kFreight: {
-        line("The board", {90, 70, 40, 255});
+        Trader* t = player_trader(sim, pl);
+        const bool here_ok = t && !t->travelling && t->at == static_cast<NodeId>(idx);
+        if (!t) { para("You have no outfit. Leave and come back in to start again.", {150, 40, 30, 255}); break; }
+        if (!here_ok) { para("Your wagon is not in this town."); break; }
+        if (t->cargo >= 0) std::snprintf(b, sizeof b, "you: $%.0f, hauling %.0f %s", t->cash, t->qty, w.goods[World::idx(t->cargo)].name.c_str());
+        else std::snprintf(b, sizeof b, "you: $%.0f, wagon empty", t->cash);
+        line(b, {30, 90, 50, 255});
+        // What other towns are asking for on their boards: a posted order pays the higher of its price and the shelf price.
+        line("Wanted elsewhere (click to pick)", {90, 70, 40, 255});
         int open = 0;
-        for (std::size_t g = 0; g < w.goods.size() && open < 9; ++g) {
-            if (n.order_qty[g] < 1) continue;
-            std::snprintf(b, sizeof b, "Wanted: %.0f %s at $%.2f", n.order_qty[g], w.goods[g].name.c_str(), n.order_price[g]);
-            line(b); ++open;
+        for (NodeId cn : in.cand) {
+            if (open >= 4) break;
+            const Node& c = w.nodes[World::idx(cn)];
+            if (c.fixed_market) continue;
+            for (std::size_t g = 0; g < w.goods.size() && open < 4; ++g) {
+                if (c.order_qty[g] < 5 || w.goods[g].self_propelled != pl.drover) continue;
+                if (t->cargo >= 0 && t->cargo != static_cast<GoodId>(g)) continue;
+                const RouteInfo ri = route_info(w, t->at, cn);
+                char row[120];
+                std::snprintf(row, sizeof row, "%s: %.0f %s @ $%.2f  (%.0f d)", c.name.c_str(), c.order_qty[g], w.goods[g].name.c_str(), c.order_price[g], ri.days);
+                const Rectangle rr{static_cast<float>(x + 4), static_cast<float>(ty - 1), 332.0f, 17.0f};
+                const bool hot = CheckCollisionPointRec(GetMousePosition(), rr);
+                if (pl.dest == cn) DrawRectangleRec(rr, {230, 210, 160, 255});
+                else if (hot) DrawRectangleRec(rr, {240, 228, 200, 255});
+                if (hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { pl.dest = cn; if (t->cargo < 0) pl.sel = static_cast<GoodId>(g); }
+                Text(row, x + 10, ty, 13, {40, 30, 20, 255});
+                ty += 17; ++open;
+            }
         }
-        if (!open) para("Nothing posted. The town has what it needs, or has stopped asking.");
-        int wagons = 0;
-        for (const Trader& tr : sim.traders()) wagons += tr.alive && !tr.travelling && tr.at == static_cast<NodeId>(idx);
-        std::snprintf(b, sizeof b, "%d wagon%s standing in town.", wagons, wagons == 1 ? "" : "s");
-        ty += 4; line(b);
+        if (!open) { Text("no open orders near here for your load", x + 10, ty, 13, {110, 100, 90, 255}); ty += 17; }
+        ty += 4;
+        line("Where to (click to pick)", {90, 70, 40, 255});
+        int rows = 0;
+        for (NodeId cn : in.cand) {
+            if (rows >= 6) break;
+            const Node& c = w.nodes[World::idx(cn)];
+            const RouteInfo ri = route_info(w, t->at, cn);
+            if (!ri.ok) continue;
+            char est[32] = "";
+            if (t->cargo >= 0) {
+                const double sale = w.quote_sell(cn, t->cargo, t->qty);
+                std::snprintf(est, sizeof est, "%+.0f", sale - t->qty * t->unit_cost - (w.freight_unit_cost(t->cargo, ri.miles) * w.params.owner_haul_share) * t->qty);
+            }
+            char days[24], risk[24];
+            std::snprintf(days, sizeof days, "%.0f d", ri.days);
+            std::snprintf(risk, sizeof risk, "%.0f%% robbed", ri.robbed * 100);
+            const Rectangle rr{static_cast<float>(x + 4), static_cast<float>(ty - 1), 332.0f, 17.0f};
+            const bool hot = CheckCollisionPointRec(GetMousePosition(), rr);
+            if (pl.dest == cn) DrawRectangleRec(rr, {230, 210, 160, 255});
+            else if (hot) DrawRectangleRec(rr, {240, 228, 200, 255});
+            if (hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) pl.dest = cn;
+            cells(x + 10, ty, 13, ri.robbed > 0.25 ? Color{170, 30, 30, 255} : Color{40, 30, 20, 255}, {{c.name, 0, false}, {days, 190, true}, {risk, 270, true}, {est, 328, true}});
+            ty += 17; ++rows;
+        }
+        ty += 6;
+        std::snprintf(b, sizeof b, "guards: %d  ($%.1f a day)", pl.guards, w.params.guard_wage * pl.guards);
+        Text(b, x + 10, ty + 3, 13, {40, 30, 20, 255});
+        if (button({static_cast<float>(x + 200), static_cast<float>(ty), 26, 22}, "-", pl.guards > 0)) pl.guards = std::max(0, pl.guards - w.params.guard_step);
+        if (button({static_cast<float>(x + 232), static_cast<float>(ty), 26, 22}, "+", pl.guards < w.params.max_guards)) pl.guards = std::min(w.params.max_guards, pl.guards + w.params.guard_step);
+        ty += 28;
+        const bool can_go = pl.dest >= 0 && pl.dest != t->at && route_info(w, t->at, pl.dest).ok;
+        const std::string go_label = pl.dest >= 0 ? std::string("Set off for ") + w.nodes[World::idx(pl.dest)].name : std::string("Pick a destination");
+        if (button({static_cast<float>(x + 10), static_cast<float>(ty), 200, 24}, go_label.c_str(), can_go)) {
+            const ActionResult r = sim.act_travel(*t, pl.dest, pl.guards);
+            if (r == ActionResult::Ok) { pl.msg = "On the road."; pl.departing = true; }
+            else pl.msg = std::string("Cannot set off (") + action_result_name(r) + ").";
+        }
+        ty += 30;
+        if (!pl.msg.empty()) para(pl.msg, {90, 70, 40, 255});
         break;
     }
     case kHotel:
@@ -1238,8 +1427,12 @@ void draw_interior(const Simulation& sim, std::size_t idx, const Interior& in, d
 }
 
 // Runs the ground view until the player goes back to the map (returns false) or closes the window (returns true).
-bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long end_day) {
+bool run_ground(Simulation& sim, const Terrain& terrain, Player& player, NodeId start_at, long end_day, bool& departed) {
     const World& w = sim.world();
+    departed = false;
+    // A drifter arriving on foot with no outfit of his own gets one: from here on he is a real trader the sim leaves alone.
+    if (!player.active() || player.dead || !sim.find_trader(player.id)) player_spawn(sim, player, start_at, false, kDrifterCash);
+    player.departing = false;
     const Texture2D patches = make_noise(256, 6, 11, {86, 110, 54, 255}, {176, 170, 106, 255}, 110);
     const Texture2D grain = make_noise(256, 48, 29, {50, 64, 34, 255}, {206, 204, 156, 255}, 70);
     GroundCam cam;
@@ -1350,7 +1543,7 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
                 if (interior_clear(room, room.px, room.py + dy)) { room.py += dy; return true; }
                 return false;
             };
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && GetMouseX() < GetScreenWidth() - 360) {   // (a click on the counter panel is not a walk)
                 const float area = static_cast<float>(GetScreenWidth() - 360);
                 const float sc = std::min((area - 40) / room.rw, (GetScreenHeight() - 130.0f) / room.rd);
                 room.dest_x = (GetMouseX() - ((area - room.rw * sc) / 2 + 10)) / sc;
@@ -1413,6 +1606,7 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
                 inside = go;
                 enter_bi = -1;
                 room = make_interior(*town_now, static_cast<std::size_t>(built_for), buildings[static_cast<std::size_t>(go)], static_cast<std::size_t>(go), clock / 60.0);
+                if (room.room == kFreight) fill_candidates(w, built_for, room);
                 if (!g_ground_shot.empty()) { room.px = room.cx; room.py = room.cy + 1.0f; }   // screenshots start at the counter
             }
         }
@@ -1456,6 +1650,7 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
 
         // ---- draw
         BeginDrawing();
+        labels.clear();
         const int W = GetScreenWidth(), H = GetScreenHeight();
         const float f = cam.pxft;
         const Vector2 tl = cam.to_world({0, 0}), br = cam.to_world({static_cast<float>(W), static_cast<float>(H)});
@@ -1518,6 +1713,29 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
                     ground_road(cam, cam.to_screen(e.path[k - 1].first, e.path[k - 1].second), cam.to_screen(e.path[k].first, e.path[k].second), e.mode, e.road);
             } else ground_road(cam, cam.to_screen(na.x, na.y), cam.to_screen(nb.x, nb.y), e.mode, e.road);
         }
+        for (std::size_t i = 0; i < w.edges.size(); ++i) {   // trestles where a railway crosses a river
+            const Edge& e = w.edges[i];
+            if (e.mode != Mode::Rail || !e.active || (e.latent && e.from == LONG_MAX)) continue;
+            if (ebox[i].x1 < vx0 || ebox[i].x0 > vx1 || ebox[i].y1 < vy0 || ebox[i].y0 > vy1) continue;
+            std::vector<Vector2> way;
+            if (e.path.size() >= 2) for (const auto& pt : e.path) way.push_back(cam.to_screen(pt.first, pt.second));
+            else way = {cam.to_screen(w.nodes[World::idx(e.a)].x, w.nodes[World::idx(e.a)].y), cam.to_screen(w.nodes[World::idx(e.b)].x, w.nodes[World::idx(e.b)].y)};
+            for (std::size_t r = 0; r < w.rivers.size(); ++r) {
+                if (rbox[r].x1 < vx0 || rbox[r].x0 > vx1 || rbox[r].y1 < vy0 || rbox[r].y0 > vy1) continue;
+                const RiverLine& rv = w.rivers[r];
+                const float rpx = ((rv.size >= 3 ? 260.0f : rv.size == 2 ? 90.0f : 14.0f) + 8.0f) * f;
+                for (std::size_t k = 1; k < way.size(); ++k)
+                    for (std::size_t m = 1; m < rv.points.size(); ++m) {
+                        const Vector2 c = cam.to_screen(rv.points[m - 1].first, rv.points[m - 1].second), d = cam.to_screen(rv.points[m].first, rv.points[m].second);
+                        float t;
+                        if (!seg_cross(way[k - 1], way[k], c, d, t)) continue;
+                        const Vector2 at{way[k - 1].x + (way[k].x - way[k - 1].x) * t, way[k - 1].y + (way[k].y - way[k - 1].y) * t};
+                        if (at.x < -400 || at.y < -400 || at.x > W + 400 || at.y > H + 400) continue;
+                        const float rl = std::hypot(d.x - c.x, d.y - c.y);
+                        if (rl > 0.01f) ground_trestle(cam, way[k - 1], way[k], at, rpx, {(d.x - c.x) / rl, (d.y - c.y) / rl});
+                    }
+            }
+        }
         for (const CrossingSite& c : w.crossings) {   // a bridge: planks across the river
             if (c.x < vx0 || c.x > vx1 || c.y < vy0 || c.y > vy1) continue;
             const Vector2 p = cam.to_screen(c.x, c.y);
@@ -1564,9 +1782,18 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             const Vector2 p = cam.to_screen(m.x, m.y);
             DrawTriangle({p.x, p.y - 7 * f}, {p.x - 6 * f, p.y + 4 * f}, {p.x + 6 * f, p.y + 4 * f}, {206, 196, 168, 255});
             DrawCircleV({p.x + 9 * f, p.y + 3 * f}, 1.2f * f, {230, 110, 30, 255});
+            // The band itself: its men sit and stand round the fire (up to a dozen drawn; the sim holds the real count).
+            const int shown = std::min(g.men, 12);
+            for (int k = 0; k < shown; ++k) {
+                const std::uint64_t hh = mix64(static_cast<std::uint64_t>(g.id) * 31 + static_cast<std::uint64_t>(k) * 977 + 5);
+                const double ang = unit_of(hh) * 6.2831853, rad = 5.0 + unit_of(mix64(hh + 1)) * 6.0;
+                const Vector2 mp{p.x + 9 * f + static_cast<float>(std::cos(ang) * rad) * f, p.y + 3 * f + static_cast<float>(std::sin(ang) * rad) * f};
+                Look l; l.shirt = {88, 70, 58, 255}; l.hat = {48, 40, 34, 255};
+                draw_person(mp, static_cast<float>(ang * 180.0 / 3.14159265 + 180.0), f, 0, l);
+                labels.push_back({mp, sim.is_band_gang(g) ? "outlaw, one of a small band" : "outlaw, one of a large gang"});
+            }
         }
         // The town's people.
-        labels.clear();
         if (near >= 0 && near_d < 1.0 && static_cast<NodeId>(near) == built_for) {
             const Node& n = w.nodes[static_cast<std::size_t>(near)];
             const double c = std::cos(theta), s = std::sin(theta);
@@ -1575,10 +1802,28 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             const double out_and_about = 0.12 + 0.88 * day;                  // most are indoors at night
             const double ease = 1.0 - std::min(0.6, n.hunger);               // a hungry town moves slowly
             const std::uint64_t tick = static_cast<std::uint64_t>(GetTime() * 4);
+            const double my_lx = ((me_x - n.x) * c + (me_y - n.y) * s) * kFeet, my_ly = (-(me_x - n.x) * s + (me_y - n.y) * c) * kFeet;   // the drifter in the town's frame
             for (Folk& p : folk) {
                 if (unit_of(mix64(p.h + 99)) >= out_and_about) continue;
                 if (p.pause > 0) p.pause -= dt * mult;
                 else {
+                    // Steer around the drifter and anyone close ahead: shift across the street, and wait a moment if blocked.
+                    {
+                        auto nudge = [&](double ox, double oy, double reach) {
+                            const double dx = p.lx - ox, dy = p.ly - oy, d = std::hypot(dx, dy);
+                            if (d >= reach || d < 1e-6) return;
+                            const double push = (reach - d) / reach * 9.0 * dt * mult;
+                            const double across = p.street == 0 ? dy : dx;   // the across-the-street part of the way apart
+                            p.v += (across >= 0 ? 1.0 : -1.0) * push;
+                            const double lim = p.street == 0 ? 11.0 : 7.0;
+                            p.v = std::clamp(p.v, -lim, lim);
+                            const double along = p.street == 0 ? dx : dy;    // standing in the way and heading at it: hold up
+                            if (d < reach * 0.45 && along * p.dir < 0) p.pause = std::max(p.pause, 0.5);
+                        };
+                        nudge(my_lx, my_ly, 5.5);
+                        for (const Folk& q : folk)
+                            if (&q != &p && q.street == p.street && std::abs(q.u - p.u) < 5 ) nudge(q.lx, q.ly, 3.2);
+                    }
                     const double step = p.speed * ease * dt * mult;
                     p.u += p.dir * step;
                     p.stride += 9 * dt * mult * p.speed / 11.0;
@@ -1598,6 +1843,7 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
                     if (unit_of(mix64(p.h + static_cast<std::uint64_t>(GetTime() * 60))) < 0.002) p.pause = 3 + unit_of(mix64(p.h + 21 + tick)) * 12;   // stop to talk or look about
                 }
                 const double lx = p.street == 0 ? p.u : p.street * 180.0 + p.v, ly = p.street == 0 ? p.v : p.u;
+                p.lx = lx; p.ly = ly;
                 const double wx = n.x + (lx * c - ly * s) / kFeet, wy = n.y + (lx * s + ly * c) / kFeet;
                 if (river_clearance(near_rivers, wx, wy) < 2) { p.dir = -p.dir; p.u += p.dir * 4; continue; }   // turn back from the water
                 const Vector2 sp = cam.to_screen(wx, wy);
@@ -1624,7 +1870,7 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
 
         if (inside >= 0) {   // the room replaces the street while he is in it
             labels.clear();
-            draw_interior(sim, static_cast<std::size_t>(built_for), room, clock / 60.0, labels);
+            draw_interior(sim, player, static_cast<std::size_t>(built_for), room, clock / 60.0, labels);
             const float area = static_cast<float>(W - 360);
             const float sc = std::min((area - 40) / room.rw, (H - 130.0f) / room.rd);
             draw_person({(area - room.rw * sc) / 2 + 10 + room.px * sc, 76 + room.py * sc}, room.heading, sc, room.stride);
@@ -1642,7 +1888,7 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             }
         }
         // HUD
-        panel(10, 8, 470, 50);
+        panel(10, 8, 470, 68);
         char hud[200];
         std::snprintf(hud, sizeof hud, "%s   %02d:%02d   speed %s%.0fx", format_date(w.today).c_str(), static_cast<int>(clock / 60) % 24, static_cast<int>(clock) % 60, paused ? "paused " : "", rates[speed]);
         Text(hud, 20, 14, 16, {30, 24, 18, 255});
@@ -1654,11 +1900,18 @@ bool run_ground(Simulation& sim, const Terrain& terrain, NodeId start_at, long e
             (void)ft;
             Text(hud, 20, 34, 14, {90, 70, 40, 255});
         }
+        if (const Trader* me = player_trader(sim, player)) {
+            if (me->travelling) std::snprintf(hud, sizeof hud, "you: $%.0f, on the road", me->cash);
+            else if (me->cargo >= 0) std::snprintf(hud, sizeof hud, "you: $%.0f, wagon carries %.0f %s", me->cash, me->qty, w.goods[World::idx(me->cargo)].name.c_str());
+            else std::snprintf(hud, sizeof hud, "you: $%.0f, wagon empty (store to buy, freight office to haul)", me->cash);
+            Text(hud, 20, 54, 14, {30, 90, 50, 255});
+        }
         Text(inside >= 0 ? "click or WASD to walk   leave by the red mat at the door   1-4 speed   space pause"
                          : "click or WASD to walk   click a door (or F beside one) to go in   wheel zoom   1-4 speed   space pause   E town board   M world map",
              14, H - 24, 14, inside >= 0 ? Color{230, 220, 200, 230} : Color{60, 50, 40, 230});
         if (show_town && near >= 0) draw_town_panel(sim, static_cast<std::size_t>(near));
         EndDrawing();
+        if (player.departing) { departed = true; break; }   // he set off at the freight office: back to the map, which runs while he travels
         if (!g_ground_shot.empty() && ++shot_frames == 4) { TakeScreenshot(g_ground_shot.c_str()); break; }
     }
     UnloadTexture(patches);
@@ -1733,11 +1986,14 @@ int main(int argc, char** argv) {
             if (w.nodes[i].id == play_at || w.nodes[i].name == play_at) { selected = static_cast<int>(i); player_spawn(sim, player, static_cast<NodeId>(i), false); break; }
     }
     auto enter_ground = [&](NodeId at) {   // the local map: returns true if the window was closed there
-        const bool quit = run_ground(sim, terrain, at, end_day) || !g_ground_shot.empty();
+        bool departed = false;
+        const bool quit = run_ground(sim, terrain, player, at, end_day, departed) || !g_ground_shot.empty();
         fit(cam, w);
-        paused = true;   // the ground view keeps its own clock; the map waits until asked to run
+        paused = !departed;   // the ground view keeps its own clock; the map waits until asked to run, unless he has set off
+        if (departed) { selected = -1; player.departing = false; }
         return quit;
     };
+    bool was_travelling = false;
     bool ground_quit = false;
     if (!ground_at.empty())
         for (std::size_t i = 0; i < w.nodes.size(); ++i)
@@ -1828,6 +2084,19 @@ int main(int argc, char** argv) {
             while (accum >= 1.0 && w.today < end_day && GetTime() - t0 < 0.04) { sim.step(); accum -= 1.0; }
             accum = std::min(accum, 1.0);
         }
+
+        // Arriving in a town after a haul: the map hands over to the town, where the wagon stands.
+        if (player.active() && !player.dead) {
+            const Trader* me = player_trader(sim, player);
+            const bool trav = me && me->travelling;
+            if (was_travelling && me && !trav && me->at >= 0 && shot.empty()) {
+                was_travelling = false;
+                player.msg = std::string("You have arrived in ") + w.nodes[World::idx(me->at)].name + ".";
+                if (enter_ground(me->at)) break;
+                continue;
+            }
+            was_travelling = trav;
+        } else was_travelling = false;
 
         // A followed wagon keeps the camera on it; if it dies or leaves the road in a town, follow it to the town.
         if (player.active()) {   // the camera stays with the player's wagon on the road
@@ -1929,13 +2198,14 @@ int main(int argc, char** argv) {
             }
         }
         if (followed >= 0) draw_trader_panel(w, sim.traders()[static_cast<std::size_t>(followed)]);
+        int town_bottom = 40;
         if (selected >= 0) {
             const Node& n = w.nodes[static_cast<std::size_t>(selected)];
             const Vector2 p = cam.to_screen(static_cast<float>(n.x), static_cast<float>(n.y));
             DrawCircleLines(static_cast<int>(p.x), static_cast<int>(p.y), 16, {20, 20, 20, 255});
-            draw_town_panel(sim, static_cast<std::size_t>(selected));
+            town_bottom = draw_town_panel(sim, static_cast<std::size_t>(selected)) + 6;
         }
-        headline_click = draw_headlines(sim, scenario.log_from, selected >= 0 ? 380 : followed >= 0 ? 300 : 40);
+        headline_click = draw_headlines(sim, scenario.log_from, selected >= 0 ? town_bottom : followed >= 0 ? 300 : 40);
 
         // HUD: date, speed, counts.
         panel(10, 8, 520, 26);

@@ -372,6 +372,7 @@ struct Params {
 
     // Freight jobs (jobs.cpp): a town's open order is work for a carrier, who hauls the supplier's goods for what the order pays beyond them.
     int carrier_jobs = 2;                    // 1: freelancers and house outfits may carry an open order on the supplier's goods instead of buying a load; 2: eastern firms too
+    double owner_haul_share = 1.0;           // an owner-driver's own cost of hauling, as a share of the going freight rate (his wagon, team and time are already in upkeep and wages); 1 charges him the full market rate, as before
     double job_rate_share = 0.25;             // share of the going freight rate a carrier is paid; scarcity (an order's escalated offer) scales it up
     double job_preference = 1.0;             // how a carrier weighs a job's pay against a speculative load of the same expected profit
 

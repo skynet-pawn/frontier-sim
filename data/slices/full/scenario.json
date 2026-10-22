@@ -113,6 +113,7 @@
   }
  ],
  "params": {
+  "owner_haul_share": 0.5,
   "transient_inflow_rate": 8e-05,
   "gang_form_min_drifters": 8,
   "gang_form_chance": 0.02,
