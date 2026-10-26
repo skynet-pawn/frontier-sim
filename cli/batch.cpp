@@ -212,9 +212,10 @@ int main(int argc, char** argv) {
         row("people starved to death", runs, [](const RunStats& r) { return r.starved; });
         row("game hunted (head of beef-equivalent)", runs, [](const RunStats& r) { return r.game_taken; });
         row("  share of the herds left at the end", runs, [](const RunStats& r) { return r.game_left; });
-        row("famine episodes (merged)", runs, [](const RunStats& r) { return double(r.famines); });
-        row("  distinct towns with a famine", runs, [](const RunStats& r) { return double(r.famine_towns); });
-        row("  raw famine log entries", runs, [](const RunStats& r) { return double(r.famine_events); });
+        row("regional famines (a whole region starving)", runs, [](const RunStats& r) { return double(r.regional_famines); });
+        row("starvation crisis episodes, one town (merged)", runs, [](const RunStats& r) { return double(r.crises); });
+        row("  distinct towns with a crisis", runs, [](const RunStats& r) { return double(r.crisis_towns); });
+        row("  raw crisis log entries", runs, [](const RunStats& r) { return double(r.crisis_events); });
         row("ghost towns (events)", runs, [](const RunStats& r) { return double(r.ghost_towns); });
         row("total population, start", runs, [](const RunStats& r) { return r.pop_start_total; });
         row("total population, end", runs, [](const RunStats& r) { return r.pop_end_total; });
@@ -332,12 +333,12 @@ int main(int argc, char** argv) {
 
         if (!csv.empty()) {
             std::ofstream f(csv);
-            f << "seed,hash,traders_min,traders_end,robberies,gangs_formed,posses,posse_victories,posse_routs,detectives,takeovers,freed,vigilance,famines,ghost_towns,pop_start,pop_end,money_end,east_buys,east_sells,emigrated,richest_cash,famine_towns,famine_events,shortages,shortage_events,shortage_towns,starved,game_taken,game_left,contracts_signed,contracts_cancelled,contract_revenue,contract_outlay,jobs_delivered,job_pay,job_lost,gangs_active_mean,gang_size_mean,gang_peak,gang_big_days,gang_wars,gang_mergers,gang_breakdowns\n";
+            f << "seed,hash,traders_min,traders_end,robberies,gangs_formed,posses,posse_victories,posse_routs,detectives,takeovers,freed,vigilance,crises,ghost_towns,pop_start,pop_end,money_end,east_buys,east_sells,emigrated,richest_cash,crisis_towns,crisis_events,shortages,shortage_events,shortage_towns,starved,game_taken,game_left,contracts_signed,contracts_cancelled,contract_revenue,contract_outlay,jobs_delivered,job_pay,job_lost,gangs_active_mean,gang_size_mean,gang_peak,gang_big_days,gang_wars,gang_mergers,gang_breakdowns\n";
             for (const RunStats& r : runs)
                 f << r.seed << ',' << r.hash << ',' << r.traders_min << ',' << r.traders_end << ',' << r.robberies << ',' << r.gangs_formed << ',' << r.posses << ','
                   << r.posse_victories << ',' << r.posse_routs << ',' << r.detective_parties << ',' << r.takeovers << ',' << r.towns_freed << ',' << r.vigilance << ','
-                  << r.famines << ',' << r.ghost_towns << ',' << r.pop_start_total << ',' << r.pop_end_total << ',' << r.money_end << ',' << r.east_buys << ','
-                  << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.famine_towns << ',' << r.famine_events << ',' << r.shortages << ',' << r.shortage_events << ',' << r.shortage_towns << ',' << r.starved << ',' << r.game_taken << ',' << r.game_left << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << ',' << r.jobs_delivered << ',' << r.job_pay << ',' << r.job_lost << ',' << r.gangs_active_mean << ',' << r.gang_size_mean << ',' << r.gang_peak << ',' << r.gang_big_days << ',' << r.gang_wars << ',' << r.gang_mergers << ',' << r.gang_breakdowns << '\n';
+                  << r.crises << ',' << r.ghost_towns << ',' << r.pop_start_total << ',' << r.pop_end_total << ',' << r.money_end << ',' << r.east_buys << ','
+                  << r.east_sells << ',' << r.emigrated << ',' << r.richest_cash << ',' << r.crisis_towns << ',' << r.crisis_events << ',' << r.shortages << ',' << r.shortage_events << ',' << r.shortage_towns << ',' << r.starved << ',' << r.game_taken << ',' << r.game_left << ',' << r.contracts_signed << ',' << r.contracts_cancelled << ',' << r.contract_revenue << ',' << r.contract_outlay << ',' << r.jobs_delivered << ',' << r.job_pay << ',' << r.job_lost << ',' << r.gangs_active_mean << ',' << r.gang_size_mean << ',' << r.gang_peak << ',' << r.gang_big_days << ',' << r.gang_wars << ',' << r.gang_mergers << ',' << r.gang_breakdowns << '\n';
         }
         // Where a trader's money goes: per sale, what comes in against what was paid, split by kind of outfit, good and year.
         for (const RunStats& r : runs) {
@@ -373,7 +374,7 @@ int main(int argc, char** argv) {
         }
         if (!series_file.empty()) {
             std::ofstream f(series_file);
-            f << "seed,day,traders,freelancers,house_outfits,firms,houses_open,gangs,money,avg_profit,pop,towns,towns_short,shortages,famines,starved,robberies,trader_exits,settled,orders,convoys_hired,jobs_delivered,towns_founded,ghosts";
+            f << "seed,day,traders,freelancers,house_outfits,firms,houses_open,gangs,money,avg_profit,pop,towns,towns_short,shortages,crises,starved,robberies,trader_exits,settled,orders,convoys_hired,jobs_delivered,towns_founded,ghosts";
             for (int k = 0; k < frontier::kMoneyFlowCount; ++k) {
                 std::string name = frontier::money_flow_name(static_cast<frontier::MoneyFlow>(k));
                 for (char& c : name) if (!std::isalnum(static_cast<unsigned char>(c))) c = '_';
@@ -383,7 +384,7 @@ int main(int argc, char** argv) {
             for (const RunStats& r : runs)
                 for (const frontier::SeriesRow& s : r.series) {
                     f << r.seed << ',' << s.day << ',' << s.traders << ',' << s.freelancers << ',' << s.house_outfits << ',' << s.firms << ',' << s.houses_open << ',' << s.gangs << ','
-                      << s.money << ',' << s.avg_profit << ',' << s.pop << ',' << s.towns << ',' << s.towns_short << ',' << s.shortages << ',' << s.famines << ',' << s.starved << ','
+                      << s.money << ',' << s.avg_profit << ',' << s.pop << ',' << s.towns << ',' << s.towns_short << ',' << s.shortages << ',' << s.crises << ',' << s.starved << ','
                       << s.robberies << ',' << s.trader_exits << ',' << s.settled << ',' << s.orders << ',' << s.convoys_hired << ',' << s.jobs_delivered << ',' << s.towns_founded << ',' << s.ghosts;
                     for (double v : s.flows) f << ',' << v;
                     f << '\n';

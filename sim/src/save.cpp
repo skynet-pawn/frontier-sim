@@ -19,7 +19,7 @@ namespace frontier {
 
 namespace {
 constexpr char kMagic[8] = {'F', 'R', 'S', 'A', 'V', 'E', '0', '1'};
-constexpr std::uint32_t kStateVersion = 5;
+constexpr std::uint32_t kStateVersion = 6;
 }  // namespace
 
 // ---- struct field lists (found by argument-dependent lookup from the generic vector and pair code) ----
@@ -51,7 +51,7 @@ template <class Ar> void io(Ar& ar, Node& n) {
     io(ar, n.last_posse_day); io(ar, n.posse_pause_until); io(ar, n.last_shortage_log); io(ar, n.last_pop_log); io(ar, n.last_pop_dir);
     io(ar, n.ghost); io(ar, n.game); io(ar, n.game_capacity); io(ar, n.hunted_total); io(ar, n.game_thin); io(ar, n.starving);
     io(ar, n.deprivation); io(ar, n.starved_total); io(ar, n.spell_deaths); io(ar, n.spell_pop); io(ar, n.spell_quiet);
-    io(ar, n.spell_active); io(ar, n.in_famine); io(ar, n.garrison_short); io(ar, n.pop_band);
+    io(ar, n.spell_active); io(ar, n.in_crisis); io(ar, n.garrison_short); io(ar, n.pop_band);
 }
 
 // A route's definition (ends, miles, dates, path) comes from the data; only what changes is saved.
@@ -171,6 +171,7 @@ template <class Ar> void Simulation::io_state(Ar& ar) {
     io(ar, traders_); io(ar, convoys_); io(ar, houses_); io(ar, contracts_);
     io(ar, contracts_signed_); io(ar, contracts_cancelled_);
     io(ar, starved_logged_); io(ar, hunted_logged_);
+    io(ar, region_death_ema_); io(ar, region_famine_deaths_); io(ar, region_in_famine_); io(ar, region_quiet_);
     io(ar, contract_units_); io(ar, contract_revenue_); io(ar, contract_outlay_);
     io(ar, houses_founded_); io(ar, house_recaps_); io(ar, house_exits_);
     io(ar, orders_placed_); io(ar, orders_expired_); io(ar, convoys_hired_);

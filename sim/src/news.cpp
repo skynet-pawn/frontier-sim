@@ -87,8 +87,8 @@ bool Simulation::make_headline(const Event& e, Headline& h) const {
     } else if (e.kind == "shortage") {
         h.text = strf("%s Short of Provisions", where.c_str());
         h.weight = 0.6;
-    } else if (e.kind == "famine") {
-        h.text = strf("Famine Stalks %s", where.c_str());
+    } else if (e.kind == "food_crisis") {
+        h.text = strf("Hunger Takes Its Toll At %s", where.c_str());
         h.weight = 1.6;
     } else if (e.kind == "ghost_town") {
         h.text = strf("%s Abandoned", where.c_str());

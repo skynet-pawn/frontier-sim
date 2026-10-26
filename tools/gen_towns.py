@@ -600,7 +600,7 @@ if BUILD:
     scenario.setdefault('params', {}).update({'farm_pace_start': float(opts.get('farm-pace-start', 2.0)), 'farm_pace_end': float(opts.get('farm-pace-end', 5.0)),
                                               'ranch_pace_start': float(opts.get('ranch-pace-start', 1.5)), 'ranch_pace_end': float(opts.get('ranch-pace-end', 2.5)),
                                               'rush_stake_days': float(opts.get('rush-stake-days', 90.0)), 'lead_stages': int(opts.get('lead-stages', 1)),
-                                              'plan_stop_costs': int(opts.get('plan-stop-costs', 1)), 'books_stages': int(opts.get('books-stages', 1))})
+                                              'plan_stop_costs': int(opts.get('plan-stop-costs', 1)), 'books_stages': int(opts.get('books-stages', 1)), 'owner_haul_share': float(opts.get('owner-haul-share', 0.5))})
 
     out = os.path.join(ROOT, 'data', 'slices', out_name)
     os.makedirs(out, exist_ok=True)

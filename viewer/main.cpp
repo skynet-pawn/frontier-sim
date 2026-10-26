@@ -186,7 +186,7 @@ struct Filter {
 // Plain-language headlines: the big stories out of the event log. Everything else stays in the raw feed. Posse
 // raising and gang break-ups are left out: they repeat every few days and would drown the town stories.
 bool is_headline(const Event& e) {
-    static const char* const kinds[] = {"famine", "famine_over", "ghost_town", "town_founded", "gang_takeover", "town_freed", "shortage", "gang_war", "gang_merged",
+    static const char* const kinds[] = {"food_crisis", "food_crisis_over", "famine", "famine_over", "ghost_town", "town_founded", "gang_takeover", "town_freed", "shortage", "gang_war", "gang_merged",
                                         "leader_killed", "house_founded",
                                         "house_closed", "route_changed", "reserve_exhausted", "output_begins", "rush", "road_closure",
                                         "house_collapse", "firm_withdrawal", "rail_construction", "road_improved", "road_worn", "trader_settled", "crop_failure", "vigilance_formed", "repopulating", "law_established", "bushwhack_notable", "cavalry_sent"};
@@ -1919,6 +1919,128 @@ bool run_ground(Simulation& sim, const Terrain& terrain, Player& player, NodeId 
     return WindowShouldClose();
 }
 
+// ---------------------------------------------------------------- the road: a loading screen over the days of a haul
+
+struct TripResult {
+    enum Kind { Arrived, Robbed, Killed, Stopped, Closed } kind = Stopped;
+    NodeId at = -1;   // the town the wagon stands in when the trip ends
+};
+
+// The player never watches the world run. He sets off, the sim steps day by day behind this screen, and it ends when the
+// wagon arrives, is held up (the gang takes the load and he is back at the town the leg started from), or he is killed.
+// A toll (part of the load) only adds a line to the journal, and the wagon goes on.
+TripResult run_trip(Simulation& sim, Player& player, long end_day) {
+    const World& w = sim.world();
+    TripResult res;
+    const Trader* t0 = player_trader(sim, player);
+    if (!t0) { res.kind = TripResult::Killed; return res; }
+    const NodeId origin = t0->at, dest = t0->dest;
+    const GoodId cargo0 = t0->cargo;
+    const double value0 = t0->qty * t0->unit_cost;
+    int robberies_seen = t0->robberies;
+    double qty_seen = t0->qty;
+    // Where the road passes, with the days to each stop, for the progress bar.
+    std::vector<std::string> stops{w.nodes[World::idx(origin)].name};
+    std::vector<double> stop_pop{w.nodes[World::idx(origin)].population};
+    std::vector<double> stop_day{0};
+    {
+        NodeId cur = origin;
+        double d = 0;
+        for (EdgeId id : t0->route) {
+            const Edge& e = w.edges[World::idx(id)];
+            d += e.travel_days;
+            cur = e.a == cur ? e.b : e.a;
+            stops.push_back(w.nodes[World::idx(cur)].name);
+            stop_pop.push_back(w.nodes[World::idx(cur)].population);
+            stop_day.push_back(d);
+        }
+    }
+    const double total_days = std::max(1.0, stop_day.back());
+    const long start_day = w.today;
+    std::vector<std::string> journal;
+    bool finished = false;
+    std::string headline, detail;
+
+    while (!WindowShouldClose()) {
+        const double t_start = GetTime();
+        while (!finished && GetTime() - t_start < 0.05) {
+            if (w.today >= end_day) { res.kind = TripResult::Stopped; finished = true; break; }
+            sim.step();
+            const Trader* t = player_trader(sim, player);
+            if (!t) {
+                res.kind = TripResult::Killed;
+                res.at = origin;
+                headline = cargo0 >= 0 ? "Killed on the road" : "Finished on the road";
+                detail = cargo0 >= 0 ? "Riders stopped the wagon and shot you for the load. Nobody in " + w.nodes[World::idx(origin)].name + " will say much about it."
+                                     : "The money ran out before the road did. Your outfit is finished.";
+                player.dead = true;
+                finished = true;
+                break;
+            }
+            if (t->robberies > robberies_seen && t->travelling) {
+                char b[160];
+                std::snprintf(b, sizeof b, "Day %ld: a gang stopped the wagon and took a toll of %.0f %s.", w.today - start_day, qty_seen - t->qty,
+                              cargo0 >= 0 ? w.goods[World::idx(cargo0)].unit.c_str() : "goods");
+                journal.push_back(b);
+                robberies_seen = t->robberies;
+            }
+            qty_seen = t->qty;
+            if (!t->travelling) {
+                res.at = t->at;
+                if (t->at == dest) {
+                    res.kind = TripResult::Arrived;
+                } else {
+                    res.kind = TripResult::Robbed;
+                    headline = "Held up on the road";
+                    char b[260];
+                    std::snprintf(b, sizeof b, "A gang took the whole load%s%s. You walked back to %s with what was in your pockets.",
+                                  cargo0 >= 0 ? ", worth about $" : "", cargo0 >= 0 ? std::to_string(static_cast<long>(value0)).c_str() : "",
+                                  w.nodes[World::idx(t->at)].name.c_str());
+                    detail = b;
+                }
+                finished = true;
+            }
+        }
+
+        BeginDrawing();
+        ClearBackground({226, 214, 184, 255});
+        const int W = GetScreenWidth(), H = GetScreenHeight();
+        const int bx = 90, bw = W - 180, by = H / 2;
+        const double elapsed = static_cast<double>(w.today - start_day);
+        const double frac = finished ? 1.0 : std::clamp(elapsed / total_days, 0.0, 1.0);
+        Text(("On the road to " + w.nodes[World::idx(dest)].name).c_str(), bx, by - 120, 26, {50, 36, 22, 255});
+        char b[160];
+        std::snprintf(b, sizeof b, "day %.0f of about %.0f", std::min(elapsed, total_days), total_days);
+        Text(b, bx, by - 84, 15, {90, 70, 40, 255});
+        DrawRectangle(bx, by - 3, bw, 6, {150, 130, 95, 255});
+        DrawRectangle(bx, by - 3, static_cast<int>(bw * frac), 6, {110, 80, 45, 255});
+        for (std::size_t i = 0; i < stops.size(); ++i) {
+            const int sx = bx + static_cast<int>(bw * stop_day[i] / total_days);
+            DrawCircle(sx, by, 5, i == 0 || i + 1 == stops.size() ? Color{60, 40, 25, 255} : Color{120, 95, 65, 255});
+            if (i == 0 || i + 1 == stops.size() || stop_pop[i] >= 500) Text(stops[i].c_str(), sx - 30, by + 14 + static_cast<int>(i % 2) * 18, 13, {60, 48, 32, 255});
+        }
+        DrawCircle(bx + static_cast<int>(bw * frac), by, 8, {170, 40, 30, 255});
+        int jy = by + 80;
+        for (const std::string& l : journal) { Text(l.c_str(), bx, jy, 14, {120, 40, 30, 255}); jy += 20; }
+
+        bool go = false;
+        if (finished && res.kind != TripResult::Arrived && res.kind != TripResult::Stopped) {
+            const Rectangle card{static_cast<float>(W / 2 - 230), static_cast<float>(H / 2 - 200), 460, 150};
+            panel(static_cast<int>(card.x), static_cast<int>(card.y), static_cast<int>(card.width), static_cast<int>(card.height));
+            Text(headline.c_str(), static_cast<int>(card.x) + 14, static_cast<int>(card.y) + 12, 20, {150, 30, 25, 255});
+            int ly = static_cast<int>(card.y) + 44;
+            for (const std::string& l : wrap(detail, 14, 430)) { Text(l.c_str(), static_cast<int>(card.x) + 14, ly, 14, {40, 30, 20, 255}); ly += 18; }
+            go = button({card.x + card.width - 110, card.y + card.height - 34, 96, 24}, "Continue") || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
+        } else if (finished) {
+            go = true;
+        }
+        EndDrawing();
+        if (go) return res;
+    }
+    res.kind = TripResult::Closed;
+    return res;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1986,12 +2108,24 @@ int main(int argc, char** argv) {
             if (w.nodes[i].id == play_at || w.nodes[i].name == play_at) { selected = static_cast<int>(i); player_spawn(sim, player, static_cast<NodeId>(i), false); break; }
     }
     auto enter_ground = [&](NodeId at) {   // the local map: returns true if the window was closed there
-        bool departed = false;
-        const bool quit = run_ground(sim, terrain, player, at, end_day, departed) || !g_ground_shot.empty();
-        fit(cam, w);
-        paused = !departed;   // the ground view keeps its own clock; the map waits until asked to run, unless he has set off
-        if (departed) { selected = -1; player.departing = false; }
-        return quit;
+        // Setting off hides the days behind a travel screen (the player never watches the world run); the trip ends in a
+        // town, so the ground view opens again there, and the map is only seen when he asks for it.
+        for (;;) {
+            bool departed = false;
+            const bool quit = run_ground(sim, terrain, player, at, end_day, departed) || !g_ground_shot.empty();
+            fit(cam, w);
+            paused = true;
+            if (quit) return true;
+            if (!departed) return false;
+            selected = -1;
+            player.departing = false;
+            const TripResult r = run_trip(sim, player, end_day);
+            if (r.kind == TripResult::Closed) return true;
+            at = r.at >= 0 ? r.at : at;
+            if (r.kind == TripResult::Arrived) player.msg = std::string("You have arrived in ") + w.nodes[World::idx(at)].name + ".";
+            else if (r.kind == TripResult::Robbed) player.msg = "You were robbed on the road.";
+            if (r.kind == TripResult::Stopped) return false;   // the history ran out
+        }
     };
     bool was_travelling = false;
     bool ground_quit = false;

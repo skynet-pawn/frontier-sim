@@ -407,6 +407,7 @@ private:
     void apply_shocks();
     void apply_campaigns();
     void economy_day();
+    void review_famine();   // regions: starvation across many towns at once (a famine), as opposed to one town's food crisis
     void update_population(NodeId n);
     double idle_men_arriving(const Node& n) const;
     double crime_turn_factor(const Node& n) const;
@@ -589,6 +590,11 @@ private:
     std::vector<SupplyContract> contracts_;
     int contracts_signed_ = 0, contracts_cancelled_ = 0;
     double starved_logged_ = 0, hunted_logged_ = 0;
+    // Regional famine (review_famine): per region (index = Node::region), a month's smoothed death rate, whether a famine is on, days quiet and deaths in it.
+    std::vector<double> region_death_ema_, region_famine_deaths_;
+    std::vector<int> region_in_famine_, region_quiet_;
+    std::vector<double> region_civ_, region_starving_civ_, region_deaths_today_;   // today's tallies, rebuilt each day (not saved)
+    std::vector<int> region_lead_;                                                  // the biggest starving town in each region today (names the event)
     double contract_units_ = 0, contract_revenue_ = 0, contract_outlay_ = 0;
     int houses_founded_ = 0, house_recaps_ = 0;
     int house_exits_[2] = {0, 0};               // outfits of houses lost: [0] killed, [1] broke with the house unable to cover

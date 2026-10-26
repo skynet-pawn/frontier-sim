@@ -128,12 +128,12 @@ struct Node {
     bool game_thin = false;               // the herd has been hunted down (logged once per spell)
     bool starving = false;       // in a food shortage: the hunger average is high (nobody need have died yet)
     // Starvation (simulation.cpp). Deaths follow sustained deprivation, not a bad week: a slow average of unmet food need.
-    // A famine is a spell of starvation that kills a real share of the town (famine_death_share).
+    // A food crisis is a spell of starvation that kills a real share of the town (crisis_death_share). A famine is wider: see Simulation::review_famine.
     double deprivation = 0;
     double starved_total = 0;
     double spell_deaths = 0, spell_pop = 0;
     int spell_quiet = 0;         // days since anyone starved in this spell
-    bool spell_active = false, in_famine = false;
+    bool spell_active = false, in_crisis = false;
     bool garrison_short = false; // the soldiers are going short (logged once per spell)
     int pop_band = 0;
 };

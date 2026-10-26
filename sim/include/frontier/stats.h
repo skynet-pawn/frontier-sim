@@ -36,7 +36,7 @@ struct SeriesRow {
     double avg_profit = 0;              // smoothed profit per trader per day
     double pop = 0;                     // people in the frontier towns
     int towns = 0, towns_short = 0;     // towns of 30 or more people, and those in a food shortage today
-    long shortages = 0, famines = 0;    // episodes so far
+    long shortages = 0, crises = 0;    // episodes so far
     double starved = 0;                 // people starved so far
     long robberies = 0, trader_exits = 0, settled = 0, orders = 0, convoys_hired = 0, jobs_delivered = 0, towns_founded = 0, ghosts = 0;
     double flows[kMoneyFlowCount] = {}; // where money came from and went, so far (see MoneyFlow)
@@ -101,10 +101,11 @@ struct RunStats {
     double job_pay = 0, job_lost = 0;   // what carriers earned hauling suppliers' goods, and what the road took from suppliers
     double contract_units = 0, contract_revenue = 0, contract_outlay = 0;   // what the houses delivered, took in and laid out
     double merchant_delivered = 0, merchant_lost = 0;   // dollars of ordered goods that arrived / were robbed
-    int famines = 0, ghost_towns = 0, waypoint_sales = 0;
+    int crises = 0, ghost_towns = 0, waypoint_sales = 0;
     int houses_founded = 0, houses_end = 0, house_outfits_end = 0, house_recaps = 0, house_killed = 0, house_broke = 0;
-    int famine_events = 0;   // raw famine log entries, before merging flicker into episodes
-    int famine_towns = 0;    // distinct towns that had a famine (a spell of starvation that killed a real share of the town)
+    int regional_famines = 0;   // region-wide famines (many towns starving at once, deaths above the mortality line)
+    int crisis_events = 0;   // raw food-crisis log entries, before merging flicker into episodes
+    int crisis_towns = 0;    // distinct towns that had a food crisis (a spell of starvation that killed a real share of the town)
     int shortages = 0, shortage_events = 0, shortage_towns = 0;   // food stores empty and hunger high, whether or not anyone died
     double starved = 0;      // people who starved to death, all towns
     double game_taken = 0, game_left = 0;   // head of beef-equivalent hunted since the log began; share of the herds left at the end

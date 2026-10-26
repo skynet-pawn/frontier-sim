@@ -58,7 +58,7 @@ void print_towns(const frontier::Simulation& sim) {
 }
 
 // One line a day for one town: who lives there, what is on the shelf against what is eaten, what the town can pay
-// with, and what it has asked for. Used to step to a famine and see the ins and outs.
+// with, and what it has asked for. Used to step to a food crisis and see the ins and outs.
 void print_watch(const frontier::Simulation& sim, const std::string& name, int d) {
     using namespace frontier;
     const World& w = sim.world();

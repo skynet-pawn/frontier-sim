@@ -126,6 +126,7 @@
   "rush_stake_days": 90,
   "lead_stages": 1,
   "plan_stop_costs": 1,
+  "owner_haul_share": 0.5,
   "books_stages": 1
  }
 }

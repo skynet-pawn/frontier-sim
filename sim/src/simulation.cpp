@@ -418,6 +418,11 @@ void Simulation::rush_arrives(NodeId id, double people, double cash_per_person, 
 void Simulation::economy_day() {
     const Params& p = world_.params;
     farms_day();
+    const std::size_t regions = world_.region_names.size();
+    region_civ_.assign(regions, 0.0);
+    region_starving_civ_.assign(regions, 0.0);
+    region_deaths_today_.assign(regions, 0.0);
+    region_lead_.assign(regions, -1);
     for (std::size_t ni = 0; ni < world_.nodes.size(); ++ni) {
         Node& n = world_.nodes[ni];
         const NodeId id = static_cast<NodeId>(ni);
@@ -613,6 +618,15 @@ void Simulation::economy_day() {
             const double deaths = n.deprivation > p.starvation_threshold
                                       ? std::min(civilians * 0.5, civilians * p.starvation_max_rate * (n.deprivation - p.starvation_threshold) / (1.0 - p.starvation_threshold))
                                       : 0.0;
+            if (n.region >= 0) {
+                const std::size_t r = static_cast<std::size_t>(n.region);
+                region_civ_[r] += civilians;
+                if (n.deprivation > p.starvation_threshold) {
+                    region_starving_civ_[r] += civilians;
+                    if (region_lead_[r] < 0 || civilians > world_.nodes[World::idx(region_lead_[r])].market_population()) region_lead_[r] = id;
+                }
+                region_deaths_today_[r] += deaths;
+            }
             if (deaths > 0) {
                 if (!n.spell_active) {
                     n.spell_active = true;
@@ -627,25 +641,25 @@ void Simulation::economy_day() {
                 if (world_.today >= sc_.log_from) starved_logged_ += deaths;
                 n.spell_deaths += deaths;
                 n.spell_quiet = 0;
-                if (!n.in_famine && n.spell_pop >= 100 && n.spell_deaths >= p.famine_death_share * n.spell_pop) {
-                    n.in_famine = true;
+                if (!n.in_crisis && n.spell_pop >= 100 && n.spell_deaths >= p.crisis_death_share * n.spell_pop) {
+                    n.in_crisis = true;
                     Fields f = {field("node", n.name), field("pop", n.population), field("civilians", civilians), field("hunger", n.hunger), field("cash", n.cash),
                                 field("deaths", n.spell_deaths), field("spell_pop", n.spell_pop)};
                     const std::string chain = supply_chain(id, civilians, f);
                     log_.with(std::move(f));
-                    log_.add(world_.today, EventType::Famine, "famine", id,
-                             strf("Famine at %s: %.0f of %.0f people have starved (%.0f%%)", n.name.c_str(), n.spell_deaths, n.spell_pop, 100 * n.spell_deaths / n.spell_pop),
+                    log_.add(world_.today, EventType::Famine, "food_crisis", id,
+                             strf("Starvation crisis at %s: %.0f of %.0f people have starved (%.0f%%)", n.name.c_str(), n.spell_deaths, n.spell_pop, 100 * n.spell_deaths / n.spell_pop),
                              strf("%s; town cash %s", chain.c_str(), money(n.cash).c_str()));
                 }
-            } else if (n.spell_active && ++n.spell_quiet >= p.famine_end_days) {
-                if (n.in_famine) {
+            } else if (n.spell_active && ++n.spell_quiet >= p.crisis_end_days) {
+                if (n.in_crisis) {
                     log_.with({field("node", n.name), field("deaths", n.spell_deaths), field("spell_pop", n.spell_pop)});
-                    log_.add(world_.today, EventType::Famine, "famine_over", id,
-                             strf("The famine at %s is over: %.0f people starved in all", n.name.c_str(), n.spell_deaths),
+                    log_.add(world_.today, EventType::Famine, "food_crisis_over", id,
+                             strf("The starvation crisis at %s is over: %.0f people starved in all", n.name.c_str(), n.spell_deaths),
                              "food reached the town again and nobody has starved for a month", true);
                 }
                 n.spell_active = false;
-                n.in_famine = false;
+                n.in_crisis = false;
             }
         }
 
@@ -665,6 +679,49 @@ void Simulation::economy_day() {
         }
 
         update_population(id);
+    }
+    review_famine();
+}
+
+// A famine is starvation across a region, not one town's bad winter. Real famines (Bengal, Ireland, the 1883-84 Blackfeet winter)
+// are counted in whole populations: a large share of the people short of food at once and deaths well above the normal rate, which
+// only supply failing across a whole country does. A region is in famine while a fifth of its civilians live in towns past the
+// starvation line and its smoothed death rate stays above `famine_region_death_rate`; it ends after `crisis_end_days` without.
+void Simulation::review_famine() {
+    const Params& p = world_.params;
+    const std::size_t regions = world_.region_names.size();
+    if (region_death_ema_.size() != regions) {
+        region_death_ema_.assign(regions, 0.0);
+        region_famine_deaths_.assign(regions, 0.0);
+        region_in_famine_.assign(regions, 0);
+        region_quiet_.assign(regions, 0);
+    }
+    for (std::size_t r = 0; r < regions; ++r) {
+        const double civ = region_civ_[r];
+        if (civ <= 0) continue;
+        region_death_ema_[r] += (region_deaths_today_[r] / civ - region_death_ema_[r]) / 30.0;
+        const double share = region_starving_civ_[r] / civ;
+        const bool famine = civ >= p.famine_region_min_civilians && share >= p.famine_region_share && region_death_ema_[r] >= p.famine_region_death_rate;
+        const NodeId at = region_lead_[r] >= 0 ? region_lead_[r] : 0;
+        if (region_in_famine_[r]) region_famine_deaths_[r] += region_deaths_today_[r];
+        if (famine) {
+            region_quiet_[r] = 0;
+            if (!region_in_famine_[r]) {
+                region_in_famine_[r] = 1;
+                region_famine_deaths_[r] = region_deaths_today_[r];
+                log_.with({field("region", world_.region_names[r]), field("civilians", civ), field("share_starving", share), field("death_rate", region_death_ema_[r])});
+                log_.add(world_.today, EventType::Famine, "famine", at,
+                         strf("Famine in %s: %.0f%% of its people live in starving towns", world_.region_names[r].c_str(), 100 * share),
+                         strf("deaths are running at %.1f in 10,000 a day across the region; the worst-hit town is %s",
+                              10000 * region_death_ema_[r], world_.nodes[World::idx(at)].name.c_str()));
+            }
+        } else if (region_in_famine_[r] && ++region_quiet_[r] >= p.crisis_end_days) {
+            region_in_famine_[r] = 0;
+            log_.with({field("region", world_.region_names[r]), field("deaths", region_famine_deaths_[r])});
+            log_.add(world_.today, EventType::Famine, "famine_over", at,
+                     strf("The famine in %s is over: %.0f people starved in all", world_.region_names[r].c_str(), region_famine_deaths_[r]),
+                     "food reached the region's towns again", true);
+        }
     }
 }
 

@@ -106,7 +106,7 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
             }
             const EventLog& lg = sim.log();
             s.shortages = static_cast<long>(lg.count_kind("shortage"));
-            s.famines = static_cast<long>(lg.count_kind("famine"));
+            s.crises = static_cast<long>(lg.count_kind("food_crisis"));
             s.starved = sim.starved_logged();
             s.robberies = static_cast<long>(lg.count_kind("robbery"));
             s.trader_exits = static_cast<long>(lg.count_kind("trader_exit"));
@@ -273,10 +273,10 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
     r.vigilance = static_cast<int>(log.count_kind("vigilance_formed"));
     r.waypoint_sales = static_cast<int>(log.count_kind("trade_waypoint"));
     // A town on the edge of food supply crosses the hunger thresholds again and again; that is one hungry
-    // spell, not many. Famine events at one town fewer than kFamineMergeDays apart (counting from the last
-    // famine or recovery) are one episode, and distinct towns say whether it was regional or chronic.
+    // spell, not many. Food-crisis events at one town fewer than kFamineMergeDays apart (counting from the last
+    // crisis or recovery) are one episode, and distinct towns say whether it was widespread or chronic.
     constexpr long kFamineMergeDays = 90;
-    // Shortages (food stores empty, the hunger average high) and famines (a spell of starvation that killed a real share of
+    // Shortages (food stores empty, the hunger average high) and crises (a spell of starvation that killed a real share of
     // the town) are counted the same way: merged into episodes, with the distinct towns they touched.
     auto count_episodes = [&](const char* start, const char* end, int& episodes, int& towns, int& events) {
         events = 0;
@@ -295,7 +295,8 @@ RunStats run_and_collect(const WorldDef& world, Scenario scenario, std::uint64_t
         }
     };
     count_episodes("shortage", "shortage_over", r.shortages, r.shortage_towns, r.shortage_events);
-    count_episodes("famine", "famine_over", r.famines, r.famine_towns, r.famine_events);
+    count_episodes("food_crisis", "food_crisis_over", r.crises, r.crisis_towns, r.crisis_events);
+    r.regional_famines = static_cast<int>(log.count_kind("famine"));
     r.starved = sim.starved_logged();
     r.game_taken = sim.hunted_logged();
     double game_now = 0, game_cap = 0;

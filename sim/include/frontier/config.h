@@ -161,8 +161,13 @@ struct Params {
     double deprivation_alpha = 0.03;         // how slowly the deprivation average follows unmet food need (about a month)
     double starvation_threshold = 0.30;      // deprivation above this starts killing people (below it they forage, tighten belts, leave)
     double starvation_max_rate = 0.005;      // daily death rate among the market-fed at total deprivation (about 30% in ten weeks)
-    double famine_death_share = 0.10;        // a famine is a spell of starvation that kills this share of the town
-    int famine_end_days = 30;                // ...and it ends after this many days with nobody starving
+    double crisis_death_share = 0.10;        // a food crisis is a spell of starvation that kills this share of a town (local: not a famine, see famine_region_*)
+    int crisis_end_days = 30;                // ...and it ends after this many days with nobody starving
+    // A famine is regional (starvation across a whole territory or state), not one town's bad winter. Borrowed from the international
+    // famine scale: a fifth of the people in extreme food shortage and deaths above 2 in 10,000 a day (the mortality line).
+    double famine_region_share = 0.20;       // share of a region's civilians living in towns past the starvation line
+    double famine_region_death_rate = 0.0002;  // deaths a day per civilian in the region, smoothed over about a month
+    double famine_region_min_civilians = 20000;  // a region this small cannot have a regional famine (a few towns do not make a region)
     double floor_pop = 5;
     double ghost_pop = 25;
     double newcomer_provision_days = 20;     // days of food new arrivals carry with them
