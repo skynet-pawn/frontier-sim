@@ -407,6 +407,9 @@ private:
     void apply_shocks();
     void apply_campaigns();
     void economy_day();
+    // The affordability gate and the classes apply once the warm-up year is over: the opening shelves are arbitrary and thin, so
+    // prices start high everywhere and the gate would starve towns for a state the economy has not yet settled out of.
+    bool food_gate_active() const { return world_.params.food_cost_mult > 0 && world_.today >= sc_.log_from; }
     void review_famine();   // regions: starvation across many towns at once (a famine), as opposed to one town's food crisis
     void update_population(NodeId n);
     double idle_men_arriving(const Node& n) const;

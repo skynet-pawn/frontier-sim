@@ -517,7 +517,7 @@ void Simulation::economy_day() {
         double fed = 0, soldiers_fed = 0;
         // Affordability gate (food_cost_mult > 0): the wild eat off the land, the exit class always pays, and the stuck middle buys
         // only what their income covers at today's shelf price. `cap` is the share of the civilians who can get a full diet at all.
-        const bool gate = p.food_cost_mult > 0 && civilians > 0;
+        const bool gate = food_gate_active() && civilians > 0;
         double wild = 0, stuckf = 1.0, cap = 1.0;
         if (gate) {
             const double density = n.game_capacity > 0 ? std::clamp(n.game / n.game_capacity, 0.0, 1.0) : 0.0;
@@ -778,7 +778,7 @@ void Simulation::update_population(NodeId id) {
     // Hunger drives away the people who depend on the market, not the farmers who feed themselves.
     double hunger_keep = n.hunger > p.hunger_threshold ? 1.0 - n.hunger : 1.0;
     // With classes (food_cost_mult > 0) only the exit class can leave; the rest are stuck where they are.
-    if (p.food_cost_mult > 0) hunger_keep = 1.0 - p.class_exit_share * (1.0 - hunger_keep);
+    if (food_gate_active()) hunger_keep = 1.0 - p.class_exit_share * (1.0 - hunger_keep);
     // The garrison is posted by the Army and stays however the town is doing.
     const double target = std::max(n.garrison + n.base_population + n.farmers + trade_pop * hunger_keep, p.floor_pop);
     // A town with almost nobody left has nobody to starve; newcomers arrive fed, so hunger can't lock it at zero.
