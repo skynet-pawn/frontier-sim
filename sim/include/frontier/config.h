@@ -21,6 +21,7 @@ struct GoodDef {
     double spoilage_per_day = 0;
     bool self_propelled = false;  // walks to market (cattle): moved by drovers, not by freight wagons
     bool game_substitute = false; // wild game stands in for this food where hunters can take it (beef)
+    bool weather_sensitive = false;  // livestock: a dry year in the node's weather zone cuts its output (see Params::range_weather)
     double min_target = 10;     // floor on a node's "normal stock", for goods nobody consumes
     double garrison_need = 0;   // extra daily need per soldier (horses, forage, repairs), beyond the per-person need
     bool money = false;         // dust and bullion pass as currency in the camps that mine it
@@ -167,7 +168,7 @@ struct Params {
     // famine scale: a fifth of the people in extreme food shortage and deaths above 2 in 10,000 a day (the mortality line).
     double famine_region_share = 0.20;       // share of a region's civilians living in towns past the starvation line
     double famine_region_death_rate = 0.0002;  // deaths a day per civilian in the region, smoothed over about a month
-    double famine_region_min_civilians = 20000;  // a region this small cannot have a regional famine (a few towns do not make a region)
+    double famine_region_min_civilians = 5000;   // civilians who eat from the shelf (farmers feed themselves and are not counted); a region this small cannot have a regional famine
     double floor_pop = 5;
     double ghost_pop = 25;
     double newcomer_provision_days = 20;     // days of food new arrivals carry with them
@@ -563,6 +564,15 @@ struct Params {
     double farm_break_even_share = 0.6667;   // a farmer must net this share of a crop's base price to stay on the land
     double farm_marketing_share = 0.85;      // share of the merchant's price that reaches the farmer
     double farm_outlet_units = 300;          // size of the sale a farm district prices its outlets by
+    // Who can eat when food is dear (0 = off: everyone draws on the shelf at no cost, as before). A full diet costs this many times
+    // the sim's base diet in a typical household's reckoning (the sim's food is cheap against income; history says food was 40-60%
+    // of a working family's budget), and a resident's income is `support_income_per_person`. Residents who cannot pay eat less
+    // (hunger and deprivation follow), so food on the shelf no longer means food on the table.
+    double food_cost_mult = 0;
+    double class_wild_share = 0.03;          // living off the land already: take nothing from the shelf, immune to starvation
+    double class_exit_share = 0.15;          // can pay whatever it costs and can leave when it is bad: only these go when the town is hungry
+    double class_wild_move = 0.10;           // share who turn to the land when hungry, scaled by how much game is left around the town
+    double range_weather = 0;                // 0 = ranch output ignores the weather; 1 = a dry year cuts a weather-sensitive good's output as it cuts the crops
     double farm_weather_sd = 0.3;            // year-to-year swings in yield
     double farm_settle_base = 0.0005;        // new farmers per day, as a share of capacity...
     double farm_settle_growth = 0.002;       // ...plus a share of the farmers already there (neighbours follow neighbours)

@@ -78,6 +78,7 @@ WorldDef load_world(const std::string& dir) {
         g.spoilage_per_day = jg.value("spoilage_per_day", 0.0);
         g.self_propelled = jg.value("self_propelled", false);
         g.game_substitute = jg.value("game_substitute", false);
+        g.weather_sensitive = jg.value("weather_sensitive", false);
         g.min_target = jg.value("min_target", 10.0);
         g.market_depth = jg.value("market_depth", 0.0);
         g.garrison_need = jg.value("garrison_need", 0.0);
@@ -390,7 +391,7 @@ Scenario load_scenario(const std::string& dir, const WorldDef& world) {
     P_I(posse_cooldown); P_I(posse_min_men_led); P_D(leader_fee_per_day); P_D(leader_bonus_share);
     P_D(leader_range); P_D(leader_death_prob); P_D(leader_skill_gain); P_D(leader_skill_cap); P_D(leader_emerge_chance); P_D(posse_range); P_D(gang_terrain_advantage);
     P_D(farm_surplus_per_farmer); P_I(farm_harvest_start); P_I(farm_harvest_days); P_D(farm_release_rate);
-    P_D(farm_forage_ratio); P_D(farm_break_even_share); P_D(farm_marketing_share); P_D(farm_outlet_units); P_D(farm_weather_sd);
+    P_D(farm_forage_ratio); P_D(farm_break_even_share); P_D(farm_marketing_share); P_D(farm_outlet_units); P_D(farm_weather_sd); P_D(range_weather); P_D(food_cost_mult); P_D(class_wild_share); P_D(class_exit_share); P_D(class_wild_move);
     P_D(farm_settle_base); P_D(farm_settle_growth); P_D(farm_leave_rate); P_D(farm_core_share); P_D(farm_gate_cap); P_D(farm_gate_alpha); P_D(found_gate_ratio);
     P_I(found_months); P_D(found_cash_per_person); P_D(farm_pace_start); P_D(farm_pace_end); P_D(ranch_pace_start); P_D(ranch_pace_end);
 #undef P_D

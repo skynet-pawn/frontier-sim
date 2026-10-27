@@ -443,6 +443,9 @@ void Simulation::economy_day() {
             }
             const double labor = pd.labor_pop > 0 ? std::min(1.0, n.population / pd.labor_pop) : 1.0;
             double amount = pd.rate * labor;
+            // Livestock graze what the weather grows: a dry year in the zone thins the range as it thins the crops (good years add nothing).
+            if (p.range_weather > 0 && n.zone >= 0 && good(pd.good).weather_sensitive)
+                amount *= 1.0 - p.range_weather * (1.0 - std::min(1.0, world_.zone_yield[static_cast<std::size_t>(n.zone)]));
             if (n.reserve[g] >= 0) {
                 amount = std::min(amount, n.reserve[g]);
                 n.reserve[g] -= amount;
@@ -512,6 +515,21 @@ void Simulation::economy_day() {
         const double soldiers = std::min(n.garrison, n.market_population());
         const double civilians = n.market_population() - soldiers;
         double fed = 0, soldiers_fed = 0;
+        // Affordability gate (food_cost_mult > 0): the wild eat off the land, the exit class always pays, and the stuck middle buys
+        // only what their income covers at today's shelf price. `cap` is the share of the civilians who can get a full diet at all.
+        const bool gate = p.food_cost_mult > 0 && civilians > 0;
+        double wild = 0, stuckf = 1.0, cap = 1.0;
+        if (gate) {
+            const double density = n.game_capacity > 0 ? std::clamp(n.game / n.game_capacity, 0.0, 1.0) : 0.0;
+            wild = std::min(0.9, p.class_wild_share + p.class_wild_move * std::clamp(n.hunger, 0.0, 1.0) * density);
+            const double exit_share = std::min(p.class_exit_share, 1.0 - wild);
+            stuckf = 1.0 - wild - exit_share;
+            double diet_cost = 0;   // one person's full diet for a day at the going prices
+            for (std::size_t g = 0; g < world_.goods.size(); ++g)
+                if (world_.goods[g].food_share > 0) diet_cost += world_.goods[g].need_per_person_per_day * world_.mid_price(id, static_cast<GoodId>(g));
+            const double afford = std::clamp(p.support_income_per_person / (p.food_cost_mult * std::max(diet_cost, 1e-9)), 0.0, 1.0);
+            cap = wild + exit_share + stuckf * afford;
+        }
         // Some of the civilians hunt. Game stands in for beef before anyone buys it: what the hunters bring in comes off the
         // town's need, so the shelf is spared. The catch follows how much game is left, so a growing camp hunts out its hills.
         const double hunters = civilians * p.hunter_share;
@@ -521,12 +539,12 @@ void Simulation::economy_day() {
             double game_take = 0;
             if (gd.game_substitute && n.game_capacity > 0 && n.game > 0 && civ_want > 0) {
                 const double density = n.game / n.game_capacity;
-                game_take = std::min({hunters * p.hunter_catch * density, civ_want, n.game});
+                game_take = std::min({hunters * p.hunter_catch * density, civ_want * (cap - wild), n.game});
                 n.game -= game_take;
                 n.hunted_total += game_take;
                 if (world_.today >= sc_.log_from) hunted_logged_ += game_take;
             }
-            const double civ_take = std::min(n.stock[g], civ_want - game_take);
+            const double civ_take = std::min(n.stock[g], civ_want * (cap - wild) - game_take);
             n.stock[g] -= civ_take;
             if (civ_want > 0 && gd.food_share > 0) fed += gd.food_share * ((civ_take + game_take) / civ_want);
             const double sol_want = soldiers * gd.need_per_person_per_day;
@@ -541,12 +559,13 @@ void Simulation::economy_day() {
                 n.stock[g] -= std::min(n.stock[g], need - from_store);
             }
         }
-        // Substitution: people short of beef eat more flour (and vice versa) before they go hungry.
-        for (std::size_t g = 0; g < world_.goods.size() && fed < 1.0; ++g) {
+        fed += wild;   // the wild are fed from the land
+        // Substitution: people short of beef eat more flour (and vice versa) before they go hungry (but only as far as they can pay).
+        for (std::size_t g = 0; g < world_.goods.size() && fed < cap; ++g) {
             const GoodDef& gd = world_.goods[g];
             if (gd.food_share <= 0) continue;
             const double full_diet = n.market_population() * gd.need_per_person_per_day / gd.food_share;
-            const double more = std::min(n.stock[g], (1.0 - fed) * full_diet);
+            const double more = std::min(n.stock[g], (cap - fed) * full_diet);
             n.stock[g] -= more;
             if (full_diet > 0) fed += more / full_diet;
         }
@@ -615,13 +634,16 @@ void Simulation::economy_day() {
         // Below the threshold people forage, eat their seed corn and leave; above it they die, faster the longer and deeper it goes.
         if (civilians > 0) {
             n.deprivation += p.deprivation_alpha * ((1.0 - std::min(1.0, fed)) - n.deprivation);
-            const double deaths = n.deprivation > p.starvation_threshold
-                                      ? std::min(civilians * 0.5, civilians * p.starvation_max_rate * (n.deprivation - p.starvation_threshold) / (1.0 - p.starvation_threshold))
+            // With the gate on, the shortfall falls on the stuck middle (the exit class outbids them and the wild are on the land).
+            const double exposed = civilians * stuckf;
+            const double dep = gate ? std::min(1.0, n.deprivation / std::max(stuckf, 0.05)) : n.deprivation;
+            const double deaths = dep > p.starvation_threshold
+                                      ? std::min(exposed * 0.5, exposed * p.starvation_max_rate * (dep - p.starvation_threshold) / (1.0 - p.starvation_threshold))
                                       : 0.0;
             if (n.region >= 0) {
                 const std::size_t r = static_cast<std::size_t>(n.region);
                 region_civ_[r] += civilians;
-                if (n.deprivation > p.starvation_threshold) {
+                if (dep > p.starvation_threshold) {
                     region_starving_civ_[r] += civilians;
                     if (region_lead_[r] < 0 || civilians > world_.nodes[World::idx(region_lead_[r])].market_population()) region_lead_[r] = id;
                 }
@@ -754,7 +776,9 @@ void Simulation::update_population(NodeId id) {
     // Farmers and ranchers around a town live off the land; everyone else lives off trade and government money.
     const double trade_pop = std::clamp(n.income_ema / p.support_income_per_person, 0.0, std::max(0.0, n.capacity - n.base_population - n.farmers - n.garrison));
     // Hunger drives away the people who depend on the market, not the farmers who feed themselves.
-    const double hunger_keep = n.hunger > p.hunger_threshold ? 1.0 - n.hunger : 1.0;
+    double hunger_keep = n.hunger > p.hunger_threshold ? 1.0 - n.hunger : 1.0;
+    // With classes (food_cost_mult > 0) only the exit class can leave; the rest are stuck where they are.
+    if (p.food_cost_mult > 0) hunger_keep = 1.0 - p.class_exit_share * (1.0 - hunger_keep);
     // The garrison is posted by the Army and stays however the town is doing.
     const double target = std::max(n.garrison + n.base_population + n.farmers + trade_pop * hunger_keep, p.floor_pop);
     // A town with almost nobody left has nobody to starve; newcomers arrive fed, so hunger can't lock it at zero.
