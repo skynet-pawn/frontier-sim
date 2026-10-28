@@ -685,6 +685,27 @@ void Simulation::economy_day() {
             }
         }
 
+        // Farm families eat what they grow (their food is not on the shelf), so a failed crop starves them directly. `yield_memory` stands
+        // in for the larder: a good year before a bad one cushions it, a second bad year does not. Switched on with the gate.
+        if (food_gate_active() && p.farm_self_feed_yield > 0 && n.farmers > 0) {
+            const double farm_dep = std::clamp(1.0 - n.yield_memory / p.farm_self_feed_yield, 0.0, 1.0);
+            const double farm_deaths = farm_dep > p.starvation_threshold
+                                           ? std::min(n.farmers * 0.5, n.farmers * p.starvation_max_rate * (farm_dep - p.starvation_threshold) / (1.0 - p.starvation_threshold))
+                                           : 0.0;
+            if (n.region >= 0) {
+                const std::size_t r = static_cast<std::size_t>(n.region);
+                region_civ_[r] += n.farmers;
+                if (farm_dep > p.starvation_threshold) region_starving_civ_[r] += n.farmers;
+                region_deaths_today_[r] += farm_deaths;
+            }
+            if (farm_deaths > 0) {
+                n.farmers -= farm_deaths;
+                n.population = std::max(0.0, n.population - farm_deaths);
+                n.starved_total += farm_deaths;
+                if (world_.today >= sc_.log_from) starved_logged_ += farm_deaths;
+            }
+        }
+
         const double arrivals = idle_men_arriving(n);
         n.drifters += arrivals;
         note_drifters(DrifterFlow::Arrived, arrivals);

@@ -572,6 +572,7 @@ struct Params {
     double class_wild_share = 0.01;          // living off the land already: take nothing from the shelf, immune to starvation
     double class_exit_share = 0.15;          // can pay whatever it costs and can leave when it is bad: only these go when the town is hungry
     double class_wild_move = 0.01;           // share who turn to the land when hungry, scaled by how much game is left around the town
+    double farm_self_feed_yield = 0.5;       // with the gate on: a farm family feeds itself while the remembered yield is above this share of normal; below it they starve (0 = farmers never do)
     double range_weather = 0;                // 0 = ranch output ignores the weather; 1 = a dry year cuts a weather-sensitive good's output as it cuts the crops
     double farm_weather_sd = 0.3;            // year-to-year swings in yield
     double farm_settle_base = 0.0005;        // new farmers per day, as a share of capacity...
