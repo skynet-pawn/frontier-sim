@@ -179,7 +179,9 @@ void Simulation::farms_day() {
         const double cap = world_.today >= n.farm_open ? n.farm_capacity : 0.0;
         const double appeal = std::clamp((n.farm_gate - 0.8) / 0.6, 0.0, 1.0);
         const double target = std::max(n.farm_core, cap * appeal * std::clamp(n.yield_memory, 0.3, 1.0));
-        if (n.farmers < target) {
+        // No one settles a district whose people are starving on their own crop (farmers_starving): it stays empty until the yield memory recovers.
+        const bool starving_land = food_gate_active() && p.farm_self_feed_yield > 0 && n.farm_deprivation > p.starvation_threshold;
+        if (n.farmers < target && !starving_land) {
             const double add = std::min(target - n.farmers, cap * p.farm_settle_base + n.farmers * p.farm_settle_growth);
             n.farmers += add;
             n.population += add;

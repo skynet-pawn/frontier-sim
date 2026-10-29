@@ -130,6 +130,7 @@ struct Node {
     // Starvation (simulation.cpp). Deaths follow sustained deprivation, not a bad week: a slow average of unmet food need.
     // A food crisis is a spell of starvation that kills a real share of the town (crisis_death_share). A famine is wider: see Simulation::review_famine.
     double deprivation = 0;
+    double farm_deprivation = 0;            // the same slow average for the farm families, who eat their own crop (only moves with the gate on)
     double starved_total = 0;
     double spell_deaths = 0, spell_pop = 0;
     int spell_quiet = 0;         // days since anyone starved in this spell

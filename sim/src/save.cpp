@@ -19,7 +19,7 @@ namespace frontier {
 
 namespace {
 constexpr char kMagic[8] = {'F', 'R', 'S', 'A', 'V', 'E', '0', '1'};
-constexpr std::uint32_t kStateVersion = 6;
+constexpr std::uint32_t kStateVersion = 7;
 }  // namespace
 
 // ---- struct field lists (found by argument-dependent lookup from the generic vector and pair code) ----
@@ -50,7 +50,7 @@ template <class Ar> void io(Ar& ar, Node& n) {
     io(ar, n.captor); io(ar, n.toll); io(ar, n.captured_day); io(ar, n.captured_income);
     io(ar, n.last_posse_day); io(ar, n.posse_pause_until); io(ar, n.last_shortage_log); io(ar, n.last_pop_log); io(ar, n.last_pop_dir);
     io(ar, n.ghost); io(ar, n.game); io(ar, n.game_capacity); io(ar, n.hunted_total); io(ar, n.game_thin); io(ar, n.starving);
-    io(ar, n.deprivation); io(ar, n.starved_total); io(ar, n.spell_deaths); io(ar, n.spell_pop); io(ar, n.spell_quiet);
+    io(ar, n.deprivation); io(ar, n.farm_deprivation); io(ar, n.starved_total); io(ar, n.spell_deaths); io(ar, n.spell_pop); io(ar, n.spell_quiet);
     io(ar, n.spell_active); io(ar, n.in_crisis); io(ar, n.garrison_short); io(ar, n.pop_band);
 }
 

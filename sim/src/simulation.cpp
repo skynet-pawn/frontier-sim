@@ -686,11 +686,14 @@ void Simulation::economy_day() {
         }
 
         // Farm families eat what they grow (their food is not on the shelf), so a failed crop starves them directly. `yield_memory` stands
-        // in for the larder: a good year before a bad one cushions it, a second bad year does not. Switched on with the gate.
+        // in for the larder: a good year before a bad one cushions it, a second bad year does not. Like a town's, their hunger is a slow
+        // average, so there is a quiet month of foraging and eating the seed corn before the deaths begin. Switched on with the gate.
         if (food_gate_active() && p.farm_self_feed_yield > 0 && n.farmers > 0) {
-            const double farm_dep = std::clamp(1.0 - n.yield_memory / p.farm_self_feed_yield, 0.0, 1.0);
+            const double shortfall = std::clamp(1.0 - n.yield_memory / p.farm_self_feed_yield, 0.0, 1.0);
+            n.farm_deprivation += p.deprivation_alpha * (shortfall - n.farm_deprivation);
+            const double farm_dep = n.farm_deprivation;
             const double farm_deaths = farm_dep > p.starvation_threshold
-                                           ? std::min(n.farmers * 0.5, n.farmers * p.starvation_max_rate * (farm_dep - p.starvation_threshold) / (1.0 - p.starvation_threshold))
+                                           ? std::min(n.farmers * 0.5, n.farmers * p.farm_starve_rate_mult * p.starvation_max_rate * (farm_dep - p.starvation_threshold) / (1.0 - p.starvation_threshold))
                                            : 0.0;
             if (n.region >= 0) {
                 const std::size_t r = static_cast<std::size_t>(n.region);
